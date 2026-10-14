@@ -156,6 +156,15 @@
 La chaîne perception → décision LLM → événements → indicateurs → journal
 fonctionne avec un vrai modèle. À reproduire avec llama.cpp (prod) ensuite.
 
+**Points d'attention observés (Ollama banc de dev)** :
+- Gemma 4 force le thinking (content vide, réponse dans reasoning) →
+  correctif `_extract_useful` robuste.
+- Prompts trop longs + contexte 49152 → thinking long → timeout. Solution :
+  prompts courts + max_tokens 300-400.
+- Visiteurs LLM restaient "stay" sans croyance : prompt à affiner pour
+  les pousser à former une croyance (exiger exit_choice).
+- I1/I2 peu discriminants sur mini-run (pop. réduite, pas de rumeur injectée).
+
 ### Config de validation créée
 
 - `python-sim/config/test-ollama.yaml` : population réduite (2 sécurité
@@ -174,7 +183,20 @@ fonctionne avec un vrai modèle. À reproduire avec llama.cpp (prod) ensuite.
 
 ---
 
-## Annexes — commandes utiles de validation
+## 2026-10-14 — Build llama.cpp Docker
+
+- Lancement `docker compose build llama-cpp` ~01:04 — **en cours**
+  (clone git + cmake CUDA + build, ~20 min).
+- Dockerfile corrigé : base `devel` (pour nvcc), `CUDA_ARCHS=86` (sm86
+  pour RTX 3050), preset `maree.ini` avec 2 modèles, commande `llama-server`
+  (depuis PATH).
+- Image de base : `nvidia/cuda:12.4.0-devel-ubuntu22.04` (build stage) +
+  `nvidia/cuda:12.4.0-runtime-ubuntu22.04` (runtime) — testée, RTX 3050
+  visible dans le conteneur.
+- **En cours** : build en arrière-plan (PID 321917), clone git + cmake CUDA.
+  Attente fin de build pour test du router llama.cpp avec les 2 GGUF.
+
+---
 
 ```bash
 # état GPU / modèles
