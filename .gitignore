@@ -1,0 +1,42 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# ---- Models (huge, on host only) ----
+models/
+*.gguf
+
+# ---- Simulation data ----
+data/
+logs/
+experiments/runs/
+experiments/analysis/
+*.jsonl
+*.parquet
+
+# ---- Godot ----
+.godot/
+*.import
+*.tmp_import
+.godot/imported/
+godot/project/.godot/
+
+# ---- Docker ----
+*.log
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---- Local secrets (never commit real API keys) ----
+.env

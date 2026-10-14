@@ -1,0 +1,30 @@
+# ============================================================
+# Override demo : ajoute Godot VNC (interface navigateur :6080)
+# Usage : docker compose -f docker-compose.yml -f docker-compose.demo.yml up
+# Le service rejoint le réseau maree-net défini dans docker-compose.yml.
+# ============================================================
+
+services:
+  godot-vnc:
+    build:
+      context: ./godot
+      dockerfile: Dockerfile.vnc
+    container_name: maree-godot-vnc
+    runtime: nvidia
+    environment:
+      - SIM_WS_URL=ws://python-sim:8765
+    ports:
+      - "6080:6080"   # noVNC web UI
+      - "5900:5900"   # VNC direct
+    depends_on:
+      python-sim:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - maree-net

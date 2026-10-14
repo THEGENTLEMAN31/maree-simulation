@@ -1,0 +1,52 @@
+# ============================================================
+# MARÉE — configuration de la simulation (décision 11)
+# Aucun paramètre dans le code : tout est déclaré ici.
+# Surchargé par le CLI (--run-id, --mode, --ticks).
+# ============================================================
+
+run_id: run_demo
+seed: 42
+mode: sync              # sync | async (exigence C4)
+tick_duration_ms: 1000  # 1 tick = 1 seconde simulée
+max_ticks: 120
+
+world:
+  smoke_tick: 10            # la fumée apparaît au tick 10 (22h00)
+  smoke_spread_interval: 6  # elle s'étend toutes les 6 s simulées
+  evac_duration_ticks: 900  # fenêtre d'évacuation : 15 min simulées
+  pre_days_ticks: 4320      # 3 jours simulés avant la fête (A1)
+
+population:
+  - name: famille
+    count: 3
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.3
+  - name: securite
+    count: 2
+    kind: llm
+    model: gemma4-e4b
+    temperature: 0.2
+  - name: habitue
+    count: 3
+    kind: llm
+    model: gemma4-e4b
+    temperature: 0.2
+  - name: visiteur
+    count: 5
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.3
+  - name: amis
+    count: 2
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.4
+  - name: foule
+    count: 45
+    kind: rules
+
+# Stockage et collecte
+log_dir: /logs
+collect:
+  sample_size: 30            # F2 : échantillon de décisions évaluées
