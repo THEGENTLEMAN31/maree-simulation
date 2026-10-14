@@ -29,6 +29,9 @@ experiments/analysis/
 .godot/imported/
 godot/project/.godot/
 
+# ---- Graphify (graphe versionné, mais pas les caches) ----
+graphify-out/cache/
+
 # ---- Docker ----
 *.log
 

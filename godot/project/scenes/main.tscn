@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MARÉE — scène principale
+     Godot est un consommateur pur : la scène ne contient que des noeuds
+     d'affichage pilotés par ws_client.gd. Aucune logique de simulation. -->
+<node name="Main">
+  <node name="World" type="Node2D" parent="." index="0">
+    <script path="res://scripts/ws_client.gd"/>
+  </node>
+  <node name="AgentsLayer" type="CanvasLayer" parent="World" index="1">
+    <node name="AgentContainer" type="Control" parent="." index="0" layout_mode="anchors">
+      <script path="res://scripts/agent_view.gd"/>
+    </node>
+  </node>
+  <node name="InspectPanel" type="Control" parent="World" index="2" layout_mode="anchors">
+    <script path="res://scripts/inspector_panel.gd"/>
+  </node>
+  <node name="IndicatorChart" type="Control" parent="World" index="3" layout_mode="anchors">
+    <script path="res://scripts/indicators.gd"/>
+  </node>
+</node>

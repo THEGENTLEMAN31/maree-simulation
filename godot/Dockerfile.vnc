@@ -1,0 +1,30 @@
+# ============================================================
+# Godot VNC — démo jury dans le navigateur (noVNC :6080).
+# Xvfb + fluxbox + x11vnc + websockify, gérés par supervisord.
+# ============================================================
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+ARG GODOT_URL=https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    unzip curl ca-certificates xvfb x11vnc fluxbox novnc websockify supervisor \
+    libglib2.0-0 libpcre2-0 xauth \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L --fail -o /tmp/godot.zip "$GODOT_URL" \
+    && unzip -o /tmp/godot.zip -d /opt/godot \
+    && rm /tmp/godot.zip \
+    && ln -s "$(find /opt/godot -name 'Godot' -type f -executable | head -1)" /usr/local/bin/godot
+
+WORKDIR /godot
+COPY project/ ./project/
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+ENV DISPLAY=:0
+ENV SIM_WS_URL=ws://python-sim:8765
+
+EXPOSE 5900 6080
+
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

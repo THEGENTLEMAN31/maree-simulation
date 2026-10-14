@@ -15,6 +15,18 @@ from src.temporal import Scheduler, SimClock
 MAX_TICKS = 30
 
 
+@pytest.fixture(autouse=True)
+def _clean_logs():
+    """Le journal est append-only (décision 1) : un run a un run_id unique.
+    Pour que les tests soient rejouables, on nettoie le répertoire journal
+    avant chaque test — en production, le CLI génère des run_id uniques."""
+    import shutil
+
+    shutil.rmtree("/tmp/maree_test_logs", ignore_errors=True)
+    yield
+    shutil.rmtree("/tmp/maree_test_logs", ignore_errors=True)
+
+
 def _cfg(mode: str = "sync", seed: int = 42) -> SimulationConfig:
     return SimulationConfig(
         run_id=f"test_{mode}_{seed}",
