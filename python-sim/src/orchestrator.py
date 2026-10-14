@@ -49,15 +49,20 @@ class Orchestrator:
         config: SimulationConfig,
         *,
         kafka_bootstrap: str = "redpanda:9092",
-        llm_base_url: str = "http://llama-cpp:8080/v1",
+        llm_base_url: str | None = None,
         corpus_path: str = "/world_corpus",
         dry_run: bool = False,
+        kafka_memory: bool | None = None,
     ) -> None:
         self.config = config
         self.kafka_bootstrap = kafka_bootstrap
-        self.llm_base_url = llm_base_url
+        # La base URL peut venir de la config YAML (clé llm.base_url) — utile
+        # pour les bancs d'essai locaux (Ollama) sans toucher au code.
+        self.llm_base_url = llm_base_url or config.llm.get("base_url", "http://llama-cpp:8080/v1")
         self.corpus_path = corpus_path
         self.dry_run = dry_run
+        # Kafka en mémoire : par défaut activé en dry_run, sinon réseau réel.
+        self.kafka_memory = kafka_memory if kafka_memory is not None else dry_run
 
         # Déterminisme (décision 3) : un RNG par run, une graine par agent.
         self.rng = random.Random(config.seed)
@@ -83,7 +88,7 @@ class Orchestrator:
                 self.scheduler.register(agent_id, think_interval=interval)
 
         # Passerelle LLM unique (décision 7).
-        self.gateway = LLMGateway(llm_base_url, dry_run=dry_run)
+        self.gateway = LLMGateway(self.llm_base_url, dry_run=dry_run)
         for a in self.llm_agents:
             a.gateway = self.gateway
 
@@ -95,7 +100,7 @@ class Orchestrator:
         self.indicators = Indicators()
         self.oracle = TemporalOracle()
 
-        self.kafka = KafkaClient(kafka_bootstrap, config.run_id, memory=dry_run)
+        self.kafka = KafkaClient(kafka_bootstrap, config.run_id, memory=self.kafka_memory)
         self.logger = RunLogger(config.run_id, config.log_dir)
         self.ws = WSRelay(port=8765, enabled=not dry_run)
         self.ws.on_command = self._handle_control

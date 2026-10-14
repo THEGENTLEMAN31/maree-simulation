@@ -119,16 +119,30 @@ class LLMGateway:
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                text = data["choices"][0]["message"]["content"]
+                message = data["choices"][0]["message"]
+                # Gemma 4 (mode thinking) et certains modèles renvoient le
+                # raisonnement dans `reasoning` et le contenu dans `content`.
+                # On extrait le contenu utilisable = content, sinon rien.
+                content = message.get("content") or ""
+                reasoning = message.get("reasoning") or ""
                 usage = data.get("usage", {})
                 result = LLMCallResult(
-                    text=text,
+                    text=content,
                     call_id=call_id,
                     model=model,
                     duration_ms=int((time.time() - t0) * 1000),
                     tokens_in=usage.get("prompt_tokens", 0),
                     tokens_out=usage.get("completion_tokens", 0),
                 )
+                # Traçabilité du raisonnement pour l'inspection (D2).
+                if reasoning:
+                    setattr(result, "reasoning", reasoning)
+                    # Gemma 4 (mode thinking) peut placer la réponse complète
+                    # dans `reasoning` avec `content` vide. On garde le contenu
+                    # utile : content si non-vide, sinon le JSON trouvé (ou le
+                    # bloc de fin) dans reasoning.
+                    if not content.strip():
+                        result.text = self._extract_useful(reasoning)
                 self.cost_log.add(
                     call_id=call_id,
                     model=model,
@@ -161,6 +175,35 @@ class LLMGateway:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    @staticmethod
+    def _extract_useful(reasoning: str) -> str:
+        """Extrait le contenu utile d'un raisonnement Gemma 4.
+
+        Le pattern typique du mode thinking : un bloc de raisonnement, puis
+        la réponse finale. On prend le dernier bloc JSON équilibré (ou tout
+        le dernier bloc si aucun JSON n'est trouvé).
+        """
+        import re
+
+        # 1. dernier objet JSON complet (équilibré en accolades)
+        for m in re.finditer(r"\{", reasoning):
+            i = m.start()
+            depth = 0
+            string = False
+            j = i
+            while j < len(reasoning):
+                ch = reasoning[j]
+                if ch == '"' and (j == 0 or reasoning[j - 1] != "\\"):
+                    string = not string
+                elif not string and ch in "{}":
+                    depth += 1 if ch == "{" else -1
+                    if depth == 0:
+                        return reasoning[i : j + 1]
+                j += 1
+        # 2. pas de JSON : on renvoie la dernière phrase éventuelle de réponse
+        lines = [l for l in reasoning.splitlines() if l.strip()]
+        return lines[-1] if lines else reasoning
 
     @staticmethod
     def parse_json_robust(text: str) -> dict | None:

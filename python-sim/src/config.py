@@ -19,7 +19,9 @@ class ProfileSpec(BaseModel):
     name: str
     count: int
     kind: Literal["llm", "rules"] = "llm"
-    model: Literal["gemma4-e2b", "gemma4-e4b"] | None = None
+    # Nom de modèle libre : "gemma4-e2b"/"gemma4-e4b" en prod (llama.cpp
+    # router), ou un nom Ollama pour le test d'intégration local.
+    model: str | None = None
     temperature: float = 0.3
     priority: str = ""
     knows_at_start: str = ""

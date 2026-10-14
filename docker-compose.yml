@@ -55,7 +55,7 @@ services:
       - ./models:/models:ro
       - ./presets:/presets:ro
     command: >
-      /llama.cpp/build/bin/llama-server
+      llama-server
       --host 0.0.0.0
       --port 8080
       --models-preset /presets/maree.ini

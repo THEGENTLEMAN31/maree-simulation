@@ -1,0 +1,36 @@
+# ============================================================
+# MARÉE — configuration de VALIDATION RAPIDE avec Ollama
+# Banc d'essai d'INTÉGRATION (décision 2026-10-14) : valide la pipeline
+# Python de bout en bout (perception → LLM → événements → indicateurs →
+# journal) AVANT que les GGUF llama.cpp Docker ne soient prêts.
+# Ce N'EST PAS la config de production — jamais utilisée en soutenance.
+# ============================================================
+
+run_id: validate_fast_sync
+seed: 42
+mode: sync
+tick_duration_ms: 1000
+max_ticks: 8
+
+world:
+  smoke_tick: 2
+  smoke_spread_interval: 6
+  evac_duration_ticks: 900
+  pre_days_ticks: 4320
+
+population:
+  - name: visiteur
+    count: 2
+    kind: llm
+    model: gemma4:latest
+    temperature: 0.3
+  - name: foule
+    count: 4
+    kind: rules
+
+llm:
+  base_url: http://localhost:11434/v1
+
+log_dir: /tmp/maree_validate
+collect:
+  sample_size: 10

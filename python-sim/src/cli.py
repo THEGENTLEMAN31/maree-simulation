@@ -29,8 +29,9 @@ def cli() -> None:
 @click.option("--mode", type=click.Choice(["sync", "async"]), default=None)
 @click.option("--ticks", type=int, default=None)
 @click.option("--dry-run", is_flag=True, help="aucun appel réseau LLM (tests)")
+@click.option("--kafka-memory", is_flag=True, help="Kafka en mémoire (banc d'essai sans Redpanda)")
 @click.option("--json", "as_json", is_flag=True, help="sortie JSON")
-def run(config: str, run_id: str | None, mode: str | None, ticks: int | None, dry_run: bool, as_json: bool) -> None:
+def run(config: str, run_id: str | None, mode: str | None, ticks: int | None, dry_run: bool, kafka_memory: bool, as_json: bool) -> None:
     """Lance un run de simulation."""
     cfg = load_config(config)
     if run_id:
@@ -42,7 +43,7 @@ def run(config: str, run_id: str | None, mode: str | None, ticks: int | None, dr
 
     from .orchestrator import Orchestrator
 
-    orch = Orchestrator(cfg, dry_run=dry_run)
+    orch = Orchestrator(cfg, dry_run=dry_run, kafka_memory=kafka_memory)
     summary = asyncio.run(orch.run(max_ticks=ticks))
     if as_json:
         click.echo(json.dumps(summary, indent=2))

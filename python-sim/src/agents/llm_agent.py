@@ -67,7 +67,9 @@ class LLMAgent(Agent):
         self.gateway: LLMGateway | None = None
         self.rag = None  # attaché par l'orchestrateur (injection, décision 12)
         self.last_call: LLMCallResult | None = None
-        self.drift_events: list[dict] = field(default_factory=list)
+        self.drift_events: list[dict] = []  # A4 : incidents tracés
+        self._pending_message: str | None = None  # A2 : message à relayer
+        self.last_rag: list[dict] | None = None  # F2 : passages retrouvés
 
     # -- mémoire (A1) ------------------------------------------------------
 
