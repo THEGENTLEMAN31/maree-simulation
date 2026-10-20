@@ -214,3 +214,100 @@ curl -s "https://huggingface.co/api/models?search=gemma-4-GGUF&limit=30"
 # tests
 cd python-sim && /tmp/maree-venv/bin/python -m pytest tests/ -q
 ```
+---
+
+## 2026-10-20 — Réparation Godot + chaîne réelle validée de bout en bout
+
+### Godot : la scène était invalide (cause racine du plantage)
+
+- Cause : `.tscn` malformé (`instance=ExtResource` sur un `Script`,
+  `type="SceneTree"`). Ni Godot ni Docker ni la version n'étaient en faute.
+- Scène réécrite en syntaxe texte Godot 4 valide :
+  `Main(Node)` → `World(Node2D, ws_client.gd)` →
+  `AgentsLayer(CanvasLayer)/AgentContainer(Control, agent_view.gd)`,
+  + `IndicatorChart`, `InspectPanel`, `ControlPanel`.
+- Scripts réécrits : `ws_client.gd` (routage `state`/`indicators`/`inspection`,
+  URL par env, reconnexion, `send_command`/`request_inspect`),
+  `agent_view.gd` (carte 0..100 → x5, couleur par croyance, clic → inspect),
+  `indicators.gd` (I1/I2/I4), `inspector_panel.gd` (D2),
+  `control_panel.gd` (D3 : annonce / fausse info / fermeture sortie).
+- `project.godot` en `gl_compatibility` (+ mobile) pour tenir sous llvmpipe.
+
+### Deux vrais bugs Python trouvés par les tests
+
+1. `orchestrator._inspect` appelait `explanation(None)` → `AttributeError`
+   pour un agent à règles (et `KeyError` pour un agent inconnu). Corrigé :
+   perception reconstruite à l'instant courant, réponse `error=unknown_agent`
+   pour un identifiant inconnu. **Test de non-régression ajouté** (D2).
+2. `orchestrator._inspect` n'`await`ait pas `ws.broadcast` → **l'inspection
+   n'était jamais envoyée**. Corrigé (les deux branches).
+
+### llama.cpp : build source abandonné au profit des binaires officiels
+
+- Le build source CUDA (`Dockerfile.cuda`, clone `master` + cmake) dépassait
+  1 h et reconstruisait des binaires déjà validés. Les binaires officiels
+  **b11609** (Ubuntu 24.04, CUDA 12.8) étaient déjà présents dans
+  `models/llama-b11609/`.
+- Nouveau `llama.cpp/Dockerfile.prebuilt` : base `ubuntu:24.04` (GLIBC 2.38
+  requis par les binaires) + runtime CUDA 12.4 copié depuis l'image NVIDIA
+  locale. Binaires montés en lecture seule sur `/opt/llama`.
+- `presets/maree.ini` réaligné sur b11609 : `cache-type-k/v` (et non
+  `kv-cache-type`), `flash-attn = on` (et non `true`), clés `mlock`/`no-mmap`
+  retirées (non supportées).
+
+### Bug de contexte (mode router) — le plus sournois
+
+- `llama-server` **répartit `ctx-size` entre les `--parallel` slots**. Avec
+  15 slots et `ctx-size 8192`, la fenêtre utile tombait à ~546 tokens : le
+  serveur rejetait les prompts réels
+  (`request (649 tokens) exceeds the available context size (512)`) et les
+  agents LLM repliaient **silencieusement** sur la règle (`stay`).
+- Corrigé : slots réduits (E2B `parallel=4`, E4B `parallel=1`) et `ctx-size`
+  dimensionné en conséquence (8192 / 4096). Vérifié : le compteur de jetons
+  passe de `0→0` (repli) à `5779→1707` (appels réels).
+
+### VRAM : E2B tient, E4B non
+
+- E2B (2,9 Go de poids) tient sur la RTX 3050 4 Go. E4B (4,7 Go) **ne tient
+  pas** : OOM vérifié avec `n-gpu-layers = 99`. Le preset le passe en
+  **offload partiel CPU** (`n-gpu-layers = 20`) et l'on garde
+  `--models-max 1` (llama.cpp évince/recharge à la demande).
+- Les deux modèles ne peuvent donc pas être résidents simultanément — c'est
+  une limite matérielle documentée, pas un bug.
+
+### Godot VNC / éditeur : bibliothèques X manquantes
+
+- `libXcursor.so.1` absent → repli Wayland → « all display drivers failed »
+  → SIGSEGV. Corrigé : `libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6
+  libxrender1 libasound2 libfontconfig1 libdbus-1-3` ajoutés à
+  `Dockerfile.vnc`. Godot tourne désormais en OpenGL (llvmpipe) sous Xvfb.
+- `godot-vnc` (jeu, noVNC :6080) et `godot-editor`
+  (profil `editor`, noVNC :6081, projet monté depuis l'hôte) démarrent.
+
+### Batterie de tests exécutée
+
+| Suite | Résultat |
+|---|---|
+| pytest Python | **12 passed** |
+| Godot composants (`run_tests.gd`) | **26 OK / 0 échec** |
+| Godot chaîne WS vs mock (`run_ws_tests.gd`) | **8 OK / 0 échec** |
+| Orchestrator → WSRelay réels (`test_orch_ws.py`) | **10 OK / 0 échec** |
+| E2E complet sync (E2B réel) | **6 OK / 0 échec**, rejeu E3 : 49 événements |
+| E2E complet async (E2B réel) | **6 OK / 0 échec**, rejeu E3 : 47 événements |
+| E2E complet E4B (offload partiel) | **6 OK / 0 échec**, rejeu E3 : 16 événements |
+
+- Le E2E vérifie : connexion WS, `state` → `agent_view` (D1),
+  `indicators` → courbes (B2), `inspect` → `inspection` → panneau (D2),
+  et les **trois** commandes D3 (annonce, fausse info, fermeture sortie).
+- Rejeu E3 : journal rechargé, ordre canonique vérifié, hash d'indicateurs
+  calculé (`make e2e` → `scripts/run_e2e.sh`).
+
+### Commandes ajoutées
+
+```bash
+make test-godot     # composants Godot hors ligne
+make editor         # éditeur Godot dans le navigateur :6081
+make e2e            # chaîne réelle sync (Redpanda + LLM + Godot + rejeu)
+make e2e-async      # idem en mode asynchrone
+make e2e-e4b        # idem avec le grand modèle (offload partiel)
+```

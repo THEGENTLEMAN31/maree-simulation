@@ -1,4 +1,4 @@
-.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report
+.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report test-godot editor e2e e2e-async e2e-e4b
 
 SHELL := /bin/bash
 COMPOSE := docker compose
@@ -45,3 +45,19 @@ lint: ## Lint le code
 
 report: ## Génère le rapport (tableaux + figures, F5)
 	$(COMPOSE) run --rm python-sim python -m src.cli report
+test-godot: ## Tests des composants Godot (headless, hors ligne)
+	docker run --rm -v "$$PWD/godot/project:/godot/project" \
+	  --entrypoint /usr/local/bin/godot maree-simulation-godot-headless \
+	  --path /godot/project --headless --script res://tests/run_tests.gd
+
+editor: ## Éditeur Godot dans le navigateur (:6081) — projet monté depuis l'hôte
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.demo.yml --profile editor up godot-editor
+
+e2e: ## Test de bout en bout de la chaîne réelle (Redpanda + LLM + Godot + rejeu)
+	./scripts/run_e2e.sh
+
+e2e-async: ## Idem en mode asynchrone
+	E2E_CONFIG=e2e-godot-async.yaml E2E_RUN_ID=e2e_godot_async ./scripts/run_e2e.sh
+
+e2e-e4b: ## Idem avec le grand modèle (E4B, offload partiel)
+	E2E_CONFIG=e2e-godot-e4b.yaml E2E_RUN_ID=e2e_godot_e4b ./scripts/run_e2e.sh

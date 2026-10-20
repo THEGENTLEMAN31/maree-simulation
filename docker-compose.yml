@@ -1,11 +1,9 @@
-version: '3.9'
-
 services:
   # ============================================================
   # REDPANDA - Kafka KRaft + Schema Registry + Console
   # ============================================================
   redpanda:
-    image: docker.redpandadata/redpanda:v26.2.4
+    image: redpandadata/redpanda:v26.2.4
     container_name: maree-redpanda
     command:
       - redpanda
@@ -21,8 +19,7 @@ services:
     ports:
       - "9092:9092"      # Kafka API
       - "9644:9644"      # Admin API
-      - "8081:8081"      # Schema Registry (built-in)
-      - "8080:8080"      # Redpanda Console (HTTP)
+      - "8081:8081"      # Schema Registry / Console (HTTP)
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     environment:
@@ -30,7 +27,7 @@ services:
       REDPANDA_DEVELOPER_MODE: "true"
       REDPANDA_LOG_LEVEL: "info"
     healthcheck:
-      test: ["CMD", "rpk", "cluster", "health", "--timeout=5s"]
+      test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -44,7 +41,7 @@ services:
   llama-cpp:
     build:
       context: ./llama.cpp
-      dockerfile: Dockerfile.cuda
+      dockerfile: Dockerfile.prebuilt
     container_name: maree-llama-cpp
     runtime: nvidia
     environment:
@@ -54,23 +51,22 @@ services:
     volumes:
       - ./models:/models:ro
       - ./presets:/presets:ro
+      # Binaires précompilés b11609 (CUDA 12.8, Ubuntu 24.04).
+      - ./models/llama-b11609:/opt/llama:ro
     command: >
-      llama-server
       --host 0.0.0.0
-      --port 8080
+      --port 8081
       --models-preset /presets/maree.ini
-      --models-max 2
-      --parallel 15
-      --ctx-size 4096
-      --n-gpu-layers 99
+      --models-max 1
       --flash-attn on
-      --kv-cache-type q8_0
+      --cache-type-k q8_0
+      --cache-type-v q8_0
       --batch-size 512
       --ubatch-size 512
       --threads 16
-      --mlock
       --no-webui
       --metrics
+      --reasoning off
     deploy:
       resources:
         reservations:
@@ -82,7 +78,7 @@ services:
       redpanda:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -101,7 +97,7 @@ services:
     runtime: nvidia
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
-      - LLM_BASE_URL=http://llama-cpp:8080/v1
+      - LLM_BASE_URL=http://llama-cpp:8081/v1
       - RAG_DB_PATH=/data/rag
       - WORLD_CORPUS_PATH=/world_corpus
       - SIMULATION_CONFIG=/config/simulation.yaml
@@ -113,17 +109,19 @@ services:
       - ./world_corpus:/world_corpus:ro
       - sim-data:/data
       - sim-logs:/logs
-    command: python -m src.orchestrator --config /config/simulation.yaml
+    command: python -m src.cli run --config /config/simulation.yaml
     depends_on:
       redpanda:
         condition: service_healthy
       llama-cpp:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Le service n'expose pas d'endpoint HTTP : on teste l'ouverture du
+      # serveur WebSocket (8765), démarré au début de l'orchestrateur.
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('127.0.0.1',8765))==0 else 1)"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
       start_period: 30s
     networks:
       - maree-net

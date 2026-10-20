@@ -46,6 +46,10 @@ population:
     count: 45
     kind: rules
 
+# Passerelle LLM (llama.cpp router dans Docker)
+llm:
+  base_url: http://llama-cpp:8081/v1
+
 # Stockage et collecte
 log_dir: /logs
 collect:

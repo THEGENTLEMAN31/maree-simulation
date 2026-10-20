@@ -58,7 +58,7 @@ class Orchestrator:
         self.kafka_bootstrap = kafka_bootstrap
         # La base URL peut venir de la config YAML (clé llm.base_url) — utile
         # pour les bancs d'essai locaux (Ollama) sans toucher au code.
-        self.llm_base_url = llm_base_url or config.llm.get("base_url", "http://llama-cpp:8080/v1")
+        self.llm_base_url = llm_base_url or config.llm.get("base_url", "http://llama-cpp:8081/v1")
         self.corpus_path = corpus_path
         self.dry_run = dry_run
         # Kafka en mémoire : par défaut activé en dry_run, sinon réseau réel.
@@ -219,7 +219,14 @@ class Orchestrator:
 
     async def _inspect(self, agent_id: str) -> None:
         agent = self._agent(agent_id)
-        rt = self.runtime[agent_id]
+        rt = self.runtime.get(agent_id)
+        if agent is None or rt is None:
+            # Identifiant inconnu (ou run terminé) : on répond sans planter le
+            # relais WebSocket, pour que Godot puisse afficher l'erreur.
+            await self.ws.broadcast(
+                {"type": "inspection", "agent_id": agent_id, "error": "unknown_agent"}
+            )
+            return
         payload = {
             "type": "inspection",
             "agent_id": agent_id,
@@ -235,8 +242,14 @@ class Orchestrator:
             payload["last_rag"] = getattr(agent, "last_rag", None)
             payload["drifts"] = agent.drift_events
         else:
-            payload["explanation"] = getattr(agent, "explanation", lambda p: {})(None)
-        self.ws.broadcast(payload)
+            # La règle a besoin d'une perception : on la reconstruit à
+            # l'instant courant (décision 10) au lieu de passer None.
+            explain = getattr(agent, "explanation", None)
+            perception = self._perception_for(agent, self.clock.now)
+            payload["explanation"] = (
+                explain(perception) if explain else {"kind": "rules"}
+            )
+        await self.ws.broadcast(payload)
 
     def _apply_intention(self, agent, intention, tick: int, t_trait: int) -> None:
         rt = self.runtime[agent.agent_id]
@@ -435,6 +448,8 @@ class Orchestrator:
 
     async def _handle_control(self, data: dict) -> None:
         """Injection d'événements depuis Godot (D3) + inspection (D2)."""
+        # Trace opérationnelle : utile pour vérifier la chaîne Godot -> Python.
+        print(f"[orchestrateur] contrôle reçu : {data}", flush=True)
         if data.get("type") == "command":
             cmd = data.get("command")
             if cmd == "announcement":

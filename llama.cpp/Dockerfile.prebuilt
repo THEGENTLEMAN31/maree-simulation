@@ -1,0 +1,36 @@
+# ============================================================
+# llama.cpp — image d'inférence locale (Gemma 4 E2B + E4B)
+#
+# Binaires PRÉCOMPILÉS officiels llama.cpp (build b11609, Ubuntu 24.04)
+# présents sur l'hôte dans models/llama-b11609/, montés en lecture seule
+# sur /opt/llama par docker-compose.yml.
+#
+# Pourquoi Ubuntu 24.04 ? Les binaires exigent GLIBC 2.38 / GLIBCXX 3.4.32
+# (build Ubuntu 24.04). L'image CUDA 12.8/Ubuntu 24.04 n'était pas
+# disponible localement : on part d'ubuntu:24.04 et on copie uniquement
+# les bibliothèques du runtime CUDA 12.4 déjà présent (SONAME .so.12,
+# compatible avec un binaire CUDA 12.x).
+#
+# Pourquoi pas une compilation source ? Le build CUDA source prend > 1 h
+# sur ce poste et reconstruit inutilement des binaires déjà validés
+# (runs sync/async du 14/10, voir docs/JOURNAL.md).
+# ============================================================
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS cuda-runtime
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 libstdc++6 libssl3t64 zlib1g libbrotli1 libzstd1 \
+    curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Runtime CUDA (cudart, cublas, ...) copié depuis l'image NVIDIA locale.
+COPY --from=cuda-runtime /usr/local/cuda-12.4/targets/x86_64-linux/lib /opt/cuda/lib
+ENV LD_LIBRARY_PATH=/opt/cuda/lib
+
+WORKDIR /opt
+EXPOSE 8081
+
+# Les binaires sont fournis par le volume ./models/llama-b11609:/opt/llama:ro
+ENTRYPOINT ["/opt/llama/llama-server"]

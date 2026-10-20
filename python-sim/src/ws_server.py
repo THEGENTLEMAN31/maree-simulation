@@ -39,11 +39,16 @@ class WSRelay:
 
     async def _handler(self, ws) -> None:
         self.clients.add(ws)
+        print(f"[ws] client connecté ({len(self.clients)} connecté(s))", flush=True)
         try:
             async for message in ws:
                 await self._dispatch(ws, message)
+        except websockets.ConnectionClosed:
+            # Déconnexion brutale de Godot (quit, redémarrage) : normal.
+            pass
         finally:
             self.clients.discard(ws)
+            print(f"[ws] client déconnecté ({len(self.clients)} restant(s))", flush=True)
 
     async def _dispatch(self, ws, message: str) -> None:
         try:

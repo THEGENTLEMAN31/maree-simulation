@@ -1,34 +1,39 @@
-; Engine configuration file — Godot 4.x
-; Godot est un consommateur pur du flux (décision 9) : aucune logique de
-; simulation, il ne fait qu'afficher les événements reçus de python-sim.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
 [application]
+
 config/name="MAREE Visualisation"
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("")
+config/features=PackedStringArray("4.4")
 config/icon="res://icon.svg"
 
-[gui]
-theme/custom=""
-theme/default_font=""
-theme/icon_font=""
-
 [display]
+
 window/size/viewport_width=1280
 window/size/viewport_height=800
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
-[rendering]
-renderer/rendering_method="forward_plus"
-renderer/antialiasing=1
-environment/defaults/main_canvas_item_size=Vector2i(1280, 800)
+[gui]
 
-[input_devices]
-pointing/emulate_touch_from_mouse=false
+theme/default_font=""
+theme/icon_font=""
 
 [network]
+
 network/tls/enabled=true
 debug/remote_port=8765
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+renderer/antialiasing=1
+environment/defaults/main_canvas_item_size=Vector2i(1280, 800)

@@ -14,14 +14,14 @@ population:
   - name: visiteur
     count: 2
     kind: llm
-    model: gemma-4-E2B-it
+    model: gemma4-e2b
     temperature: 0.1
   - name: foule
     count: 4
     kind: rules
 
 llm:
-  base_url: http://localhost:8080/v1
+  base_url: http://localhost:8081/v1
 
 log_dir: /tmp/maree_validate
 collect:

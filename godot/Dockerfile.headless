@@ -12,17 +12,15 @@ ARG GODOT_VERSION=4.4.1-stable
 ARG GODOT_URL=https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    unzip curl ca-certificates libglib2.0-0 libpcre2-0 \
+    unzip curl ca-certificates libglib2.0-0 libpcre2-8-0 libfontconfig1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Télécharge uniquement l'exécutable Godot (headless n'édite rien).
 RUN curl -L --fail -o /tmp/godot.zip "$GODOT_URL" \
     && unzip -o /tmp/godot.zip -d /opt/godot \
     && rm /tmp/godot.zip \
-    && find /opt/godot -name "Godot" -type f -executable | head -1
-
-# Ajoute Godot au PATH
-RUN ln -s "$(find /opt/godot -name 'Godot' -type f -executable | head -1)" /usr/local/bin/godot
+    && chmod +x /opt/godot/Godot_v4.4.1-stable_linux.x86_64 \
+    && ln -s /opt/godot/Godot_v4.4.1-stable_linux.x86_64 /usr/local/bin/godot
 
 WORKDIR /godot
 COPY project/ ./project/
@@ -30,4 +28,6 @@ COPY project/ ./project/
 ENV SIM_WS_URL=ws://python-sim:8765
 ENV GODOT_RENDERING_DRIVER=dummy
 
-CMD ["godot", "--path", "/godot/project", "--headless", "--quit-after", "1"]
+# Consommateur permanent : tourne jusqu'à l'arrêt du conteneur.
+# Le client WS se reconnecte automatiquement à python-sim.
+CMD ["godot", "--path", "/godot/project", "--headless"]

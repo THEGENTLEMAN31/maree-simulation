@@ -145,3 +145,33 @@ def test_run_async_termine_sans_erreur() -> None:
 
     summary = asyncio.run(go())
     assert summary["mode"] == "async"
+
+def test_inspection_agent_regles_et_inconnu() -> None:
+    """D2 : inspecter un agent à règles ne doit pas planter (perception
+    reconstruite) et la réponse doit être réellement diffusée (broadcast
+    awaité), y compris pour un identifiant inconnu."""
+    cfg = _cfg().model_copy(
+        update={
+            "run_id": "test_inspect",
+            "max_ticks": 3,
+            "population": [ProfileSpec(name="foule", count=2, kind="rules")],
+        }
+    )
+    orch = Orchestrator(cfg, dry_run=True, corpus_path="/tmp/empty_corpus")
+    sent: list[dict] = []
+
+    async def collect(payload: dict) -> None:
+        sent.append(payload)
+
+    orch.ws.broadcast = collect  # type: ignore[method-assign]
+
+    async def go() -> None:
+        await orch._inspect("foule_01")  # avant tout tick
+        await orch._inspect("inexistant")
+
+    asyncio.run(go())
+    assert sent[0]["type"] == "inspection"
+    assert sent[0]["agent_id"] == "foule_01"
+    assert sent[0]["explanation"]["kind"] == "rules"
+    assert sent[1]["type"] == "inspection"
+    assert sent[1]["error"] == "unknown_agent"

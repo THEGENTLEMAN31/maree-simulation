@@ -28,6 +28,8 @@ experiments/analysis/
 *.tmp_import
 .godot/imported/
 godot/project/.godot/
+# Fichiers d'identité générés par l'éditeur (régénérés à l'ouverture).
+*.uid
 
 # ---- Graphify (graphe versionné, mais pas les caches) ----
 graphify-out/cache/

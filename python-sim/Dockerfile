@@ -13,8 +13,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl && rm -rf /var/lib/apt/lists/*
 
-# Dépendances (lockées dans pyproject + uv.lock)
-COPY pyproject.toml uv.lock* ./
+# Dépendances (pyproject ; pas de lockfile versionné)
+COPY pyproject.toml ./
 RUN pip install --no-cache-dir \
     "aiokafka>=0.10,<0.12" \
     "websockets>=12,<14" \

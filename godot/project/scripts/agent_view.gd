@@ -10,6 +10,11 @@ extends Control
 var _points: PackedVector2Array = PackedVector2Array()
 var _colors: PackedColorArray = PackedColorArray()
 var _tooltips: Array = []
+var _agent_ids: Array = []
+
+## Mise à l'échelle pour occuper la fenêtre (les zones sont en 0..100).
+@export var map_scale: float = 5.0
+@export var map_origin: Vector2 = Vector2(40, 20)
 
 # Position approximative des zones (coordonnées logiques 0..100)
 const ZONES := {
@@ -26,17 +31,29 @@ const ZONES := {
 	"sortie_c": Vector2(5, 8),
 }
 
+func _ready() -> void:
+	set_anchors_preset(Control.PRESET_TOP_LEFT)
+	offset_left = 0
+	offset_top = 0
+	offset_right = 760
+	offset_bottom = 620
+
+func _to_screen(p: Vector2) -> Vector2:
+	return map_origin + p * map_scale
+
 func update_state(data: Dictionary) -> void:
-	var agents: Array = data["agents"]
+	var agents: Array = data.get("agents", [])
 	_points = PackedVector2Array()
 	_colors = PackedColorArray()
 	_tooltips.clear()
+	_agent_ids.clear()
 	for agent in agents:
-		var zone: String = agent["zone"]
-		var pos: Vector2 = ZONES.get(zone, Vector2(50, 45)) as Vector2
-		_points.push_back(pos)
+		var zone: String = agent.get("zone", "scene")
+		var pos: Vector2 = ZONES.get(zone, Vector2(50, 45))
+		_points.push_back(_to_screen(pos))
 		_colors.push_back(_color_for(agent))
-		_tooltips.push_back("%s (%s)".format([agent["id"], agent["belief"]]))
+		_agent_ids.push_back(agent.get("id", "?"))
+		_tooltips.push_back("%s (%s)" % [agent.get("id", "?"), agent.get("belief", "?")])
 	queue_redraw()
 
 func _color_for(agent: Dictionary) -> Color:
@@ -51,28 +68,34 @@ func _color_for(agent: Dictionary) -> Color:
 
 func _draw() -> void:
 	# fond de l'esplanade
-	draw_rect(Rect2(Vector2(4, 4), Vector2(122, 116)), Color(0.08, 0.09, 0.12, 1))
-	draw_rect(Rect2(Vector2(4, 4), Vector2(122, 116)), Color(0.10, 0.11, 0.15, 1))
+	var rect := Rect2(_to_screen(Vector2(4, 4)), Vector2(122, 116) * map_scale)
+	draw_rect(rect, Color(0.10, 0.11, 0.15, 1))
+	draw_rect(rect, Color(0.25, 0.27, 0.33, 1), false, 2.0)
 	# sorties (petits rectangles)
-	draw_rect(Rect2(Vector2(88, 2), Vector2(16, 4)), Color(0.9, 0.1, 0.1, 1))  # A
-	draw_rect(Rect2(Vector2(60, 113), Vector2(5, 4)), Color(0.2, 0.8, 0.2, 1))  # B
-	draw_rect(Rect2(Vector2(2, 2), Vector2(4, 4)), Color(0.2, 0.5, 0.9, 1))     # C
+	draw_rect(Rect2(_to_screen(Vector2(88, 2)), Vector2(16, 4) * map_scale), Color(0.9, 0.1, 0.1, 1))  # A
+	draw_rect(Rect2(_to_screen(Vector2(60, 113)), Vector2(5, 4) * map_scale), Color(0.2, 0.8, 0.2, 1))  # B
+	draw_rect(Rect2(_to_screen(Vector2(2, 2)), Vector2(4, 4) * map_scale), Color(0.2, 0.5, 0.9, 1))     # C
 	# agents
+	var radius := 2.6 * map_scale
 	for i in _points.size():
 		var p: Vector2 = _points[i]
 		var c: Color = _colors[i]
-		draw_circle(p, 2.6, c)
-		draw_arc(p, 2.6, 0.0, TAU, c, 2.2, 120)
+		draw_circle(p, radius * 1.8 + 2.0, Color(0, 0, 0, 0.35))
+		draw_circle(p, radius, c)
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.pressed:
-			var mpos: Vector2 = mb.position
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			var mpos: Vector2 = (mb.position - map_origin) / map_scale
 			for i in _points.size():
-				if mpos.distance_to(_points[i]) < 3.0:
-					var agent_id: String = _tooltips[i]
-					var ws := get_node("/root/World")
-					if is_instance_valid(ws):
-						ws.request_inspect(agent_id)
+				var logical: Vector2 = (_points[i] - map_origin) / map_scale
+				if mpos.distance_to(logical) < 5.0:
+					request_inspect(_agent_ids[i])
 					break
+
+## Retrouve le client WS (nœud du groupe "ws_client") sans dépendre du chemin.
+func request_inspect(agent_id: String) -> void:
+	var ws := get_tree().get_first_node_in_group("ws_client")
+	if ws != null and ws.has_method("request_inspect"):
+		ws.request_inspect(agent_id)

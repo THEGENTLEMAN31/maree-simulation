@@ -19,8 +19,18 @@ téléchargé) et le cadrage détaillé dans `docs/cadrage-maree.md` (copie de
 ## Stack (ne pas diverger sans mettre à jour ce fichier)
 
 - **LLM** : Gemma 4 E2B (rapide) + E4B (raisonnement), en local via llama.cpp
-  router (Docker `llama-cpp`). **N'utilise pas Ollama** : il ne gère pas
+  router (Docker `llama-cpp`, binaires officiels **b11609** — voir
+  `llama.cpp/Dockerfile.prebuilt`). **N'utilise pas Ollama** : il ne gère pas
   l'expert offload MoE et évince les modèles sur 4 Go de VRAM.
+  Contraintes matérielles (RTX 3050, 4 Go) :
+  - E2B (2,9 Go) tient intégralement sur le GPU ;
+  - E4B (4,7 Go) **ne tient pas** → offload partiel CPU
+    (`n-gpu-layers = 20` dans `presets/maree.ini`), latence plus élevée ;
+  - en mode router, `ctx-size` est **réparti entre les `--parallel` slots** :
+    dimensionner `ctx-size = slots × fenêtre voulue` (sinon les prompts réels
+    sont rejetés et les agents replient silencieusement sur la règle) ;
+  - les deux modèles ne peuvent pas être résidents ensemble :
+    `--models-max 1`.
 - **Streaming** : Redpanda (Kafka API) dans Docker, `schema_version` par
   enveloppe, topics `world.events`, `agent.decisions`, `metrics.indicators`,
   `control.commands`, `dlq.invalid`.
@@ -35,9 +45,10 @@ téléchargé) et le cadrage détaillé dans `docs/cadrage-maree.md` (copie de
 ```
 maree-simulation/
 ├── docker-compose.yml           # stack principale
-├── docker-compose.demo.yml      # + Godot VNC (profil demo)
+├── docker-compose.demo.yml      # + Godot VNC (profil demo) + éditeur (profil editor)
+├── docker-compose.e2e.yml       # override du test de bout en bout
 ├── presets/maree.ini            # config llama.cpp router (2 modèles)
-├── models/                      # GGUF (jamais commités, voir .gitignore)
+├── models/                      # GGUF + binaires llama.cpp (jamais commités)
 ├── python-sim/
 │   ├── src/
 │   │   ├── orchestrator.py      # TISSU CONNECTEUR : câble tout
@@ -54,12 +65,13 @@ maree-simulation/
 │   │   ├── rag/rag.py           # retrieve_by_profil + C6 + traçabilité F2
 │   │   ├── metrics/indicators.py# I1..I5
 │   │   └── experiments/         # X1..X7 (runner) + report (F5)
-│   ├── tests/                   # pytest — 11 tests verts
-│   └── config/simulation.yaml   # PARAMÈTRES (décision 11)
+│   ├── tests/                   # pytest — 12 tests verts
+│   └── config/                  # simulation.yaml + configs e2e (sync/async/E4B)
 ├── godot/project/               # scenes + scripts GDScript
+│   └── tests/                   # run_tests.gd (26), run_ws_tests.gd (8), run_e2e_client.gd
 ├── world_corpus/                # corpus RAG (5 collections)
 ├── docs/                        # decisions.md, architecture.md, cadrage…
-└── scripts/download_models.sh
+└── scripts/                     # download_models.sh + run_e2e.sh
 ```
 
 ## Les 16 décisions d'architecture (ne JAMAIS violer)
@@ -95,8 +107,13 @@ une exigence change de statut.
 ```bash
 make up           # stack complète (headless)
 make up-demo      # + Godot VNC (navigateur :6080)
+make editor       # éditeur Godot dans le navigateur (:6081, projet monté)
 make pull-models  # télécharge les GGUF sur l'hôte
-make test         # pytest (11 tests)
+make test         # pytest (12 tests)
+make test-godot   # tests des composants Godot (headless, hors ligne)
+make e2e          # chaîne réelle sync (Redpanda + LLM + Godot + rejeu E3)
+make e2e-async    # idem en mode asynchrone
+make e2e-e4b      # idem avec le grand modèle (offload partiel)
 make run          # run single dry-run
 make replay       # rejeu E3
 make experiments  # protocole X1–X7
@@ -138,8 +155,13 @@ graphify query "comment agents et RAG se relient-ils ?"
 ## État courant
 
 - Socle Python complet + tests verts (orchestrateur, agents, RAG, replay,
-  indicateurs) — commit initial fait.
-- Godot : scripts GDScript écrits (client WS, rendu, inspection, courbes).
+  indicateurs) — **12 tests pytest**.
+- **Godot réparé et validé** : scène `.tscn` réécrite en syntaxe Godot 4
+  valide, scripts (client WS, rendu, inspection D2, courbes B2, HUD D3)
+  fonctionnels. Tests : 26 composants + 8 chaîne WS (mock) + 6 e2e réel.
+- **Chaîne réelle validée de bout en bout** le 20/10 : Redpanda + llama.cpp
+  (E2B réel) + python-sim + Godot, en sync, async et avec E4B ; rejeu E3 OK.
+  Tout est reproductible via `make e2e` / `make e2e-async` / `make e2e-e4b`.
 - Corpus RAG : 13 passages initiaux — **à étendre** (objectif ~200, le cadrage
   demande 200 passages de 100–200 mots, répartis en 5 collections).
 - Variantes expérimentales X1–X7 : **câblées** dans l'orchestrateur
@@ -147,14 +169,12 @@ graphify query "comment agents et RAG se relient-ils ?"
   `annonce_clarity`, `exits_closed`) ; le runner `experiments/runner.py`
   génère les configurations et le résumé médiane/IQR.
 - Graphify : graphe de la codebase généré (339 nœuds, 11 communautés).
-- À faire : valider `docker compose up` réel, étendre le corpus RAG,
-  README GitHub de qualité, synchroniser le dépôt distant.
+- À faire : étendre le corpus RAG, README GitHub de qualité, synchroniser le
+  dépôt distant.
 
 ## Prochaines tâches (ordre suggéré)
 
-1. Valider `docker compose up` réel (llama.cpp + redpanda + sim) et ajuster
-   le Dockerfile python-sim au besoin (deps installées par pip).
-2. Étendre le corpus RAG vers ~200 passages (les 5 collections).
-3. Vérifier que le CLI `run` fonctionne en mode réseau (Kafka réel) en plus
-   du dry-run.
-4. Écrire README GitHub de qualité + synchroniser le dépôt distant.
+1. Étendre le corpus RAG vers ~200 passages (les 5 collections).
+2. Lancer les variantes X1–X7 et produire le rapport F5 (`make experiments`,
+   `make report`).
+3. Écrire README GitHub de qualité + synchroniser le dépôt distant.

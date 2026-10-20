@@ -1,0 +1,41 @@
+# ============================================================
+# MARÉE — test de bout en bout avec le grand modèle (E4B)
+#
+# E4B (4,7 Go de poids) ne tient pas dans les 4 Go de la RTX 3050 :
+# le preset maree.ini l'exécute en offload partiel (n-gpu-layers = 20).
+# Ce run vérifie que la chaîne complète fonctionne aussi avec le modèle
+# de raisonnement (profil « securite », décision A5).
+#
+# Lancer :
+#   E2E_CONFIG=e2e-godot-e4b.yaml E2E_RUN_ID=e2e_godot_e4b \
+#     ./scripts/run_e2e.sh
+# ============================================================
+
+run_id: e2e_godot_e4b
+seed: 7
+mode: sync
+tick_duration_ms: 1000
+max_ticks: 3
+
+world:
+  smoke_tick: 2
+  smoke_spread_interval: 6
+  evac_duration_ticks: 900
+  pre_days_ticks: 4320
+
+population:
+  - name: securite
+    count: 1
+    kind: llm
+    model: gemma4-e4b
+    temperature: 0.1
+  - name: foule
+    count: 2
+    kind: rules
+
+llm:
+  base_url: http://llama-cpp:8081/v1
+
+log_dir: /logs
+collect:
+  sample_size: 10

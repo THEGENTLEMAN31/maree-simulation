@@ -64,7 +64,7 @@ class SimulationConfig(BaseModel):
     log_dir: str = "/logs"
     collect: CollectorSpec = Field(default_factory=CollectorSpec)
     llm: dict[str, Any] = Field(
-        default_factory=lambda: {"base_url": "http://llama-cpp:8080/v1"}
+        default_factory=lambda: {"base_url": "http://llama-cpp:8081/v1"}
     )
 
     def config_hash(self) -> str:

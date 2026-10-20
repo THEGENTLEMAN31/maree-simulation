@@ -1,0 +1,43 @@
+# ============================================================
+# MARÉE — configuration du test de bout en bout en mode ASYNCHRONE
+#
+# Même couverture que e2e-godot.yaml (chaîne réelle, modèle E2B) mais
+# l'ordonnanceur asynchrone est exercé : chaque agent pense selon son
+# propre rythme (think_interval = 2 ticks + jitter déterministe), ce qui
+# produit des t_prod / t_trait distincts (décision 10, C7).
+#
+# Lancer :
+#   E2E_CONFIG=e2e-godot-async.yaml E2E_RUN_ID=e2e_godot_async \
+#     ./scripts/run_e2e.sh
+# ============================================================
+
+run_id: e2e_godot_async
+seed: 42
+mode: async
+tick_duration_ms: 1000
+max_ticks: 8
+
+world:
+  smoke_tick: 2
+  smoke_spread_interval: 6
+  evac_duration_ticks: 900
+  pre_days_ticks: 4320
+
+population:
+  - name: visiteur
+    count: 2
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.1
+    think_interval: 2
+  - name: foule
+    count: 4
+    kind: rules
+    think_interval: 2
+
+llm:
+  base_url: http://llama-cpp:8081/v1
+
+log_dir: /logs
+collect:
+  sample_size: 10
