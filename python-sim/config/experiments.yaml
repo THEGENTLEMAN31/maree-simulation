@@ -1,0 +1,61 @@
+# ============================================================
+# MARÉE — configuration du protocole expérimental X1–X7 (E2)
+#
+# Population réduite (30 agents : 5 LLM + 25 règles) pour que 5 runs ×
+# 14 configurations restent exécutables sur une RTX 3050 en un temps
+# raisonnable. C'est un choix de sobriété assumé et documenté (E5) : les
+# effets mesurés portent sur la structure, pas sur la taille absolue.
+#
+# Les runs de démonstration / e2e utilisent `config/simulation.yaml`
+# (60 agents, 15 LLM), inchangé.
+# ============================================================
+
+run_id: exp_default
+seed: 42
+mode: sync
+tick_duration_ms: 1000
+max_ticks: 60
+
+world:
+  smoke_tick: 10
+  smoke_spread_interval: 6
+  evac_duration_ticks: 900
+  pre_days_ticks: 4320
+  decision_period_sync: 5   # 12 tours de décision sur 60 ticks
+
+population:
+  - name: securite
+    count: 1
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.2
+  - name: habitue
+    count: 1
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.2
+  - name: famille
+    count: 1
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.3
+  - name: visiteur
+    count: 1
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.3
+  - name: amis
+    count: 1
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.4
+  - name: foule
+    count: 25
+    kind: rules
+
+llm:
+  base_url: http://llama-cpp:8081/v1
+
+log_dir: /logs
+collect:
+  sample_size: 30

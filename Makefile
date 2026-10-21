@@ -1,4 +1,4 @@
-.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report test-godot editor e2e e2e-async e2e-e4b
+.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report test-godot editor e2e e2e-async e2e-e4b eval-rag experiments experiments-dry corpus
 
 SHELL := /bin/bash
 COMPOSE := docker compose
@@ -43,8 +43,28 @@ fmt: ## Formate le code
 lint: ## Lint le code
 	cd python-sim && uvx ruff check src tests scripts
 
-report: ## Génère le rapport (tableaux + figures, F5)
-	$(COMPOSE) run --rm python-sim python -m src.cli report
+report: ## Génère le rapport (tableaux, tests, F2, F5)
+	$(COMPOSE) run --rm python-sim python -m src.cli report \
+	  --log-dir /logs --out /logs/report.md --rag-eval /logs/rag_eval.json
+
+eval-rag: ## Évalue la récupération sémantique (F2) sur le corpus réel
+	$(COMPOSE) run --rm python-sim python -m src.experiments.rag_eval \
+	  /world_corpus http://llama-cpp:8081/v1
+
+experiments: ## Exécute X1–X7 (5 runs × 14 configurations)
+	$(COMPOSE) run --rm python-sim python -m src.cli experiments \
+	  -c config/experiments.yaml --runs-per-config 5 \
+	  --log-dir /logs --corpus /world_corpus --llm-url http://llama-cpp:8081/v1
+
+experiments-dry: ## Répétition générale du protocole sans appel LLM
+	$(COMPOSE) run --rm python-sim python -m src.cli experiments \
+	  -c config/experiments.yaml --runs-per-config 2 --dry-run \
+	  --log-dir /logs --corpus /world_corpus
+
+corpus: ## Régénère le corpus synthétique structuré (209 passages)
+	python3 scripts/generate_corpus.py
+	python3 scripts/generate_corpus.py --check
+
 test-godot: ## Tests des composants Godot (headless, hors ligne)
 	docker run --rm -v "$$PWD/godot/project:/godot/project" \
 	  --entrypoint /usr/local/bin/godot maree-simulation-godot-headless \

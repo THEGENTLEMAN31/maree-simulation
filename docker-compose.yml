@@ -36,7 +36,7 @@ services:
       - maree-net
 
   # ============================================================
-  # LLAMA.CPP ROUTER - Gemma 4 E2B (resident) + E4B (resident)
+  # LLAMA.CPP ROUTER - E2B + bge-m3 (résidents) + E4B (à la demande)
   # ============================================================
   llama-cpp:
     build:
@@ -57,7 +57,7 @@ services:
       --host 0.0.0.0
       --port 8081
       --models-preset /presets/maree.ini
-      --models-max 1
+      --models-max 2
       --flash-attn on
       --cache-type-k q8_0
       --cache-type-v q8_0
@@ -105,6 +105,7 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./python-sim/src:/app/src:ro
+      - ./python-sim/tests:/app/tests:ro
       - ./python-sim/config:/config:ro
       - ./world_corpus:/world_corpus:ro
       - sim-data:/data

@@ -23,6 +23,9 @@ class IndicatorSet:
     ground_truth_safe_exit: str = "A"
     # (agent_id, destination) pour le suivi de meneur
     destinations: list[tuple[str, str]] = field(default_factory=list)
+    # I4 : une observation par décision — l'agent a-t-il choisi la sortie
+    # majoritaire parmi ses voisins visibles ? (mesuré, pas déduit)
+    follow_observations: list[bool] = field(default_factory=list)
     temporal_violations: int = 0
     source_offsets: dict[str, int] = field(default_factory=dict)
 
@@ -66,13 +69,14 @@ class Indicators:
             "remaining": n - state.evacuated - state.trapped,
         }
 
-        # I4 — Suivi de meneur : part des agents dont la destination est celle
-        # d'un agent vu dans les 10 dernières secondes (approximé ici par la
-        # sortie majoritaire parmi les destinations).
-        dest_counts: dict[str, int] = {}
-        for _, dst in state.destinations:
-            dest_counts[dst] = dest_counts.get(dst, 0) + 1
-        i4 = (max(dest_counts.values()) / max(1, state.evacuated)) if dest_counts else 0.0
+        # I4 — Suivi de meneur : part des décisions où l'agent a choisi la
+        # sortie majoritaire parmi ses voisins visibles au moment de décider.
+        # Sans observation (aucun voisin), l'indicateur vaut 0 et non 1 : on
+        # ne prétend pas mesurer un suivi qui n'a pas eu lieu.
+        if state.follow_observations:
+            i4 = sum(state.follow_observations) / len(state.follow_observations)
+        else:
+            i4 = 0.0
 
         # I5 — Cohérence temporelle (attendu : zéro).
         i5 = state.temporal_violations

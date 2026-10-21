@@ -63,6 +63,7 @@ class Scheduler:
         rng: random.Random,
         *,
         default_think_interval: int = 20,
+        sync_period: int = 10,
     ) -> None:
         if mode not in {"sync", "async"}:
             raise ValueError(f"mode d'exécution inconnu : {mode!r}")
@@ -70,6 +71,9 @@ class Scheduler:
         self.clock = clock
         self.rng = rng
         self.default_think_interval = default_think_interval
+        # En mode synchrone, tous les agents agissent au MÊME pas de décision
+        # (pas à chaque tick) : c'est le sens de « tous au même pas ».
+        self.sync_period = sync_period
         self.agents: dict[str, AgentSchedule] = {}
 
     def register(self, agent_id: str, *, think_interval: int | None = None) -> None:
@@ -83,7 +87,8 @@ class Scheduler:
     def due_agents(self, now: int) -> list[AgentSchedule]:
         """Agents dont c'est le tour de penser au tick `now`."""
         if self.mode == "sync":
-            return list(self.agents.values())
+            # Pas de décision commun : tous ensemble, mais périodiquement.
+            return list(self.agents.values()) if now % self.sync_period == 0 else []
         return [a for a in self.agents.values() if a.should_think(now)]
 
     def schedule_next(self, schedule: AgentSchedule, *, now: int) -> None:

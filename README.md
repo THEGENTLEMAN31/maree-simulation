@@ -35,6 +35,15 @@ make up-demo        # → http://localhost:6080 (noVNC)
 make replay RUN_ID=run_demo
 ```
 
+Protocole scientifique complet (reproductible) :
+
+```bash
+make corpus          # 209 passages RAG (5 collections, datés, profilés)
+make eval-rag        # F2 : précision@1/@3 + MRR sur 30 questions annotées
+make experiments     # X1–X7 : 5 runs × 14 configurations, modèles réels
+make report          # F5 : tableaux, Mann-Whitney exact, conclusion rédigée
+```
+
 Prérequis : Docker + Compose, GPU NVIDIA (4 Go VRAM suffisent), `make`.
 
 ---
@@ -67,7 +76,7 @@ médiane + écart interquartile (les moyennes sont trompeuses à petit n).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ redpanda (Kafka)  ·  llama.cpp router (gemma4-e2b + gemma4-e4b)          │
+│ redpanda (Kafka) · llama.cpp (gemma4-e2b + bge-m3 + e4b à la demande)    │
 │ python-sim (asyncio : orchestration, agents, RAG, indicateurs, rejeu)    │
 │ godot (consommateur pur — headless CI / VNC démo)                        │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -91,8 +100,9 @@ médiane + écart interquartile (les moyennes sont trompeuses à petit n).
 
 ### Base de connaissances (RAG, F1)
 
-`world_corpus/` — 5 collections, accès contrôlé par profil + date de
-disponibilité simulée (C6) :
+`world_corpus/` — **209 passages** (~103 mots/passage), générés de façon
+déterministe par `scripts/generate_corpus.py`, accès contrôlé par profil +
+date de disponibilité simulée (C6) :
 
 | Collection | Contenu | Accessible à |
 |------------|---------|--------------|
@@ -102,9 +112,16 @@ disponibilité simulée (C6) :
 | `souvenirs_editions` | incidents passés, rumeurs | habitués et familles |
 | `savoir_profils` | ce que chaque profil sait au départ | le profil |
 
+La récupération est **sémantique et réelle** : embeddings `bge-m3` (Q4) sur
+GPU via llama.cpp, index FAISS, correction d'anisotropie par centrage sur la
+moyenne du corpus. Qualité mesurée (F2, 30 questions annotées) :
+**précision@1 = 0,733 · précision@3 = 0,867 · MRR = 0,80**. Un repli lexical
+existe, mais il est signalé par `RagClient.degraded` : il n'est jamais
+présenté comme du sémantique.
+
 ---
 
-## 🧪 Ce qui est prouvé par les tests (11 verts)
+## 🧪 Ce qui est prouvé par les tests (18 Python + 26 Godot + 8 WS)
 
 - **Déterminisme** : même config + graine → même hash d'indicateurs au rejeu
   (`test_rejeu_identique_meme_config`).
@@ -113,6 +130,13 @@ disponibilité simulée (C6) :
 - **RAG** : un passage réservé à `securite` n'est pas retrouvé par un
   visiteur ; un passage du futur n'est pas retrouvé à T (C6).
 - **Baseline E1** : un agent à règles répond depuis sa seule perception.
+- **Protocole (E2)** : `validate_experiments()` refuse toute paire de
+  configurations identiques — chaque expérience change un levier câblé.
+- **Statistiques (E2/F5)** : test exact de Mann-Whitney (permutation,
+  n = 5 vs 5) vérifié sur des cas connus ; le rapport ne contient plus de
+  conclusion « à rédiger ».
+- **Rapport (F5)** : généré depuis les journaux, contrôlé par des requêtes
+  SQL versionnées (DuckDB).
 
 ---
 
@@ -127,7 +151,7 @@ violer, l'arborescence, les commandes, l'état d'avancement.
 docs/          décisions, architecture, hypothèses, correspondance exige.
 python-sim/    simulation Python (src + tests + config)
 godot/         projet Godot (scènes + scripts) + Dockerfiles
-world_corpus/  corpus RAG de Port-Aubel (à étendre vers ~200 passages)
+world_corpus/  corpus RAG de Port-Aubel (209 passages, 5 collections)
 presets/       config llama.cpp router
 scripts/       téléchargement modèles
 llama.cpp/     Dockerfile d'inférence CUDA

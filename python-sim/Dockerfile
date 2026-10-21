@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir \
     "pydantic>=2.7,<3" \
     "pyyaml>=6.0" \
     "click>=8.1" \
+    "faiss-cpu>=1.8" \
+    "numpy>=1.26" \
     "pytest>=8.0" \
     "pytest-asyncio>=0.23"
 

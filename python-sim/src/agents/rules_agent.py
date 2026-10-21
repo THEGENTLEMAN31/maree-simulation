@@ -59,9 +59,14 @@ class RulesAgent(Agent):
     def __init__(self, agent_id: str, profile_name: str, rng: random.Random) -> None:
         super().__init__(agent_id, profile_name)
         self.rng = rng
-        self.exit_pref: str | None = None
+        # Hétérogénéité déterministe (décision 3) : sans préférences variées,
+        # tout le monde part vers A et aucun effet de meneur n'est mesurable.
+        self.exit_pref: str | None = rng.choice(["A", "A", "B", "B", "C"])
         self.zone = "scene"
         self.evacuated = False
+        # Levier expérimental X2 « avec meneurs vs sans meneur » : à zéro, la
+        # foule cesse de suivre le voisin (I4 chute, I3 change).
+        self.follow_weight: float = W_FOLLOW
 
     async def decide(self, perception: Perception) -> Intention:
         zone = perception.zone
@@ -93,13 +98,22 @@ class RulesAgent(Agent):
         best: str | None = None
         best_score = -1e9
         desired = self.exit_pref or "A"
+        # X2 : un agent n'évacue pas par une sortie qu'il sait fermée.
+        open_candidates = [c for c in candidates if c not in perception.blocked_exits]
+        if open_candidates:
+            candidates = open_candidates
+        # A2 / I4 : la sortie majoritaire parmi les voisins visibles. C'est
+        # elle qu'on suit — pas une constante — sinon le levier X2 ne mesure
+        # rien (il ne changeait aucun comportement).
+        beliefs = list(perception.neighbor_beliefs.values())
+        modal = max(set(beliefs), key=beliefs.count) if beliefs else None
         for code in candidates:
             score = -abs(_exit_rank(code) - _exit_rank(desired)) * W_DESIRED
             if perception.smoke_seen:
                 score -= W_REPULSION  # la fumée rend l'environnement chargé
-            # Suivi du voisin : aller vers la sortie du dernier voisin visible.
-            if perception.visible_neighbors and code == "A":
-                score += W_FOLLOW
+            if modal and code == modal:
+                # poids x2 : suivre le groupe peut l'emporter sur la préférence
+                score += self.follow_weight * 2.0
             if code in perception.exits_known:
                 score += 0.5
             if score > best_score:
@@ -117,7 +131,11 @@ class RulesAgent(Agent):
             "zone": self.zone,
             "exit_pref": self.exit_pref,
             "chosen": self._choose_exit(perception),
-            "weights": {"desired": W_DESIRED, "repulsion": W_REPULSION, "follow": W_FOLLOW},
+            "weights": {
+                "desired": W_DESIRED,
+                "repulsion": W_REPULSION,
+                "follow": self.follow_weight,
+            },
         }
 
 

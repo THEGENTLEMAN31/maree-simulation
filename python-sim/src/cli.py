@@ -69,23 +69,48 @@ def replay(run_id: str, log_dir: str) -> None:
 @click.option("--config", "-c", type=click.Path(exists=True), required=True)
 @click.option("--dry-run", is_flag=True)
 @click.option("--runs-per-config", type=int, default=5)
-def experiments(config: str, dry_run: bool, runs_per_config: int) -> None:
+@click.option("--log-dir", type=str, default="/logs")
+@click.option("--only", type=str, default=None, help="restreindre à X1,X2,…")
+@click.option("--corpus", type=str, default=None)
+@click.option("--llm-url", type=str, default=None)
+@click.option("--kafka-memory", is_flag=True)
+def experiments(
+    config: str,
+    dry_run: bool,
+    runs_per_config: int,
+    log_dir: str,
+    only: str | None,
+    corpus: str | None,
+    llm_url: str | None,
+    kafka_memory: bool,
+) -> None:
     """Exécute le protocole expérimental X1–X7 (E2)."""
     from .experiments.runner import ExperimentRunner
 
-    runner = ExperimentRunner(config, dry_run=dry_run, n_runs=runs_per_config)
-    asyncio.run(runner.run_all())
+    sel = [x.strip() for x in only.split(",")] if only else None
+    runner = ExperimentRunner(
+        config,
+        dry_run=dry_run,
+        n_runs=runs_per_config,
+        base_dir=log_dir,
+        only=sel,
+        corpus_path=corpus,
+        llm_base_url=llm_url,
+        kafka_memory=True if kafka_memory else None,
+    )
+    runner.run_all()
 
 
 @cli.command()
 @click.option("--log-dir", type=str, default="/logs")
 @click.option("--out", type=click.Path(), default="/logs/report.md")
-def report(log_dir: str, out: str) -> None:
+@click.option("--rag-eval", type=str, default=None, help="JSON F2 (rag_eval)")
+def report(log_dir: str, out: str, rag_eval: str | None) -> None:
     """Génère le rapport à partir des runs journalisés (F5)."""
     from .experiments.report import build_report
 
-    build_report(log_dir, out)
-    click.echo(f"rapport écrit dans {out}")
+    tests = build_report(log_dir, out, rag_eval_path=rag_eval)
+    click.echo(f"rapport écrit dans {out} ({len(tests)} tests)")
 
 
 def _fmt_summary(s: dict) -> str:

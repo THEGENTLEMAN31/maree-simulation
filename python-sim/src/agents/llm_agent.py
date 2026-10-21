@@ -66,6 +66,11 @@ class LLMAgent(Agent):
         self.evacuated = False
         self.gateway: LLMGateway | None = None
         self.rag = None  # attaché par l'orchestrateur (injection, décision 12)
+        # Leviers expérimentaux (X5 mémoire, X7 RAG) : lus par `decide`.
+        self.use_rag: bool = True
+        self.use_memory: bool = True
+        # F2/X7 : nombre de décisions ayant réellement cité un passage RAG.
+        self.rag_citations: int = 0
         self.last_call: LLMCallResult | None = None
         self.drift_events: list[dict] = []  # A4 : incidents tracés
         self._pending_message: str | None = None  # A2 : message à relayer
@@ -87,9 +92,17 @@ class LLMAgent(Agent):
     async def decide(self, perception: Perception) -> Intention:
         if self.gateway is None:
             raise RuntimeError("gateway non attaché (orchestrateur requis)")
+        # Leviers expérimentaux (X5, X7) : coupés, ils changent réellement le
+        # prompt, donc la décision — sinon X5/X7 ne testeraient rien.
+        use_rag = getattr(self, "use_rag", True)
+        use_memory = getattr(self, "use_memory", True)
+
         rag_text = ""
-        if self.rag is not None:
+        self.last_rag = None
+        if use_rag and self.rag is not None:
             rag_text = await self.rag.retrieve_for(self, perception)
+            if rag_text:
+                self.rag_citations += 1
 
         system = SYSTEM_TEMPLATE.format(
             profile_name=self.profile_name,
@@ -97,12 +110,18 @@ class LLMAgent(Agent):
             priority=self.priority,
             knows=self.knows,
         )
-        mem_txt = "\n".join(e.to_prompt() for e in self.recent_memory(10))
+        mem_txt = (
+            "\n".join(e.to_prompt() for e in self.recent_memory(10))
+            if use_memory
+            else ""
+        )
 
         user = (
             f"Perception (tick {perception.tick}) : zone={perception.zone}, "
             f"fumée_visible={perception.smoke_seen}, "
             f"voisins_visibles={perception.visible_neighbors}, "
+            f"croyances_des_voisins={perception.neighbor_beliefs}, "
+            f"sorties_fermees={perception.blocked_exits}, "
             f"annonces={perception.announcements}, "
             f"infos={perception.false_infos}\n"
             f"Mémoire récente :\n{mem_txt or '(aucune)'}\n"

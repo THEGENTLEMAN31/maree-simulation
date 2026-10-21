@@ -1,0 +1,8 @@
+---
+title: Souvenir 2019 — agents
+collection: souvenirs_editions
+available_tick: 0
+allowed_profiles: [habitue]
+importance: 0.65
+---
+Souvenir de l'édition 2019 (agents) : un orage sec avait interrompu le concert. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l'édition 2019, un orage sec avait interrompu le concert. J'étais le sud-est. Ce que j'en retiens : garder les enfants par la main, jamais par le poignet. Cette expérience rend l'agent plus sensible à ce type de signal et modifie sa confiance dans les annonces officielles. Le récit est volontairement partiel et subjectif, comme un souvenir réel : il contient une leçon utile et une part d'incertitude.

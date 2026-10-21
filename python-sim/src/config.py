@@ -43,6 +43,9 @@ class WorldSpec(BaseModel):
     announcement_clarity: Literal["clear", "ambiguous"] | None = None
     exits_closed: dict[str, int] = Field(default_factory=dict)  # code -> tick fermeture
     experiment_flags: dict[str, bool] = Field(default_factory=dict)
+    # Pas de décision commun en mode synchrone (décision 10) : les agents
+    # agissent tous ensemble, mais périodiquement, pas à chaque tick.
+    decision_period_sync: int = 10
 
 
 class CollectorSpec(BaseModel):

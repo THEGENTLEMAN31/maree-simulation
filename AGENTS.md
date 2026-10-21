@@ -29,16 +29,27 @@ téléchargé) et le cadrage détaillé dans `docs/cadrage-maree.md` (copie de
   - en mode router, `ctx-size` est **réparti entre les `--parallel` slots** :
     dimensionner `ctx-size = slots × fenêtre voulue` (sinon les prompts réels
     sont rejetés et les agents replient silencieusement sur la règle) ;
-  - les deux modèles ne peuvent pas être résidents ensemble :
-    `--models-max 1`.
+  - `--models-max 2` : **E2B + bge-m3 Q4 cohabitent** (mesuré 3692 Mio /
+    4096, chat + lot de 60 embeddings + chat validé). E4B évince l'un des
+    deux : il est réservé aux runs X4/E5 **sans RAG** ;
+  - sortie LLM : `--reasoning off` + `MAX_TOKENS = 256`. Sans cela, Gemma 4
+    produit ~460 tokens de raisonnement par décision (9 s/appel, 9 min/run).
+    Mesuré après correction : ~1,9 min/run.
 - **Streaming** : Redpanda (Kafka API) dans Docker, `schema_version` par
   enveloppe, topics `world.events`, `agent.decisions`, `metrics.indicators`,
   `control.commands`, `dlq.invalid`.
 - **Simulation** : Python 3.11+ asyncio dans `python-sim/`.
 - **Visualisation** : Godot 4.4 (headless pour CI, VNC pour démo jury).
-- **RAG** : corpus Markdown dans `world_corpus/`, client Léger dans
-  `python-sim/src/rag/` (mode mémoire par défaut, pas Chroma — décision prise
-  pour la simplicité solo ; le cadrage disait Chroma, on le documente).
+- **RAG** : corpus Markdown dans `world_corpus/` (**209 passages**, 5
+  collections, ~103 mots/passage), embeddings **bge-m3 Q4 sur GPU** via
+  `LLMGateway.embed()` (point d'entrée unique, décision 7), index
+  **FAISS IndexFlatIP** + correction d'anisotropie (centrage sur la moyenne
+  du corpus). Pas de Chroma : FAISS + numpy suffit et tient dans le budget
+  disque/VRAM. Le repli lexical existe mais est **signalé** par
+  `RagClient.degraded` — jamais présenté comme du sémantique.
+  Qualité mesurée (F2) : précision@1 = 0,733, précision@3 = 0,867, MRR = 0,80
+  sur 30 questions annotées. Un premier essai avec `multilingual-e5-small`
+  donnait 0,167 : embeddings dégénérés (cos 0,93 entre textes sans rapport).
 
 ## Arborescence
 
@@ -155,26 +166,30 @@ graphify query "comment agents et RAG se relient-ils ?"
 ## État courant
 
 - Socle Python complet + tests verts (orchestrateur, agents, RAG, replay,
-  indicateurs) — **12 tests pytest**.
+  indicateurs, protocole, statistiques, rapport) — **18 tests pytest**.
 - **Godot réparé et validé** : scène `.tscn` réécrite en syntaxe Godot 4
   valide, scripts (client WS, rendu, inspection D2, courbes B2, HUD D3)
   fonctionnels. Tests : 26 composants + 8 chaîne WS (mock) + 6 e2e réel.
 - **Chaîne réelle validée de bout en bout** le 20/10 : Redpanda + llama.cpp
   (E2B réel) + python-sim + Godot, en sync, async et avec E4B ; rejeu E3 OK.
   Tout est reproductible via `make e2e` / `make e2e-async` / `make e2e-e4b`.
-- Corpus RAG : 13 passages initiaux — **à étendre** (objectif ~200, le cadrage
-  demande 200 passages de 100–200 mots, répartis en 5 collections).
-- Variantes expérimentales X1–X7 : **câblées** dans l'orchestrateur
-  (`_apply_experiment_events` consomme `world.announcement_tick`,
-  `annonce_clarity`, `exits_closed`) ; le runner `experiments/runner.py`
-  génère les configurations et le résumé médiane/IQR.
+- Corpus RAG : **209 passages** générés de façon déterministe par
+  `scripts/generate_corpus.py` (5 collections, dates `available_tick`,
+  `allowed_profiles`) — `make corpus`.
+- Variantes expérimentales X1–X7 : **leviers réellement câblés** (`rag`,
+  `memory`, `leaders`, `communication`, `swap_profiles`, `exits_closed`,
+  `announcement_*`). `validate_experiments()` refuse toute paire identique.
+  Résumé = I1–I5, distribution des sorties, taux de citation RAG.
+  Test exact de Mann-Whitney (permutation, n=5 vs 5) dans
+  `experiments/report.py`, rapport rédigé avec section limites.
 - Graphify : graphe de la codebase généré (339 nœuds, 11 communautés).
 - À faire : étendre le corpus RAG, README GitHub de qualité, synchroniser le
   dépôt distant.
 
 ## Prochaines tâches (ordre suggéré)
 
-1. Étendre le corpus RAG vers ~200 passages (les 5 collections).
-2. Lancer les variantes X1–X7 et produire le rapport F5 (`make experiments`,
-   `make report`).
-3. Écrire README GitHub de qualité + synchroniser le dépôt distant.
+1. Lire `logs/report.md` et vérifier les conclusions (surtout les résultats
+   négatifs : ils sont conservés, pas retirés).
+2. README GitHub de qualité + synchroniser le dépôt distant.
+3. Optionnel : augmenter la population expérimentale (30 → 60 agents) pour
+   gagner en puissance statistique, si le temps GPU le permet.

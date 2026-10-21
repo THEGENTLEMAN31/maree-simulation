@@ -21,6 +21,10 @@ class Perception:
     announcements: list[str] = field(default_factory=list)
     false_infos: list[str] = field(default_factory=list)
     exits_known: list[str] = field(default_factory=list)  # sorties connues du profil
+    # A2 / I4 : croyance de sortie des voisins visibles, figée à l'instant T.
+    neighbor_beliefs: dict[str, str] = field(default_factory=dict)
+    # X2 : sorties que l'agent sait fermées (sinon il s'y engage et est piégé).
+    blocked_exits: list[str] = field(default_factory=list)
 
 
 @dataclass

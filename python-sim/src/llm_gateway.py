@@ -57,7 +57,10 @@ class CostLog:
 class LLMGateway:
     """Client OpenAI-compatible vers llama.cpp (router multi-modèles)."""
 
-    MAX_TOKENS = 512
+    # 512 tokens laissaient Gemma 4 produire un long raisonnement pour une
+    # décision JSON : 460 tokens/appel en moyenne, 9 s par décision. Une
+    # décision tient en ~150 tokens ; au-delà c'est du bavardage.
+    MAX_TOKENS = 256
 
     def __init__(
         self,
@@ -175,6 +178,35 @@ class LLMGateway:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    # ------------------------------------------------------- embeddings (F1)
+    async def embed(self, texts: list[str], *, model: str = "bge-m3") -> list[list[float]]:
+        """Vectorise des textes via l'endpoint `/v1/embeddings` de llama.cpp.
+
+        Un vrai embeddeur (`bge-m3`, Q4) tourne **sur le GPU** dans le même
+        routeur que Gemma : un seul point d'entrée (décision 7). Les
+        embeddings ne sont jamais simulés — un échec lève, il ne dégrade pas
+        silencieusement vers un score lexical.
+        """
+        if self.dry_run:
+            # En dry_run on garde un vecteur déterministe (tests hors ligne).
+            return [[0.0] * 8 for _ in texts]
+        resp = await self._client.post(
+            f"{self.base_url}/embeddings",
+            json={"model": model, "input": texts},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        vectors = [item["embedding"] for item in data["data"]]
+        self.cost_log.add(
+            call_id=0,
+            model=model,
+            duration_ms=0,
+            tokens_in=data.get("usage", {}).get("prompt_tokens", 0),
+            tokens_out=0,
+            kind="embedding",
+        )
+        return vectors
 
     @staticmethod
     def _extract_useful(reasoning: str) -> str:
