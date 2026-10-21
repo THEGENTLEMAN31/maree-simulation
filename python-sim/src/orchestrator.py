@@ -45,6 +45,10 @@ class AgentRuntime:
     decisions: int = 0
     last_action: str | None = None
     last_exit: str | None = None
+    # D2 : ce qui est affiché dans l'inspecteur Godot. On garde la dernière
+    # justification complète (LLM ou règle), pas seulement l'action.
+    last_explanation: dict | None = None
+    last_intention: dict | None = None
 
 
 class Orchestrator:
@@ -124,6 +128,12 @@ class Orchestrator:
         self.ws.on_command = self._handle_control
 
         self._state: dict = {"announcements": [], "false_infos": []}
+        self._current_tick = 0
+        self._max_ticks = int(config.max_ticks)
+        # C6 : tick d'arrivée des messages reçus, par agent. L'oracle compare
+        # ce tick au tick de décision (une décision ne peut pas citer un
+        # message qui n'est pas encore arrivé).
+        self._arrivals: dict[str, list[tuple[int, str]]] = {}
         self._indicator_history: list[dict] = []
         self._offset_high_water: dict[str, int] = field(default_factory=dict)
         self._follow: list[bool] = []
@@ -147,6 +157,7 @@ class Orchestrator:
 
         self._emit_spawn()
         limits = max_ticks or self.config.max_ticks
+        self._max_ticks = int(limits)
 
         # e2e : on attend le client Godot avant de simuler, sinon un run
 
@@ -166,6 +177,9 @@ class Orchestrator:
 
 
         for tick in range(limits):
+
+
+            self._current_tick = tick
             self.clock.now = tick
             world_changed = self.world.tick_world(tick)
             if world_changed:
@@ -174,6 +188,12 @@ class Orchestrator:
 
             due = self.scheduler.due_agents(tick)
             await self._run_agent_turns(due, tick)
+            if due:
+                self.oracle.check_decisions(
+                    tick=tick,
+                    decisions=[{"agent_id": a.agent_id} for a in due],
+                    messages_by_agent=self._arrivals,
+                )
             await self._emit_snapshot(tick)
             if tick % 10 == 0 or tick == limits - 1:
                 await self._emit_indicators(tick)
@@ -299,8 +319,23 @@ class Orchestrator:
                 intention = await self._rules_intention(agent, perception)
                 explanation = {"kind": "rules_baseline_override"}
             else:
+                drifts_before = len(getattr(agent, "drift_events", []))
                 intention = await agent.decide(perception)
                 explanation = self._explanation(agent, perception, intention)
+                # A4 : une dérive est un événement du journal, pas un simple
+                # compteur en mémoire.
+                for d in getattr(agent, "drift_events", [])[drifts_before:]:
+                    self._journal(
+                        "agents",
+                        evmod.new_envelope(
+                            self.config.run_id,
+                            "agent.drift",
+                            t_prod=tick,
+                            t_trait=t_trait,
+                            agent_id=agent.agent_id,
+                            data=d,
+                        ),
+                    )
 
             # A2 : message en langage naturel vers les voisins. Le levier
             # `communication` (contrôle B3) coupe réellement la diffusion.
@@ -309,6 +344,8 @@ class Orchestrator:
                 for neighbor in perception.visible_neighbors:
                     self._messages(neighbor, tick, pending, agent.agent_id, t_trait)
 
+            rt.last_explanation = explanation
+            rt.last_intention = asdict(intention)
             self._apply_intention(agent, intention, tick, t_trait)
             self._record_follow(agent, perception, intention)
             self.scheduler.schedule_next(sched, now=tick)
@@ -360,7 +397,7 @@ class Orchestrator:
             exits_known=self._exits_known(agent),
             neighbor_beliefs={
                 n: self.runtime[n].belief_safe_exit
-                for n in neighbors
+                for n in (neighbors if self.config.world.experiment_flags.get("communication", True) else [])
                 if self.runtime[n].belief_safe_exit
             },
             blocked_exits=blocked,
@@ -414,9 +451,18 @@ class Orchestrator:
         payload = {
             "type": "inspection",
             "agent_id": agent_id,
+            "profile": agent.profile_name,
+            "kind": "llm" if isinstance(agent, LLMAgent) else "rules",
+            "priority": getattr(agent, "priority", None),
             "zone": rt.zone,
             "belief": rt.belief_safe_exit,
             "evacuated": rt.evacuated,
+            "trapped": rt.trapped,
+            "last_action": rt.last_action,
+            "last_exit": rt.last_exit,
+            "decisions": rt.decisions,
+            "explanation": rt.last_explanation,
+            "intention": rt.last_intention,
         }
         if isinstance(agent, LLMAgent):
             payload["memory"] = [
@@ -658,7 +704,21 @@ class Orchestrator:
                 )
 
     async def _emit_snapshot(self, tick: int) -> None:
-        """Instantané agrégé des positions (C1 : 1 message pour tous)."""
+        """Instantané agrégé des positions (C1 : 1 message pour tous).
+
+        L'instantané porte aussi les compteurs et l'état des sorties : Godot
+        reste un consommateur pur (décision 9) et n'a rien à recalculer pour
+        afficher la scène.
+        """
+        by_exit: dict[str, int] = {}
+        evacuated = trapped = 0
+        for rt in self.runtime.values():
+            if rt.evacuated:
+                evacuated += 1
+                if rt.exit_code:
+                    by_exit[rt.exit_code] = by_exit.get(rt.exit_code, 0) + 1
+            if rt.trapped:
+                trapped += 1
         snapshot = {
             "tick": tick,
             "smoke_level": self.world.smoke_level,
@@ -668,9 +728,30 @@ class Orchestrator:
                     "zone": self.runtime[a.agent_id].zone,
                     "belief": self.runtime[a.agent_id].belief_safe_exit,
                     "kind": "llm" if a in self.llm_agents else "rules",
+                    "profile": a.profile_name,
+                    "evacuated": self.runtime[a.agent_id].evacuated,
+                    "trapped": self.runtime[a.agent_id].trapped,
                 }
                 for a in self.agents
             ],
+            "exits": {
+                code: {
+                    "blocked": ex.blocked,
+                    "capacity": ex.capacity,
+                    "smoke_exposed": ex.smoke_exposed,
+                    "evacuated": by_exit.get(code, 0),
+                }
+                for code, ex in self.world.exits.items()
+            },
+            "max_ticks": self._max_ticks,
+            "counts": {
+                "total": len(self.agents),
+                "evacuated": evacuated,
+                "trapped": trapped,
+                "remaining": len(self.agents) - evacuated - trapped,
+            },
+            "announcements": self._state["announcements"][-2:],
+            "false_infos": self._state["false_infos"][-2:],
         }
         await self.ws.broadcast({"type": "state", **snapshot})
         self._journal(
@@ -686,6 +767,12 @@ class Orchestrator:
 
     async def _emit_indicators(self, tick: int) -> None:
         result = self.indicators.compute(self._indicator_state(tick))
+        # Champs d'affichage (B2) : ratio évacué et horizon temporel, pour que
+        # l'axe des abscisses de Godot soit le tick réel et non l'index.
+        result["I3_evacuated_ratio"] = result["I3_evacuation"]["evacuated"] / max(
+            1, len(self.agents)
+        )
+        result["max_ticks"] = self._max_ticks
         self._indicator_history.append(result)
         self._journal(
             "metrics",
@@ -732,6 +819,7 @@ class Orchestrator:
             dest.remember(
                 tick, "exchange", f"{sender} m'a dit : « {text[:180]} »", source=sender
             )
+            self._arrivals.setdefault(to_agent, []).append((t_trait, text))
         self._journal(
             "agents",
             evmod.new_envelope(
@@ -787,11 +875,34 @@ class Orchestrator:
             cmd = data.get("command")
             if cmd == "announcement":
                 self._state["announcements"].append(data.get("text", ""))
+            elif cmd == "neutral_announcement":
+                # Contrôle négatif B3 : annonce sans contenu informatif.
+                self._state["announcements"].append(data.get("text", ""))
             elif cmd == "false_info":
                 self._state["false_infos"].append(data.get("text", ""))
             elif cmd == "close_exit":
                 code = data.get("exit", "A")
                 if code in self.world.exits:
                     self.world.exits[code].blocked = True
+            # F4 / control.commands : l'injection Godot est un événement du
+            # monde comme un autre, elle doit être journalisée et publiable.
+            self._journal(
+                "control",
+                evmod.new_envelope(
+                    self.config.run_id,
+                    "control.inject",
+                    t_prod=self._current_tick,
+                    t_trait=self._current_tick,
+                    data=data,
+                ),
+            )
+            await self.ws.broadcast(
+                {
+                    "type": "control_ack",
+                    "command": cmd,
+                    "tick": self._current_tick,
+                    "ok": True,
+                }
+            )
         elif data.get("type") == "inspect":
             await self._inspect(data.get("agent_id", ""))

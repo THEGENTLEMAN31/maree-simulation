@@ -61,6 +61,7 @@ EVENT_TYPES: dict[str, int] = {
     "agent.drift": 1,  # dérive tracée (A4) : sortie de rôle, JSON invalide, timeout…
     "agent.memory_set": 1,  # écriture de mémoire (A1)
     "agent.rag_retrieval": 1,  # traçabilité RAG (décision 12)
+    "oracle.violation": 1,  # incohérence temporelle (C6 / I5)
     # mouvement
     "movement.zone_enter": 1,
     "movement.evacuated": 1,

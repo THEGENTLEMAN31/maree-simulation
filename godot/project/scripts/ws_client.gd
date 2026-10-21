@@ -1,4 +1,4 @@
-extends Node2D
+extends Node
 ## Client WebSocket vers python-sim (décision 9 : Godot est un consommateur
 ## pur — aucune logique de simulation ici).
 ##
@@ -79,11 +79,15 @@ func _handle_message(text: String) -> void:
 		"state":
 			_last_state = data
 			_agents = data.get("agents", [])
+			_call_on("Header", "update_state", data)
 			_call_on("AgentsLayer/AgentContainer", "update_state", data)
+			_call_on("IndicatorChart", "set_horizon", int(data.get("max_ticks", 0)))
 		"indicators":
 			_call_on("IndicatorChart", "push_indicators", data)
 		"inspection":
 			_call_on("InspectPanel", "show_inspection", data)
+		"control_ack":
+			_call_on("ControlPanel", "on_ack", data)
 		_:
 			pass
 

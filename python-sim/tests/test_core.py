@@ -175,3 +175,31 @@ def test_inspection_agent_regles_et_inconnu() -> None:
     assert sent[0]["explanation"]["kind"] == "rules"
     assert sent[1]["type"] == "inspection"
     assert sent[1]["error"] == "unknown_agent"
+
+
+def test_event_types_traçabilité_acceptés():
+    """C6/F4 : les événements ajoutés à la chaîne doivent être versionnés."""
+    v = new_envelope("run_oracle", "oracle.violation", t_prod=3, t_trait=3,
+                     agent_id="a1", data={"detail": "test"})
+    assert v.type == "oracle.violation"
+    c = new_envelope("run_ctrl", "control.inject", t_prod=4, t_trait=4,
+                     data={"command": "announcement"})
+    assert c.type == "control.inject"
+
+
+def test_oracle_detecte_un_message_non_arrivé():
+    """C6 : une décision qui citerait un message arrivé plus tard est une
+    violation. Le vérificateur n'est pas un décor : il produit bien I5 > 0
+    quand la chronologie est incohérente."""
+    from src.oracle import TemporalOracle
+
+    oracle = TemporalOracle()
+    oracle.check_decisions(
+        tick=5,
+        decisions=[{"agent_id": "a1"}],
+        messages_by_agent={"a1": [(7, "message futur")]},
+    )
+    assert len(oracle.violations) == 1
+    assert oracle.violations[0].agent_id == "a1"
+    with pytest.raises(AssertionError):
+        oracle.assert_clean()

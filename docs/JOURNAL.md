@@ -459,3 +459,125 @@ Les preuves sont versionnées : `docs/resultats/rapport-experiences.md`,
 - Commit suivant : résultats mesurés, correctifs e2e/WS/Docker, journal.
 - Reste à faire : push vers le dépôt distant ; éventuelles captures d'écran
   pour la soutenance (le fond est prêt).
+
+---
+
+## 2026-10-22 — Audit du cadrage et refonte de l'interface Godot
+
+### 1. Déclencheur
+
+Question posée : « As-tu répondu à toutes les attentes du document ? Et la
+présentation Godot est-elle vraiment visuelle, compréhensible, agréable ? »
+Deux expertises ont été lancées en parallèle : un audit sans complaisance des
+32 exigences et une revue UI/UX du rendu Godot. La réponse honnête est
+**non, pas toutes** : le socle est réel, mais plusieurs exigences étaient
+partielles ou revendiquées à tort. Ce journal consigne les corrections et ce
+qui reste ouvert.
+
+### 2. Ce que l'audit a révélé (avant corrections)
+
+- L'interface Godot était une **vue de débogage** : la plupart des panneaux
+  étaient hors écran (ancres invalides sous un `Node2D`), les 60 agents se
+  superposaient sur 11 points, la carte était inversée nord/sud, la fumée et
+  les évacués n'étaient pas dessinés, les courbes occupaient ~16 px et
+  I3/I5 n'étaient pas affichés.
+- `I5 = 0` était vide de sens : l'oracle temporel n'était jamais appelé et le
+  type `oracle.violation` n'existait pas dans `EVENT_TYPES`.
+- Les dérives A4 restaient en mémoire Python (`agent.drift` jamais publié).
+- Les injections D3 n'étaient pas journalisées ; le type `control.command`
+  utilisé n'existait pas (aurait levé à la première commande).
+- Le levier `communication=False` (B3) coupait le relais des messages mais
+  laissait `neighbor_beliefs` visible : le contrôle négatif était invalide.
+- L'inspection D2 n'envoyait pas la justification de la dernière décision
+  pour un agent LLM.
+
+### 3. Refonte de l'interface (D1, D2, D3, B2)
+
+Fichiers : `godot/project/scenes/main.tscn`, `scripts/ui_theme.gd` (nouveau),
+`header.gd` (nouveau), `agent_view.gd`, `indicators.gd`, `control_panel.gd`,
+`inspector_panel.gd`, `ws_client.gd` ; côté Python `_emit_snapshot`,
+`_inspect`, `_handle_control`.
+
+- Fenêtre **1280×720**, fond sombre, bandeau (titre, temps simulé, compteurs,
+  fumée, état de connexion, modèles).
+- Carte par zones avec **nord en haut**, couloirs, sorties A/B/C avec état
+  (ouverte / fermée), compteur d'évacués et fumée au sud.
+- Agents : cercle coloré par croyance **+ marqueur redondant** (A plein,
+  B point, C anneau, inconnu creux), anneau blanc = LLM, éventail déterministe
+  (fini la superposition), interpolation entre instantanés.
+- Courbes **small multiples** I1/I2/I4/I3 : échelle fixe 0..1, abscisse =
+  tick réel, point courant, I3 en %, I5 en compteur.
+- Contrôles D3 : annonce claire, **annonce neutre** (contrôle B3), fausse
+  info, fermeture de A avec **double confirmation** ; statut et accusé de
+  réception (`control_ack`).
+- Inspection D2 : profil, zone, croyance, état, dernière décision, **sa
+  justification**, mémoire, passages RAG avec scores, dérives.
+- Captures versionnées : `docs/resultats/captures/godot-interface.png` et
+  `godot-inspection.png` (banc Xvfb + mock, `tests/screenshot.gd`).
+
+### 4. Correctifs de fond
+
+1. `events.py` : ajout de `oracle.violation` et utilisation de
+   `control.inject` (type existant) pour les injections.
+2. `_emit_snapshot` : compteurs (`total`, `evacuated`, `trapped`,
+   `remaining`), état des sorties, `max_ticks`, `announcements`,
+   `false_infos`, `evacuated`/`trapped`/`profile` par agent.
+3. `_inspect` : `profile`, `kind`, `last_action`, `last_exit`, `decisions`,
+   `explanation` (dernière justification), `intention`.
+4. `_handle_control` : journalisation `control.inject` + `control_ack` ;
+   commande `neutral_announcement`.
+5. `oracle.check_decisions` appelé à chaque tick sur les décisions réelles ;
+   les violations sont journalisées (`oracle.violation`).
+6. Dérives : chaque nouvel incident `agent.drift` est journalisé.
+7. B3 : `neighbor_beliefs` vide quand `communication=False`.
+8. `llm_gateway` inchangé ; aucune régression de la passerelle unique.
+
+### 5. Validation du 22/10
+
+| Vérification | Résultat |
+|---|---|
+| pytest hôte | **22 OK / 0 échec** |
+| pytest conteneur | **22 OK / 0 échec** |
+| Godot composants | **27 OK / 0 échec** |
+| Godot WebSocket (mock 4 agents) | **8 OK / 0 échec** |
+| E2E réel sync (E2B + bge-m3 + Redpanda) | **6 OK / 0 échec**, 7 appels LLM, 0 violation |
+| Rejeu E3 | 47 événements, hash `729ffc4dd2f09665` |
+| Journal e2e | 3 `control.inject`, 12 `agent.decision`, 20 `movement.snapshot` |
+| Captures | 1280×720, interface + inspection |
+
+Commandes exactes :
+
+```bash
+make test-godot
+bash scripts/run_e2e.sh
+cd python-sim && pytest -q
+# capture (Xvfb + mock) :
+docker run ... --entrypoint sh maree-simulation-godot-vnc -c \
+  "Xvfb :99 -screen 0 1280x720x24 & DISPLAY=:99 godot --path /godot/project \
+   --rendering-driver opengl3 --script res://tests/screenshot.gd"
+```
+
+### 6. Ce qui reste ouvert (et n'est PAS revendiqué)
+
+- **B4** vue de causalité : `causation_id` vide, pas d'offsets.
+- **C7** décalage sous charge : `processing_delay_ticks=0`, aucune
+  distribution `t_trait - t_prod`.
+- **C8** runs 20/60 comparés : absents.
+- **E5** mixte vs tout-grand-modèle : absent ; E4B seulement en e2e.
+- **F6** offsets Kafka → clic indicateur : absent.
+- **E3** rejeu intégral : les décisions LLM ne sont pas reconstructibles
+  (prompt/graine/sortie brute non journalisés).
+- **B3** : les leviers sont câblés (annonce neutre, communication coupée)
+  mais aucun run dédié n'a été ajouté aux 70 runs ; la diversité des
+  justifications n'est pas mesurée.
+- **Protocole** : X1 confond clarté et moment (annonce avant la fumée),
+  X2 ferme à 5 s et non 5 min, X3 est confondu par le nombre d'appels
+  (64 vs 19). Ces choix sont documentés dans le rapport.
+
+### 7. État du dépôt
+
+- Correspondance réécrite avec statuts honnêtes :
+  `docs/correspondance-exigences.md`.
+- Cadrage copié dans `docs/cadrage-maree.md` (le lien était mort).
+- Rapport enrichi d'une section interface + limites 5–8.
+- README : captures, 214 passages, 22 tests, section « non revendiqué ».

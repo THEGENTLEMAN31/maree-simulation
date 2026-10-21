@@ -1,26 +1,54 @@
-[gd_scene load_steps=6 format=3 uid="uid://c0mareemain0"]
+[gd_scene load_steps=8 format=3 uid="uid://c0mareemain0"]
 
 [ext_resource type="Script" path="res://scripts/ws_client.gd" id="1_ws"]
 [ext_resource type="Script" path="res://scripts/agent_view.gd" id="2_agents"]
 [ext_resource type="Script" path="res://scripts/inspector_panel.gd" id="3_inspect"]
 [ext_resource type="Script" path="res://scripts/indicators.gd" id="4_indicators"]
 [ext_resource type="Script" path="res://scripts/control_panel.gd" id="5_control"]
+[ext_resource type="Script" path="res://scripts/header.gd" id="6_header"]
 
-[node name="Main" type="Node"]
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
-[node name="World" type="Node2D" parent="."]
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.043, 0.059, 0.09, 1)
+
+[node name="World" type="Node" parent="."]
 script = ExtResource("1_ws")
 
-[node name="AgentsLayer" type="CanvasLayer" parent="World"]
+[node name="Header" type="Control" parent="World"]
+layout_mode = 0
+script = ExtResource("6_header")
+
+[node name="AgentsLayer" type="Control" parent="World"]
+layout_mode = 0
+mouse_filter = 2
 
 [node name="AgentContainer" type="Control" parent="World/AgentsLayer"]
+layout_mode = 0
 script = ExtResource("2_agents")
 
 [node name="IndicatorChart" type="Control" parent="World"]
+layout_mode = 0
 script = ExtResource("4_indicators")
 
 [node name="InspectPanel" type="Control" parent="World"]
+layout_mode = 0
 script = ExtResource("3_inspect")
 
 [node name="ControlPanel" type="Control" parent="World"]
+layout_mode = 0
 script = ExtResource("5_control")

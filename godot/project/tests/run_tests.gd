@@ -1,4 +1,6 @@
 extends SceneTree
+
+const UI = preload("res://scripts/ui_theme.gd")
 ## Tests headless des composants Godot (D1, D2, B2, D3, client WS).
 ## Lancer :
 ##   godot --headless --path /godot/project --script res://tests/run_tests.gd
@@ -37,10 +39,12 @@ func _run() -> void:
 	if world == null:
 		return
 
+	var header: Node = root_node.get_node_or_null("World/Header")
 	var agents: Node = root_node.get_node_or_null("World/AgentsLayer/AgentContainer")
 	var chart: Node = root_node.get_node_or_null("World/IndicatorChart")
 	var panel: Node = root_node.get_node_or_null("World/InspectPanel")
 	var controls: Node = root_node.get_node_or_null("World/ControlPanel")
+	_check(header != null, "Header présent (bandeau)")
 	_check(agents != null, "AgentContainer présent (agent_view)")
 	_check(chart != null, "IndicatorChart présent (indicators)")
 	_check(panel != null, "InspectPanel présent (inspector_panel)")
@@ -62,8 +66,8 @@ func _run() -> void:
 	_check(agents._points.size() == 3, "state -> agent_view : 3 agents positionnés")
 	_check(agents._colors.size() == 3, "state -> agent_view : 3 couleurs")
 	_check(agents._colors[0] != agents._colors[1], "couleurs distinctes selon la croyance")
-	_check(agents._colors[0] == Color(0.18, 0.27, 0.79, 1.0), "croyance A -> bleu")
-	_check(agents._colors[2] == Color(0.45, 0.45, 0.45, 1.0), "sans croyance -> gris")
+	_check(agents._colors[0] == UI.BELIEF_A, "croyance A -> bleu Okabe-Ito")
+	_check(agents._colors[2] == UI.UNKNOWN, "sans croyance -> gris creux")
 
 	# --- composant indicators : indicators -> historique ---
 	var ind := {

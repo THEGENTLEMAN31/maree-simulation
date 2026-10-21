@@ -40,7 +40,7 @@ téléchargé) et le cadrage détaillé dans `docs/cadrage-maree.md` (copie de
   `control.commands`, `dlq.invalid`.
 - **Simulation** : Python 3.11+ asyncio dans `python-sim/`.
 - **Visualisation** : Godot 4.4 (headless pour CI, VNC pour démo jury).
-- **RAG** : corpus Markdown dans `world_corpus/` (**209 passages**, 5
+- **RAG** : corpus Markdown dans `world_corpus/` (**214 passages**, 5
   collections, ~103 mots/passage), embeddings **bge-m3 Q4 sur GPU** via
   `LLMGateway.embed()` (point d'entrée unique, décision 7), index
   **FAISS IndexFlatIP** + correction d'anisotropie (centrage sur la moyenne
@@ -166,14 +166,14 @@ graphify query "comment agents et RAG se relient-ils ?"
 ## État courant
 
 - Socle Python complet + tests verts (orchestrateur, agents, RAG, replay,
-  indicateurs, protocole, statistiques, rapport) — **18 tests pytest**.
+  indicateurs, protocole, statistiques, rapport) — **22 tests pytest**.
 - **Godot réparé et validé** : scène `.tscn` réécrite en syntaxe Godot 4
   valide, scripts (client WS, rendu, inspection D2, courbes B2, HUD D3)
-  fonctionnels. Tests : 26 composants + 8 chaîne WS (mock) + 6 e2e réel.
+  fonctionnels. Tests : 27 composants + 8 chaîne WS (mock) + 6 e2e réel. Interface refondue le 22/10 (carte, fumée, courbes, inspection D2, HUD D3).
 - **Chaîne réelle validée de bout en bout** le 20/10 : Redpanda + llama.cpp
   (E2B réel) + python-sim + Godot, en sync, async et avec E4B ; rejeu E3 OK.
   Tout est reproductible via `make e2e` / `make e2e-async` / `make e2e-e4b`.
-- Corpus RAG : **209 passages** générés de façon déterministe par
+- Corpus RAG : **214 passages** générés de façon déterministe par
   `scripts/generate_corpus.py` (5 collections, dates `available_tick`,
   `allowed_profiles`) — `make corpus`.
 - Variantes expérimentales X1–X7 : **leviers réellement câblés** (`rag`,
@@ -183,8 +183,12 @@ graphify query "comment agents et RAG se relient-ils ?"
   Test exact de Mann-Whitney (permutation, n=5 vs 5) dans
   `experiments/report.py`, rapport rédigé avec section limites.
 - Graphify : graphe de la codebase généré (339 nœuds, 11 communautés).
-- À faire : étendre le corpus RAG, README GitHub de qualité, synchroniser le
-  dépôt distant.
+- Audit du 22/10 : statuts honnêtes dans `docs/correspondance-exigences.md`.
+  Non livré et non revendiqué : B4, C7, C8, E5, F6, E3 intégral, contrôles B3
+  complets. Correctifs du jour : oracle C6 branché, dérives A4 journalisées,
+  injection D3 journalisée, justification LLM dans l'inspection, interface
+  Godot refondue.
+- À faire : F6/B4 si le temps le permet ; runs B3 dédiés ; captures vidéo.
 
 ## Prochaines tâches (ordre suggéré)
 

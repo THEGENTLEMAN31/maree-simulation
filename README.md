@@ -11,8 +11,8 @@ trois sorties inégales, en se parlant, en se souvenant, et en déformant ou
 non l'information.
 
 **Promesse technique** : un journal d'événements Kafka comme source de vérité,
-un rejeu à l'identique **sans appel LLM**, une visualisation Godot qui ne
-fait que lire le flux.
+un rejeu du journal **sans appel LLM** (indicateurs recalculés), une
+visualisation Godot qui ne fait que lire le flux.
 
 ---
 
@@ -38,7 +38,7 @@ make replay RUN_ID=run_demo
 Protocole scientifique complet (reproductible) :
 
 ```bash
-make corpus          # 209 passages RAG (5 collections, datés, profilés)
+make corpus          # 214 passages RAG (5 collections, datés, profilés)
 make eval-rag        # F2 : précision@1/@3 + MRR sur 30 questions annotées
 make experiments     # X1–X7 : 5 runs × 14 configurations, modèles réels
 make report          # F5 : tableaux, Mann-Whitney exact, conclusion rédigée
@@ -88,7 +88,10 @@ Rapport complet, tests et limites : `docs/resultats/rapport-experiences.md`.
 | X6 | profils échangés entre deux agents | distributions identiques | résultat négatif conservé |
 | X7 | RAG actif vs RAG coupé | I2 = 0,60 vs 0,60 (p = 0,89) | aucun effet détectable |
 
-- **I5 = 0** sur les 70 runs : aucune décision n'a cité une information future.
+- **I5 = 0** sur les 70 runs. L'oracle temporel est appelé à chaque tick et
+  testé (il détecte bien un message arrivé après la décision), mais le délai
+  de traitement simulé est nul : ce zéro ne prouve pas l'absence de
+  péremption asynchrone (limite C7, voir la correspondance).
 - **RAG** : 214 passages, P@1 = 0,733, P@3 = 0,867, MRR = 0,794 ; le repli
   lexical n'a jamais été utilisé.
 - **Coût** : ~1,9 min/run ; E2B + bge-m3 cohabitent dans 4 Go
@@ -98,6 +101,12 @@ Lecture honnête : un seul effet franchit le seuil de signification avec 5 runs
 par bras. Les autres sont rapportés comme non concluants ou négatifs — ils ne
 sont pas retirés. Le rapport automatique donne les tests exacts de
 Mann-Whitney, les distributions de sorties et les limites assumées.
+
+**Non revendiqué** (détail dans `docs/correspondance-exigences.md`) : B4 (vue
+de causalité), C7 (décalage sous charge), C8 (runs 20/60), E5 (mixte vs grand
+modèle), F6 (offsets Kafka → clic indicateur), et E3 comme rejeu intégral des
+décisions LLM. Les contrôles B3 sont câblés (annonce neutre, communication
+coupée) mais n'ont pas de runs dédiés dans le protocole.
 
 ---
 
@@ -129,7 +138,7 @@ Mann-Whitney, les distributions de sorties et les limites assumées.
 
 ### Base de connaissances (RAG, F1)
 
-`world_corpus/` — **209 passages** (~103 mots/passage), générés de façon
+`world_corpus/` — **214 passages** (~103 mots/passage), générés de façon
 déterministe par `scripts/generate_corpus.py`, accès contrôlé par profil +
 date de disponibilité simulée (C6) :
 
@@ -150,7 +159,25 @@ présenté comme du sémantique.
 
 ---
 
-## 🧪 Ce qui est prouvé par les tests (19 Python + 26 Godot + 8 WS)
+## 🖥️ Interface Godot (D1–D3, B2)
+
+Une vue de soutenance, pas une vue de débogage : carte par zones (nord en
+haut), sorties A/B/C avec état et compteur, fumée au sud, agents colorés par
+croyance avec un marqueur redondant (A plein, B point, C anneau, inconnu
+creux), anneau blanc = agent LLM. À droite : courbes I1/I2/I4/I3, compteur
+I5, contrôles D3 et inspecteur D2.
+
+![Interface](docs/resultats/captures/godot-interface.png)
+
+![Inspection](docs/resultats/captures/godot-inspection.png)
+
+Godot reste un **consommateur pur** : les positions, compteurs, états de
+sortie et justifications viennent tous de `state` / `indicators` /
+`inspection`. Les agents sont interpolés entre deux instantanés ; le clic sur
+un agent ouvre sa mémoire, sa dernière décision, sa justification et les
+passages RAG retrouvés.
+
+## 🧪 Ce qui est prouvé par les tests (22 Python + 27 Godot + 8 WS)
 
 - **Déterminisme** : même config + graine → même hash d'indicateurs au rejeu
   (`test_rejeu_identique_meme_config`).
@@ -180,7 +207,7 @@ violer, l'arborescence, les commandes, l'état d'avancement.
 docs/          décisions, architecture, hypothèses, correspondance exige.
 python-sim/    simulation Python (src + tests + config)
 godot/         projet Godot (scènes + scripts) + Dockerfiles
-world_corpus/  corpus RAG de Port-Aubel (209 passages, 5 collections)
+world_corpus/  corpus RAG de Port-Aubel (214 passages, 5 collections)
 presets/       config llama.cpp router
 scripts/       téléchargement modèles
 llama.cpp/     Dockerfile d'inférence CUDA

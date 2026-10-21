@@ -154,9 +154,49 @@ Ces deux expériences ne se jugent pas sur I2 (indicateur agrégé) mais sur la 
 - **H5 (X5)** — avec mémoire préalable : securite_01 (A×3, C×1, non évacué×1) ; visiteur_01 (A×3, C×1, non évacué×1) ; sans mémoire : securite_01 (A×5) ; visiteur_01 (A×4, B×1). La mémoire préalable **diversifie** la décision (les agents ne se ruent plus tous vers A). Effet descriptif cohérent avec A1, non testable statistiquement sur 5 runs catégoriels.
 - **H6 (X6)** — profils d'origine : securite_01 (A×4, C×1) ; visiteur_01 (A×2, C×1, non évacué×2) ; profils échangés : securite_01 (A×4, C×1) ; visiteur_01 (A×2, C×1, non évacué×2). Les distributions sont **identiques** : l'échange de profil n'a pas déplacé la décision finale. Résultat négatif conservé (le journal prouve pourtant que le profil a bien été échangé).
 
-### Ce que le dispositif démontre
+### Interface Godot (D1, D2, D3, B2)
 
-- **I5 = 0** : aucune violation temporelle sur l'ensemble des configurations (0 violation(s) au total). Aucun agent n'a cité une information qui n'existait pas encore à son tick.
+L'interface est un **consommateur pur** du flux (décision 9) : elle ne calcule
+aucun état, elle dessine les messages `state`, `indicators`, `inspection` et
+`control_ack`. La refonte du 22/10 remplace la vue de débogage par une vue de
+soutenance, sans sprites ni assets externes (cercles colorés, cadrage).
+
+![Vue principale](captures/godot-interface.png)
+
+*Vue principale — carte par zones (nord en haut), sorties A/B/C avec état et
+compteur, fumée au sud, agents colorés par croyance, anneau blanc = agent LLM,
+compteurs évacués/piégés/restants, courbes I1/I2/I4/I3 et contrôle I5.*
+
+![Inspection D2](captures/godot-inspection.png)
+
+*Inspection (D2) — profil, zone, croyance, état, dernière décision avec sa
+justification, mémoire, passages RAG avec scores et compteur de dérives.*
+
+Points vérifiables dans les scripts :
+
+- **D1** : `agent_view.gd` — 11 zones, sorties, fumée, éventail déterministe
+  pour que les agents d'une même zone ne se superposent pas, interpolation
+  entre instantanés, marqueurs redondants (A plein, B point, C anneau,
+  inconnu creux) pour rester lisible sans la couleur.
+- **D2** : `inspector_panel.gd` — la justification de la dernière décision
+  (`explanation`) est désormais envoyée par `_inspect()` et affichée, avec la
+  mémoire et les passages RAG.
+- **D3** : quatre événements (annonce claire, annonce neutre — contrôle B3,
+  fausse info, fermeture de A avec double confirmation). Chaque injection est
+  journalisée côté moteur (`control.inject`) et accusée réception
+  (`control_ack`).
+- **B2** : `indicators.gd` — small multiples, échelle fixe 0..1, abscisse =
+  tick réel, I3 en pourcentage et I5 en compteur. Les valeurs ne sont pas
+  interpolées entre deux mesures.
+
+## Ce que le dispositif démontre
+
+- **I5 = 0 sur les 70 runs** : l'oracle temporel est appelé à chaque tick
+  depuis le 22/10 et un test vérifie qu'il détecte bien un message arrivé
+  après la décision. Ce zéro mesure toutefois l'absence de **délai de
+  traitement simulé** (`t_trait = t_prod`, C7 non livré) : il ne prouve pas
+  qu'aucune décision asynchrone ne s'appuierait jamais sur un état périmé.
+  C'est une limite, pas un résultat.
 - **RAG réel** : repli lexical jamais utilisé ; précision@1 = 0.733 et MRR = 0.794 sur 30 questions annotées.
 - **Coût** : 799 appels cumulés (médianes) sur 14 configurations ; le budget GPU (4 Go) est tenu par la cohabitation E2B + bge-m3.
 
@@ -177,7 +217,25 @@ Le dispositif ne prétend pas modéliser une foule réelle. Il démontre qu'une 
 4. **Temps simulé** : 1 tick = 1 s. Les durées « 3 min » et « 6 min » du
    cadrage sont transposées en ticks (5 et 40) pour rester dans 60 ticks.
    Les conclusions portent donc sur l'ordre des événements, pas sur des
-   durées réelles.
+   durées réelles. X1 confond volontairement clarté et moment (annonce claire
+   avant la fumée) : c'est le protocole du cadrage, mais l'effet observé ne
+   peut pas être attribué à la seule clarté.
+5. **Rejeu (E3)** : le rejeu relit le journal et recalcule les indicateurs à
+   partir des instantanés ; il ne reconstruit pas les décisions LLM (le
+   prompt, la graine et la sortie brute ne sont pas journalisés). Le hash
+   identique prouve la stabilité des indicateurs, pas une rejouabilité
+   intégrale.
+6. **Traçabilité (F6 / B4)** : les offsets Kafka ne sont pas attachés aux
+   indicateurs et `causation_id` reste vide. Le clic « indicateur → événements
+   bruts » et la vue de causalité ne sont donc **pas livrés**.
+7. **Contrôles négatifs (B3)** : l'annonce neutre est disponible dans le HUD
+   et le levier `communication` coupe réellement les croyances voisines, mais
+   aucun run dédié n'a été ajouté au protocole et la diversité des
+   justifications n'est pas mesurée. X4 n'est pas un contrôle négatif.
+8. **Excellence non livrée** : C7 (distribution du décalage sous charge),
+   C8 (runs 20/60 comparés) et E5 (mixte vs tout-grand-modèle) ne sont pas
+   revendiqués. E4B n'est utilisé que pour le test de chaîne, pas pour une
+   comparaison d'apport.
 
 ## Requêtes versionnées
 
