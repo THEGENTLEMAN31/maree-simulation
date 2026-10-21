@@ -6,7 +6,7 @@
 #   -> indicateurs -> journal JSONL -> WebSocket -> Godot (D1/D2/D3)
 #   -> commandes/inspections -> Orchestrator -> rejeu E3.
 #
-# Population réduite (2 LLM E2B + 4 règles) et 5 ticks : même couverture,
+# Population réduite (2 LLM E2B + 4 règles) et 20 ticks : même couverture,
 # durée maîtrisée (~1-2 min). E4B n'est pas utilisée ici : elle ne tient
 # pas sur la RTX 3050 4 Go (OOM vérifié) — voir docs/JOURNAL.md.
 # ============================================================
@@ -15,7 +15,9 @@ run_id: e2e_godot
 seed: 42
 mode: sync
 tick_duration_ms: 1000
-max_ticks: 5
+max_ticks: 20
+# Attend le client Godot avant le premier tick (course de démarrage e2e).
+wait_for_client: true
 
 world:
   smoke_tick: 2

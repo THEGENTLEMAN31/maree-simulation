@@ -62,7 +62,7 @@ Légende : ✔ = couvert par le socle actuel, ⚠ = à compléter d'ici la soute
 | Exigence | Niveau | Où | Preuve |
 |----------|--------|----|--------|
 | F1 RAG décisions | Socle | `rag/rag.py` `retrieve_for()` (FAISS + bge-m3) | X7 : RAG activé vs désactivé ; taux de citation mesuré |
-| F2 Qualité récup | Socle | `experiments/rag_eval.py` + `RagClient.degraded` | 30 questions annotées : P@1 = 0,733, P@3 = 0,867, MRR = 0,80 |
+| F2 Qualité récup | Socle | `experiments/rag_eval.py` + `RagClient.degraded` | 30 questions annotées : P@1 = 0,733, P@3 = 0,867, MRR = 0,79 |
 | F3 Stockage justifié | Socle | docs/architecture § stockage | Kafka=flux, JSONL=journal, DB=analyse |
 | F4 Schémas versionnés | Socle | `events.py` `schema_version` + `EVENT_TYPES` | Événement invalide → dlq |
 | F5 Requêtes reproductibles | Standard | `experiments/report.py` — `SQL_QUERIES` exécutées par DuckDB | Contrôle croisé journal ↔ résumé + tests non paramétriques |

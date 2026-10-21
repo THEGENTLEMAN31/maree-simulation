@@ -72,6 +72,35 @@ médiane + écart interquartile (les moyennes sont trompeuses à petit n).
 
 ---
 
+## 📊 Résultats mesurés (70 runs réels)
+
+Protocole complet exécuté sur GPU (Gemma 4 E2B + bge-m3), 30 agents
+(5 LLM + 25 règles), 60 ticks, **14 configurations × 5 runs = 70 runs**.
+Rapport complet, tests et limites : `docs/resultats/rapport-experiences.md`.
+
+| Expérience | Ce qui change | Résultat mesuré | Lecture |
+|---|---|---|---|
+| X1 | annonce claire précoce vs ambiguë tardive | I2 = 0,60 vs 0,60 (p = 0,98) | aucun effet détectable |
+| X2 | meneurs (suivi 0,6) vs sans meneurs | évacués 53,3 % vs 56,7 % ; I4 0,32 vs 0,62 (p = 0,056) | tendance, non concluant |
+| X3 | décision synchrone vs asynchrone | évacués **93,3 % vs 73,3 %** (p = 0,0079) | **effet significatif** |
+| X4 | agents LLM vs agents à règles | I2 0,63 vs 0,53 (p = 0,13) | différence non concluante |
+| X5 | mémoire préalable vs sans mémoire | sorties suivies A×3/C×1 vs A×5 | la mémoire diversifie (descriptif) |
+| X6 | profils échangés entre deux agents | distributions identiques | résultat négatif conservé |
+| X7 | RAG actif vs RAG coupé | I2 = 0,60 vs 0,60 (p = 0,89) | aucun effet détectable |
+
+- **I5 = 0** sur les 70 runs : aucune décision n'a cité une information future.
+- **RAG** : 214 passages, P@1 = 0,733, P@3 = 0,867, MRR = 0,794 ; le repli
+  lexical n'a jamais été utilisé.
+- **Coût** : ~1,9 min/run ; E2B + bge-m3 cohabitent dans 4 Go
+  (3 692 Mio mesurés, chat + lot de 60 embeddings + chat validé).
+
+Lecture honnête : un seul effet franchit le seuil de signification avec 5 runs
+par bras. Les autres sont rapportés comme non concluants ou négatifs — ils ne
+sont pas retirés. Le rapport automatique donne les tests exacts de
+Mann-Whitney, les distributions de sorties et les limites assumées.
+
+---
+
 ## 🏗️ Architecture
 
 ```
@@ -115,13 +144,13 @@ date de disponibilité simulée (C6) :
 La récupération est **sémantique et réelle** : embeddings `bge-m3` (Q4) sur
 GPU via llama.cpp, index FAISS, correction d'anisotropie par centrage sur la
 moyenne du corpus. Qualité mesurée (F2, 30 questions annotées) :
-**précision@1 = 0,733 · précision@3 = 0,867 · MRR = 0,80**. Un repli lexical
+**précision@1 = 0,733 · précision@3 = 0,867 · MRR = 0,79**. Un repli lexical
 existe, mais il est signalé par `RagClient.degraded` : il n'est jamais
 présenté comme du sémantique.
 
 ---
 
-## 🧪 Ce qui est prouvé par les tests (18 Python + 26 Godot + 8 WS)
+## 🧪 Ce qui est prouvé par les tests (19 Python + 26 Godot + 8 WS)
 
 - **Déterminisme** : même config + graine → même hash d'indicateurs au rejeu
   (`test_rejeu_identique_meme_config`).

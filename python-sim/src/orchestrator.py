@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import zlib
 from dataclasses import asdict, dataclass, field
 
 from . import events as evmod
@@ -126,6 +127,8 @@ class Orchestrator:
         self._indicator_history: list[dict] = []
         self._offset_high_water: dict[str, int] = field(default_factory=dict)
         self._follow: list[bool] = []
+        # X4 : agents à règles « miroirs » des agents LLM (même profil, même id).
+        self._rules_shadow: dict[str, object] = {}
 
     # ------------------------------------------------------- journal (déc. 1)
     def _journal(self, topic: str, envelope: evmod.EventEnvelope) -> None:
@@ -144,6 +147,23 @@ class Orchestrator:
 
         self._emit_spawn()
         limits = max_ticks or self.config.max_ticks
+
+        # e2e : on attend le client Godot avant de simuler, sinon un run
+
+        # court peut finir avant sa connexion (course de démarrage).
+
+        if self.config.wait_for_client and self.ws.enabled:
+
+            waited = 0.0
+
+            while not self.ws.clients and waited < self.config.wait_for_client_timeout_s:
+
+                await asyncio.sleep(0.2)
+
+                waited += 0.2
+
+            print(f"[orchestrateur] client WS attendu : {len(self.ws.clients)} connecté(s) après {waited:.1f} s", flush=True)
+
 
         for tick in range(limits):
             self.clock.now = tick
@@ -276,7 +296,7 @@ class Orchestrator:
             flags = self.config.world.experiment_flags
             if not flags.get("llm", True):
                 # X4 baseline : on force l'agent à utiliser la règle.
-                intention = self._rules_intention(agent, perception)
+                intention = await self._rules_intention(agent, perception)
                 explanation = {"kind": "rules_baseline_override"}
             else:
                 intention = await agent.decide(perception)
@@ -346,9 +366,26 @@ class Orchestrator:
             blocked_exits=blocked,
         )
 
-    def _rules_intention(self, agent, perception: Perception):
-        """Bascule X4 : intention calculée par la règle au lieu du LLM."""
-        return agent.fallback_intention(perception)
+    async def _rules_intention(self, agent, perception: Perception):
+        """Bascule X4 : intention calculée par la **règle**, pas par un repli.
+
+        Utiliser `LLMAgent.fallback_intention()` renvoyait toujours « stay » :
+        le bras « règles » de X4 n'évacuait donc personne et le résultat
+        (I3 = 0) était un artefact, pas une mesure. On instancie un agent à
+        règles de même profil et de même identité, avec une graine dérivée de
+        l'identifiant (déterministe et reproductible).
+        """
+        from .agents.rules_agent import RulesAgent
+
+        shadow = self._rules_shadow.get(agent.agent_id)
+        if shadow is None:
+            seed = zlib.crc32(agent.agent_id.encode("utf-8"))
+            shadow = RulesAgent(
+                agent.agent_id, agent.profile_name, random.Random(seed)
+            )
+            shadow.follow_weight = 0.0
+            self._rules_shadow[agent.agent_id] = shadow
+        return await shadow.decide(perception)
 
     @staticmethod
     def _explanation(agent, perception: Perception, intention) -> dict:

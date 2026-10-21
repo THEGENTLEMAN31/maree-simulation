@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir \
     "click>=8.1" \
     "faiss-cpu>=1.8" \
     "numpy>=1.26" \
+    "duckdb>=1.0" \
     "pytest>=8.0" \
     "pytest-asyncio>=0.23"
 

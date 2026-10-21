@@ -47,7 +47,7 @@ téléchargé) et le cadrage détaillé dans `docs/cadrage-maree.md` (copie de
   du corpus). Pas de Chroma : FAISS + numpy suffit et tient dans le budget
   disque/VRAM. Le repli lexical existe mais est **signalé** par
   `RagClient.degraded` — jamais présenté comme du sémantique.
-  Qualité mesurée (F2) : précision@1 = 0,733, précision@3 = 0,867, MRR = 0,80
+  Qualité mesurée (F2) : précision@1 = 0,733, précision@3 = 0,867, MRR = 0,79
   sur 30 questions annotées. Un premier essai avec `multilingual-e5-small`
   donnait 0,167 : embeddings dégénérés (cos 0,93 entre textes sans rapport).
 

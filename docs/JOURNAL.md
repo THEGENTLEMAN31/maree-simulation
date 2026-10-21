@@ -311,3 +311,151 @@ make e2e            # chaîne réelle sync (Redpanda + LLM + Godot + rejeu)
 make e2e-async      # idem en mode asynchrone
 make e2e-e4b        # idem avec le grand modèle (offload partiel)
 ```
+
+---
+
+## 2026-10-21 — RAG sémantique réel, protocole X1–X7, rapport F5, e2e vert
+
+> Session longue et autonome. Tout ce qui suit est **mesuré**, pas estimé.
+> Les résultats négatifs sont conservés. Les bugs trouvés en route sont
+> listés avec leur correctif, pour qu'on ne les réintroduise pas.
+
+### 1. RAG : e5-small écarté après mesure, bge-m3 adopté
+
+- **e5-small (q8) rejeté** : embeddings dégénérés — `cos("le chat dort",
+  "voiture rouge") = 0,929`, `cos(textes sans rapport) = 0,956`. Le centrage
+  sur la moyenne ne sauve rien : P@1 = 0,167. Fichier supprimé.
+- **bge-m3 Q4_K_M adopté** (417 Mo, `gpustack/bge-m3-GGUF`), `pooling = cls`,
+  ctx 1024, dim 1024. Mesure F2 sur **214 passages / 30 questions annotées** :
+  **P@1 = 0,733 · P@3 = 0,867 · MRR = 0,794 · degraded = false**.
+- **Pourquoi Q4 et pas Q8** : Q8 (605 Mo) ne cohabite pas avec E2B dans 4 Go.
+  Q4 oui : E2B + bge-m3 = **3 692 Mio / 4 096**, 76 Mio libres, validé par un
+  stress test (chat 200 tokens + 60 embeddings + chat).
+- **Chemin unique** : tout embedding passe par `LLMGateway.embed()` (décision
+  7). Un échec lève ; jamais de repli silencieux. Le repli lexical existe mais
+  est signalé par `RagClient.degraded` — il n'a **pas** servi aux mesures.
+- **Index** : FAISS `IndexFlatIP` + numpy (pas de torch), correction
+  d'anisotropie par centrage sur la moyenne du corpus.
+
+### 2. Corpus RAG
+
+- `scripts/generate_corpus.py` → **214 passages** : annonces 43, consignes 40,
+  plan_signalétique 44, savoir_profils 44, souvenirs_editions 43 ; ~103 mots
+  par passage ; `available_tick` + `allowed_profiles` (C6).
+- **Incident consigné** : un nettoyage trop large a supprimé 5 passages
+  d'origine. Restaurés par `git checkout -- world_corpus/`. Le générateur ne
+  réécrit jamais un fichier existant, donc pas de doublon après restauration.
+- `test_corpus_f1_complet` verrouille : ≥ 200 passages, 5 collections,
+  en-têtes complets.
+
+### 3. Protocole X1–X7 (70 runs réels)
+
+- `config/experiments.yaml` : 30 agents (5 LLM E2B + 25 règles), 60 ticks,
+  `decision_period_sync = 5` (12 tours de décision).
+- **14 configurations × 5 runs = 70 runs**, 17:02 → 19:29 (~2 min/run).
+  `validate_experiments()` refuse toute paire identique.
+- Résultats (médiane ± IQR) :
+
+| Configuration | I1 (part maj.) | I2 | I3 évacués | I4 | cit. RAG | I5 |
+|---|---|---|---|---|---|---|
+| X1_clear_early | 0,467 ±0,217 | 0,600 ±0,208 | 0,933 ±0,033 | 0,795 ±0,349 | 1,000 | 0 |
+| X1_ambig_late | 0,400 ±0,217 | 0,600 ±0,217 | 0,967 ±0,050 | 0,602 ±0,250 | 1,000 | 0 |
+| X2_leaders | 0,476 ±0,125 | 0,600 ±0,148 | 0,533 ±0,150 | 0,316 ±0,148 | 1,000 | 0 |
+| X2_noleaders | 0,476 ±0,125 | 0,600 ±0,178 | 0,567 ±0,150 | 0,620 ±0,304 | 1,000 | 0 |
+| X3_sync | 0,383 ±0,108 | 0,617 ±0,133 | 0,933 ±0,033 | 0,598 ±0,183 | 1,000 | 0 |
+| X3_async | 0,550 ±0,200 | 0,679 ±0,249 | 0,733 ±0,183 | 0,583 ±0,393 | 1,000 | 0 |
+| X4_llm | 0,367 ±0,133 | 0,633 ±0,158 | 0,933 ±0,033 | 0,608 ±0,197 | 1,000 | 0 |
+| X4_rules | 0,467 ±0,000 | 0,533 ±0,000 | 1,000 ±0,000 | 1,000 ±0,000 | 0,000 | 0 |
+| X5_with_mem | 0,367 ±0,183 | 0,633 ±0,208 | 0,967 ±0,067 | 0,547 ±0,170 | 1,000 | 0 |
+| X5_without_mem | 0,400 ±0,150 | 0,600 ±0,167 | 0,933 ±0,017 | 0,719 ±0,090 | 1,000 | 0 |
+| X6_profiles_origin | 0,433 ±0,150 | 0,567 ±0,175 | 0,933 ±0,067 | 0,561 ±0,254 | 1,000 | 0 |
+| X6_profiles_swapped | 0,400 ±0,150 | 0,567 ±0,175 | 0,967 ±0,050 | 0,498 ±0,196 | 1,000 | 0 |
+| X7_rag_on | 0,367 ±0,108 | 0,600 ±0,167 | 0,933 ±0,050 | 0,633 ±0,239 | 1,000 | 0 |
+| X7_rag_off | 0,400 ±0,108 | 0,600 ±0,167 | 0,900 ±0,000 | 0,598 ±0,187 | 0,000 | 0 |
+
+- **Tests exacts de Mann-Whitney** (permutation, n = 5 vs 5, 252 partitions) :
+
+| Exp. | Hypothèse | Métrique | p exacte | Lecture |
+|---|---|---|---|---|
+| X1 | H1 clarté/précoce | I2 | 0,984 | aucun effet |
+| X2 | H2 meneurs | I4 | 0,056 | tendance, **non concluant** (direction opposée) |
+| X3 | H3 sync/async | I3 | **0,0079** | **significatif** : 93,3 % vs 73,3 % évacués |
+| X4 | H4 LLM ≠ règles | I2 | 0,127 | non concluant |
+| X5 | H5 mémoire préalable | I2 | 0,746 | non concluant sur I2 (voir descriptif) |
+| X6 | H6 profils échangés | I2 | 1,000 | aucun effet |
+| X7 | H7 RAG | I2 | 0,889 | aucun effet |
+
+- **X5 (descriptif, métrique = sortie choisie)** : avec mémoire,
+  `securite_01` et `visiteur_01` se répartissent A×3 / C×1 (+1 non évacué) ;
+  sans mémoire, quasi-unanimité A (A×5 et A×4/B×1). La mémoire préalable
+  **diversifie** la décision (cohérent avec A1), non testable sur 5 runs
+  catégoriels.
+- **X6 (négatif conservé)** : distributions **identiques** entre profils
+  d'origine et échangés. Le journal prouve pourtant que le swap a bien eu
+  lieu (`profile: securite` sur `visiteur_01` et inversement). Sur ce corpus,
+  le texte du profil ne suffit pas à déplacer la décision finale.
+- **H3 est la seule hypothèse soutenue** ; H2/H4 non concluantes ;
+  H1/H5/H6/H7 négatives. Aucune n'a été réécrite après coup.
+- **I5 = 0 sur les 70 runs** ; 100 % des décisions LLM citent ≥ 1 passage
+  quand le RAG est actif (0 % quand il est coupé) — le levier est réel.
+
+### 4. Bugs trouvés et corrigés (ne pas réintroduire)
+
+1. **X4 « règles »** utilisait `LLMAgent.fallback_intention()` → renvoyait
+   toujours `stay` → I3 = 0, résultat artefactuel. Remplacé par un
+   `RulesAgent` miroir (même id, même profil, graine `crc32(id)`), X4 relancé
+   (10 runs) et fusionné. `X4_rules` évacue désormais 100 %.
+2. **Traçabilité RAG absente du journal** (décision 12 non tenue) : ajout de
+   `rag_doc_ids`, `profile`, `kind` dans `agent.decision`.
+3. **Violations I5 seulement en mémoire** : journalisées (`oracle.violation`),
+   donc vérifiables en SQL.
+4. **Requêtes SQL du rapport** utilisaient `event_type` alors que le journal
+   écrit `type` → corrigé et vérifié sur les 70 runs.
+5. **`_samples` lisait `I2_median` au lieu de `I2`** → listes vides, tests
+   `None` silencieux (« test impossible »). Mapping explicite ajouté.
+6. **I1 composite illisible** (part majoritaire × homogénéité → 0,05) :
+   recalculé en **part majoritaire** depuis les snapshots (conforme au
+   cadrage) via une requête SQL versionnée. Valeurs 0,37–0,55.
+7. **Client WS tardif** : un run court pouvait finir avant la connexion Godot
+   → cache du dernier `state`/`indicators` et rejeu à la connexion.
+8. **Course de démarrage e2e** : `wait_for_client` (activé uniquement en e2e)
+   + `max_ticks: 20` ; le client Godot voit tout le run.
+9. **Pydantic** : `experiment_flags: dict[str, bool]` alors que
+   `swap_profiles` est une liste → `dict[str, Any]`, warning supprimé.
+10. **Docker** : `duckdb` absent de la liste de dépendances dupliquée du
+    `Dockerfile` (le `pyproject.toml` l'avait) → ajouté, image reconstruite,
+    `duckdb 2.0.0` + `faiss` vérifiés dans le conteneur.
+
+### 5. Validation finale (tout vert)
+
+| Vérification | Résultat |
+|---|---|
+| pytest hôte | **20 OK / 0 échec** |
+| pytest conteneur | **20 OK / 0 échec** (duckdb 2.0.0 + faiss importés) |
+| Godot composants | **26 OK / 0 échec** |
+| Godot WebSocket | **8 OK / 0 échec** |
+| E2E réel sync (E2B + RAG GPU) | **6 OK / 0 échec**, 7 appels LLM, 0 violation |
+| Rejeu E3 | 44 événements, hash d'indicateurs recalculé |
+| F2 (214 passages) | P@1 0,733 · P@3 0,867 · MRR 0,794 · `degraded: false` |
+| Rapport F5 | 7 tests Mann-Whitney, I1–I5, distributions, conclusion rédigée |
+
+### 6. Reproduction (commandes exactes)
+
+```bash
+make corpus            # 214 passages, 5 collections
+make eval-rag          # F2 : P@1/P@3/MRR sur 30 questions
+make experiments       # X1–X7 : 14 configs × 5 runs, modèles réels
+make report            # rapport F5 (SQL versionnées + Mann-Whitney)
+make test-godot        # 26 tests composants
+make e2e               # chaîne réelle Redpanda + E2B + Godot + rejeu
+```
+
+Les preuves sont versionnées : `docs/resultats/rapport-experiences.md`,
+`docs/resultats/resume-experiences.json`, `docs/resultats/rag_eval.json`.
+
+### 7. État du dépôt
+
+- Commit `172dd39` : RAG GPU réel + corpus + protocole + rapport F5.
+- Commit suivant : résultats mesurés, correctifs e2e/WS/Docker, journal.
+- Reste à faire : push vers le dépôt distant ; éventuelles captures d'écran
+  pour la soutenance (le fond est prêt).

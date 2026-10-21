@@ -42,7 +42,10 @@ class WorldSpec(BaseModel):
     announcement_tick: int | None = None
     announcement_clarity: Literal["clear", "ambiguous"] | None = None
     exits_closed: dict[str, int] = Field(default_factory=dict)  # code -> tick fermeture
-    experiment_flags: dict[str, bool] = Field(default_factory=dict)
+    # Les leviers expérimentaux ne sont pas tous des booléens : `swap_profiles`
+    # est une liste d'identifiants. Typer `bool` provoquait un warning de
+    # sérialisation Pydantic et masquait le contrat réel.
+    experiment_flags: dict[str, Any] = Field(default_factory=dict)
     # Pas de décision commun en mode synchrone (décision 10) : les agents
     # agissent tous ensemble, mais périodiquement, pas à chaque tick.
     decision_period_sync: int = 10
@@ -62,6 +65,12 @@ class SimulationConfig(BaseModel):
     mode: Literal["sync", "async"] = "sync"
     tick_duration_ms: int = 1000
     max_ticks: int = 100
+    # Attente explicite du premier client WebSocket avant le premier tick.
+    # Activée uniquement en e2e : sans elle, un run court (5 ticks) peut se
+    # terminer avant que le conteneur Godot ait fini de démarrer, et le
+    # client ne reçoit jamais ni indicateurs ni réponse d'inspection.
+    wait_for_client: bool = False
+    wait_for_client_timeout_s: int = 120
     population: list[ProfileSpec] = Field(default_factory=list)
     world: WorldSpec = Field(default_factory=WorldSpec)
     log_dir: str = "/logs"

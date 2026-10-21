@@ -1,0 +1,8 @@
+{
+  "passages": 214,
+  "n_queries": 30,
+  "precision_at_1": 0.733,
+  "precision_at_3": 0.867,
+  "mrr": 0.794,
+  "degraded": false
+}

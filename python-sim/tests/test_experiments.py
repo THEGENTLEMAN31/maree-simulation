@@ -8,6 +8,7 @@ Ces tests vérifient les propriétés dont dépendent les conclusions :
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -164,3 +165,27 @@ def test_corpus_f1_complet() -> None:
         head = f.read_text(encoding="utf-8").split("---")[1]
         for key in ("title:", "available_tick:", "allowed_profiles:", "importance:"):
             assert key in head, f"{f} : en-tête incomplet ({key})"
+
+
+@pytest.mark.asyncio
+async def test_ws_client_tardif_recoit_etat_courant() -> None:
+    """Un client qui se connecte après le début du run ne voit pas un écran vide.
+
+    Régression e2e : un run court pouvait se terminer avant la connexion
+    Godot ; les indicateurs n'étaient alors jamais reçus.
+    """
+    import json
+
+    import websockets
+
+    from src.ws_server import WSRelay
+
+    server = WSRelay(host="127.0.0.1", port=0)
+    server._server = await websockets.serve(server._handler, "127.0.0.1", 0)
+    port = server._server.sockets[0].getsockname()[1]
+    await server.broadcast({"type": "state", "tick": 3, "agents": []})
+    async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
+        first = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
+        assert first["type"] == "state"
+        assert first["tick"] == 3
+    await server.close()

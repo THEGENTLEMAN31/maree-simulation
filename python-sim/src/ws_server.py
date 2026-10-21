@@ -31,6 +31,9 @@ class WSRelay:
         self.clients: set = set()
         self.on_command = None
         self._server = None
+        # Dernier message diffusé par type : un client qui se connecte après
+        # le début du run doit voir l'état courant, pas un écran vide.
+        self._last: dict[str, dict] = {}
 
     async def start(self) -> None:
         if not self.enabled:
@@ -40,6 +43,14 @@ class WSRelay:
     async def _handler(self, ws) -> None:
         self.clients.add(ws)
         print(f"[ws] client connecté ({len(self.clients)} connecté(s))", flush=True)
+        # Rejoue l'état courant au nouvel arrivant (état + indicateurs).
+        for kind in ("state", "indicators"):
+            cached = self._last.get(kind)
+            if cached:
+                try:
+                    await ws.send(json.dumps(cached))
+                except Exception:  # pragma: no cover - client déjà parti
+                    pass
         try:
             async for message in ws:
                 await self._dispatch(ws, message)
@@ -66,7 +77,12 @@ class WSRelay:
             await ws.send(json.dumps({"type": "pong"}))
 
     async def broadcast(self, payload: dict) -> None:
-        if not self.enabled or not self.clients:
+        if not self.enabled:
+            return
+        kind = payload.get("type")
+        if kind:
+            self._last[kind] = payload
+        if not self.clients:
             return
         data = json.dumps(payload)
         await asyncio.gather(

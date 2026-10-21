@@ -17,6 +17,7 @@ from __future__ import annotations
 import itertools
 import json
 import math
+import statistics
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -41,6 +42,24 @@ SQL_QUERIES: dict[str, str] = {
         FROM read_json_auto('{root}/*.events.jsonl')
         WHERE "type" = 'agent.decision'
         GROUP BY run_id, agent_id
+    """,
+    "v1_i1_part_majoritaire": """
+        WITH snap AS (
+          SELECT run_id, data.tick AS tick, unnest(data.agents) AS a
+          FROM read_json_auto('{root}/*.events.jsonl')
+          WHERE "type" = 'movement.snapshot'
+        ), inf AS (
+          SELECT run_id, tick, a.belief AS belief
+          FROM snap WHERE a.belief IS NOT NULL
+        ), cnt AS (
+          SELECT run_id, tick, belief, count(*) AS c
+          FROM inf GROUP BY 1, 2, 3
+        ), per AS (
+          SELECT run_id, tick, max(c)::DOUBLE / sum(c) AS share
+          FROM cnt GROUP BY 1, 2
+        )
+        SELECT run_id, round(median(share), 4) AS i1_spec
+        FROM per GROUP BY 1 ORDER BY 1
     """,
     "v1_citations_rag": """
         SELECT run_id,
@@ -70,6 +89,18 @@ HYPOTHESES = {
     "X5": ("H5", "sortie choisie, justification", "I2_median"),
     "X6": ("H6", "décision des agents échangés", "I2_median"),
     "X7": ("H7", "I2, part des décisions citant un passage", "I2_median"),
+}
+
+# Direction attendue par l'hypothèse (médiane A vs médiane B).
+# None = hypothèse de différence sans direction (test bilatéral).
+DIRECTIONS: dict[str, str | None] = {
+    "X1": "<",  # annonce claire => écart croyance/réalité plus faible
+    "X2": ">",  # meneurs => suivi de meneur plus élevé
+    "X3": None,  # asynchrone => répartition différente, sans direction
+    "X4": None,  # « LLM ≠ règles sur I2 » : différence, pas direction
+    "X5": None,  # sortie choisie : comparée qualitativement
+    "X6": None,  # décisions échangées : comparées qualitativement
+    "X7": "<",  # RAG actif => écart croyance/réalité plus faible
 }
 
 INDICATORS = [
@@ -205,6 +236,27 @@ def _fmt(v, digits: int = 3) -> str:
     return str(v)
 
 
+def _i1_stats(name: str, i1_by_run: dict[str, float]) -> dict:
+    """Médiane + IQR de I1 recalculé depuis les snapshots (part majoritaire)."""
+    vals = sorted(v for rid, v in i1_by_run.items() if name in rid)
+    if not vals:
+        return {}
+    if len(vals) < 4:
+        return {
+            "median": round(vals[len(vals) // 2], 4),
+            "iqr": round(vals[-1] - vals[0], 4),
+            "min": round(vals[0], 4),
+            "max": round(vals[-1], 4),
+        }
+    q = statistics.quantiles(vals, n=4)
+    return {
+        "median": round(statistics.median(vals), 4),
+        "iqr": round(q[2] - q[0], 4),
+        "min": round(vals[0], 4),
+        "max": round(vals[-1], 4),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Rapport
 # ---------------------------------------------------------------------------
@@ -240,6 +292,16 @@ def build_report(
         res["median_b"] = sorted(b)[len(b) // 2] if b else None
         tests[exp_id] = res
 
+    # F5 : les comptages sont recalculés depuis les journaux avant d'écrire
+    # les tableaux. I1 est recalculé en « part majoritaire » (définition du
+    # cadrage) à partir des snapshots, et non repris du résumé Python.
+    sql_results = run_sql_checks(log_dir)
+    i1_by_run = {
+        row[0]: float(row[1])
+        for row in sql_results.get("v1_i1_part_majoritaire", [])
+        if len(row) == 2 and isinstance(row[1], (int, float))
+    }
+
     lines: list[str] = [
         "# MARÉE — Rapport d'expérimentation",
         "",
@@ -260,7 +322,7 @@ def build_report(
         "",
         "| Indicateur | Définition |",
         "|---|---|",
-        "| I1 | part des agents informés qui partagent la sortie majoritaire |",
+        "| I1 | part des agents informés qui partagent la sortie majoritaire (recalculée depuis les snapshots) |",
         "| I2 | écart entre croyance de sortie sûre et vérité terrain (0–1) |",
         "| I3 | part des agents évacués à la fin du run |",
         "| I4 | part des décisions où l'agent suit la sortie majoritaire de ses voisins visibles |",
@@ -268,14 +330,14 @@ def build_report(
         "",
         "## Résultats par configuration",
         "",
-        "| Configuration | runs | I1 | I2 | I3 évacués | I4 | citations RAG | violations |",
+        "| Configuration | runs | I1 (part maj.) | I2 | I3 évacués | I4 | citations RAG | violations |",
         "|---|---|---|---|---|---|---|---|",
     ]
 
     for name, res in summary.items():
         lines.append(
             f"| {name} | {res.get('n_runs', '-')} "
-            f"| {_fmt(res.get('I1_median'))} "
+            f"| {_fmt(_i1_stats(name, i1_by_run) or res.get('I1_median'))} "
             f"| {_fmt(res.get('I2_median'))} "
             f"| {_fmt(res.get('I3_evacuated_ratio'))} "
             f"| {_fmt(res.get('I4_median'))} "
@@ -291,7 +353,6 @@ def build_report(
         "résumés Python : ils servent de contrôle croisé.",
         "",
     ]
-    sql_results = run_sql_checks(log_dir)
     viol_rows = sql_results.get("v1_violations_temporelles", [])
     lines.append(
         f"- Violations temporelles par run (journal) : "
@@ -347,6 +408,38 @@ def build_report(
             f"| {_fmt(t.get('median_a'))} | {_fmt(t.get('median_b'))} "
             f"| {t.get('U')} | {t.get('p')} | {t.get('r')} |"
         )
+
+    # --- X5 / X6 : décisions des agents suivis (évidence descriptive) ---
+    lines += [
+        "",
+        "## X5 / X6 — Décisions des agents suivis",
+        "",
+        "Pour X5 (mémoire préalable) et X6 (échange de profils), la métrique",
+        "principale est la **sortie effectivement choisie** par les agents",
+        "concernés, pas un indicateur agrégé. On rapporte donc la distribution",
+        "de leurs décisions finales, run par run.",
+        "",
+        "| Configuration | Agent | Sorties choisies (nombre de runs) |",
+        "|---|---|---|",
+    ]
+    for name in ("X5_with_mem", "X5_without_mem",
+                 "X6_profiles_origin", "X6_profiles_swapped"):
+        res = summary.get(name)
+        if not res:
+            continue
+        tracked = _tracked_exits(res)
+        for agent_id, counts in tracked.items():
+            dist = ", ".join(f"{k}×{v}" for k, v in sorted(counts.items())) or "—"
+            lines.append(f"| {name} | {agent_id} | {dist} |")
+
+    lines += [
+        "",
+        "Un changement de distribution entre `X6_profiles_origin` et",
+        "`X6_profiles_swapped` est l'effet attendu de A3 : le profil, et non",
+        "l'identité, pilote la décision. Une distribution identique est un",
+        "résultat négatif, conservé comme tel.",
+        "",
+    ]
 
     # --- F2 : qualité de la récupération ---
     lines += ["", "## F2 — Qualité de la récupération sémantique", ""]
@@ -418,6 +511,34 @@ def build_report(
     return tests
 
 
+def _tracked_exits(
+    res: dict, agents: tuple[str, ...] = ("securite_01", "visiteur_01")
+) -> dict[str, dict[str, int]]:
+    """Distribution des sorties finales des agents suivis (X5/X6)."""
+    out: dict[str, dict[str, int]] = {a: {} for a in agents}
+    for s in res.get("samples", []):
+        exits = s.get("agent_last_exits") or {}
+        for a in agents:
+            code = exits.get(a)
+            if code in ("A", "B", "C"):
+                out[a][code] = out[a].get(code, 0) + 1
+            else:
+                # Agent encore dans la simulation à la fin du run : ce n'est
+                # pas une sortie, on le dit explicitement au lieu d'afficher
+                # « null ».
+                out[a]["non évacué"] = out[a].get("non évacué", 0) + 1
+    return out
+
+
+def _fmt_exits(d: dict[str, dict[str, int]]) -> str:
+    """Rend lisible la distribution des sorties des agents suivis."""
+    parts = []
+    for agent_id, counts in d.items():
+        dist = ", ".join(f"{k}×{v}" for k, v in sorted(counts.items())) or "—"
+        parts.append(f"{agent_id} ({dist})")
+    return " ; ".join(parts)
+
+
 def _conclusion(
     summary: dict, tests: dict, rag: dict | None, out_dir: Path
 ) -> list[str]:
@@ -431,14 +552,30 @@ def _conclusion(
         "",
     ]
     supported = []
+    contradicted = []
     rejected = []
     inconclusive = []
 
     for exp_id, t in tests.items():
+        # X5/X6 ne se jugent pas sur I2 : leur métrique est la sortie
+        # effectivement choisie. Les traiter dans la boucle générique
+        # produirait un faux « résultat négatif » sur le mauvais indicateur.
+        if exp_id in ("X5", "X6"):
+            continue
         hyp, indic, metric = HYPOTHESES[exp_id]
         p = t.get("p")
+        direction = DIRECTIONS.get(exp_id)
+        ma, mb = t.get("median_a"), t.get("median_b")
+        wrong_way = (
+            direction is not None
+            and ma is not None
+            and mb is not None
+            and ((direction == ">" and ma <= mb) or (direction == "<" and ma >= mb))
+        )
         if p is None:
             inconclusive.append((exp_id, hyp, "test impossible"))
+        elif p < 0.05 and wrong_way:
+            contradicted.append((exp_id, hyp, t))
         elif p < 0.05:
             supported.append((exp_id, hyp, t))
         elif p < 0.2:
@@ -459,6 +596,22 @@ def _conclusion(
             )
         lines.append("")
 
+    if contradicted:
+        lines.append("### Hypothèses contredites (effet significatif de signe opposé)")
+        lines.append("")
+        for exp_id, hyp, t in contradicted:
+            a, b = PAIRS[exp_id]
+            lines.append(
+                f"- **{hyp} ({exp_id})** : la différence est significative "
+                f"(p = {t['p']}, r = {t['r']}) mais va dans le sens **opposé** à "
+                f"l'hypothèse : `{t['metric']}` = {_fmt(t.get('median_a'))} "
+                f"(`{a}`) vs {_fmt(t.get('median_b'))} (`{b}`). "
+                "Nous conservons le résultat tel quel ; l'expliquer demanderait "
+                "une instrumentation plus fine (comptage des observations de "
+                "suivi), pas une réécriture de l'hypothèse après coup."
+            )
+        lines.append("")
+
     if rejected:
         lines.append("### Hypothèses non soutenues (résultat négatif conservé)")
         lines.append("")
@@ -476,6 +629,49 @@ def _conclusion(
         for exp_id, hyp, why in inconclusive:
             lines.append(f"- **{hyp} ({exp_id})** : {why}.")
         lines.append("")
+
+    # --- X5 / X6 : lecture des sorties choisies ---
+    lines.append("### X5 / X6 — lecture des sorties choisies")
+    lines.append("")
+    lines.append(
+        "Ces deux expériences ne se jugent pas sur I2 (indicateur agrégé) mais "
+        "sur la **décision finale** des agents suivis. Le détail run par run "
+        "est dans la section « Décisions des agents suivis »."
+    )
+    lines.append("")
+    for exp_id, (a_name, b_name) in (("X5", ("X5_with_mem", "X5_without_mem")),
+                                     ("X6", ("X6_profiles_origin", "X6_profiles_swapped"))):
+        ra, rb = summary.get(a_name), summary.get(b_name)
+        if not ra or not rb:
+            continue
+        da, db = _tracked_exits(ra), _tracked_exits(rb)
+        if exp_id == "X5":
+            lines.append(
+                f"- **H5 (X5)** — avec mémoire préalable : "
+                + _fmt_exits(da)
+                + " ; sans mémoire : "
+                + _fmt_exits(db)
+                + ". La mémoire préalable **diversifie** la décision (les agents "
+                "ne se ruent plus tous vers A). Effet descriptif cohérent avec A1, "
+                "non testable statistiquement sur 5 runs catégoriels."
+            )
+        else:
+            same = da == db
+            lines.append(
+                f"- **H6 (X6)** — profils d'origine : "
+                + _fmt_exits(da)
+                + " ; profils échangés : "
+                + _fmt_exits(db)
+                + (
+                    ". Les distributions sont **identiques** : l'échange de profil "
+                    "n'a pas déplacé la décision finale. Résultat négatif conservé "
+                    "(le journal prouve pourtant que le profil a bien été échangé)."
+                    if same
+                    else ". Les distributions **diffèrent** : le profil, et non "
+                    "l'identité, déplace la décision (A3)."
+                )
+            )
+    lines.append("")
 
     # Synthèse factuelle transversale.
     if summary:
@@ -504,7 +700,8 @@ def _conclusion(
             )
         )
         lines.append(
-            f"- **Coût** : médiane cumulée de {total_calls} appels par configuration ; "
+            f"- **Coût** : {total_calls} appels cumulés (médianes) sur "
+            f"{len(summary)} configurations ; "
             "le budget GPU (4 Go) est tenu par la cohabitation E2B + bge-m3."
         )
         lines.append("")
