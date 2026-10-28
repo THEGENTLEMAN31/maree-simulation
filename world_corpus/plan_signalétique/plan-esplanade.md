@@ -2,7 +2,7 @@
 title: Plan général de l'esplanade
 collection: plan_signalétique
 available_tick: 0
-allowed_profiles: [securite, habitue, famille, visiteur, amis]
+allowed_profiles: [securite, habitue, famille, visiteur, vendeur]
 importance: 0.9
 ---
 L'esplanade de Port-Aubel s'ouvre au sud sur le quai, avec la scène au centre

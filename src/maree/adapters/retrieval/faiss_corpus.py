@@ -1,6 +1,6 @@
 """RAG — FAISS exact + correction d'anisotropie, filtré par profil et par date.
 
-Pourquoi pas LlamaIndex ici : le corpus est déjà découpé en 214 passages
+Pourquoi pas LlamaIndex ici : le corpus est déjà découpé en 215 passages
 d'un paragraphe, avec métadonnées. Il n'y a rien à ingérer ni à découper.
 Le seul traitement qui compte est le **centrage sur la moyenne du corpus** :
 sans lui, les embeddings de bge-m3 sont anisotropes et la précision@1

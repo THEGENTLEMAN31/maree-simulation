@@ -88,6 +88,18 @@ rejouable de bout en bout.
   groupe Hydra : pas de `# @package _global_`, pas de clé `experiment:`
   englobante, sinon `cfg.experiment.experiment.arms`.
 
+### Corpus RAG
+
+- Un passage mal daté ou tagué d'un profil inexistant **n'échoue jamais** :
+  il devient simplement invisible. Deux cas réels : les 43 annonces
+  étaient datées t120–t590 pour un run de 90 ticks (aucune n'était
+  lisible), et 16 passages portaient le profil `amis`, absent du moteur.
+  `tests/test_corpus.py` vérifie profils, dates et lisibilité par profil.
+- `scripts/generate_corpus.py` **ne réécrit pas** un fichier existant
+  (`if path.exists(): return`). Pour régénérer : supprimer `world_corpus/`
+  **après avoir sauvegardé les 14 fichiers écrits à la main** (annonces,
+  protocole, plans, fiches de profil), que le script ne produit pas.
+
 ### Docker
 
 - La publication de ports est cassée dans cet environnement. Seul le

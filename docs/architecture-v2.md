@@ -174,7 +174,7 @@ après centrage sur la moyenne du corpus.
 
 C'est le seul traitement qui compte. Le déléguer à une abstraction
 générique aurait signifié le réécrire par-dessus. D'où : FAISS exact
-(214 passages, 0,9 Mo — un index approximatif serait plus lent à charger
+(215 passages, 0,9 Mo — un index approximatif serait plus lent à charger
 qu'à interroger) + numpy, et pas de couche d'ingestion.
 
 Filtrage (décision 15) : un agent ne lit que les collections de son profil
@@ -196,7 +196,7 @@ framework pour la vitrine.**
 
 ### LlamaIndex
 
-Le corpus est déjà découpé en 214 passages annotés (front matter :
+Le corpus est déjà découpé en 215 passages annotés (front matter :
 collection, `available_tick`, `allowed_profiles`, importance). Il n'y a
 rien à ingérer ni à découper. Le seul traitement qui compte est le
 centrage (§9).

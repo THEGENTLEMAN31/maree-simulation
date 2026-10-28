@@ -2,7 +2,7 @@
 title: Profil type — visiteur
 collection: savoir_profils
 available_tick: 0
-allowed_profiles: [visiteur, amis]
+allowed_profiles: [visiteur, vendeur]
 importance: 0.8
 ---
 Profil visiteur : venu pour la fête, entré par la sortie A, ne connaît pas

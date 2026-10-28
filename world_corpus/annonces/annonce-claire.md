@@ -1,8 +1,8 @@
 ---
 title: Annonce claire du haut-parleur
 collection: annonces
-available_tick: 180
-allowed_profiles: [securite, habitue, famille, visiteur, amis]
+available_tick: 12
+allowed_profiles: [securite, habitue, famille, visiteur, vendeur]
 importance: 0.9
 ---
 (Annonce type « claire » diffusée moins de 3 minutes après le premier signal.)

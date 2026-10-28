@@ -2,7 +2,7 @@
 title: Signalétique visible le soir de la fête
 collection: plan_signalétique
 available_tick: 0
-allowed_profiles: [securite, habitue, famille, visiteur, amis]
+allowed_profiles: [securite, habitue, famille, visiteur, vendeur]
 importance: 0.5
 ---
 Quatre panneaux lumineux indiquent la direction des sorties :

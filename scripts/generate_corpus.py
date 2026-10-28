@@ -7,7 +7,7 @@ cependant **structuré et varié** (pas de duplication) :
   - consignes_securite  : 40 (protocole, fiches incident, consignes par zone)
   - plan_signalétique   : 40 (zones, cheminements, capacités, signalétique)
   - savoir_profils      : 40 (8 par profil : securite, habitue, famille,
-                          visiteur, amis)
+                          visiteur, vendeur)
   - souvenirs_editions  : 40 (10 éditions × 4 thèmes)
 
 Chaque passage porte une date de disponibilité simulée (`available_tick`) et
@@ -47,14 +47,17 @@ EXITS = [
     ("C", "la sortie C", "discrète, mal signalée, mais peu encombrée", 4),
 ]
 
-PROFILES = ["securite", "habitue", "famille", "visiteur", "amis"]
+#: Doit rester synchronisé avec `maree.agents.profiles.PROFILES`.
+#: Un profil absent de ce registre rend les passages illisibles : c'est
+#: arrivé avec « amis », qui n'existe pas dans le moteur (16 passages morts).
+PROFILES = ["securite", "habitue", "famille", "visiteur", "vendeur"]
 
 PROFILE_DESC = {
     "securite": "agent de sécurité de la fête, formé au protocole et responsable de zone",
     "habitue": "habitué des éditions précédentes, qui connaît les raccourcis",
     "famille": "parent venu avec de jeunes enfants, attentif aux poussettes",
     "visiteur": "visiteur de première fois, venu pour les lanternes",
-    "amis": "membre d'un groupe d'amis venu filmer la soirée",
+    "vendeur": "forain tenant un stand, responsable de son matériel et de sa caisse",
 }
 
 # Thèmes d'édition : 10 ans d'historique.
@@ -292,31 +295,33 @@ def _write(root: Path, collection: str, slug: str, title: str, text: str,
 def gen_annonces(root: Path) -> int:
     n = 0
     for i in range(16):
-        zid, zlabel, zdesc = ZONES[i % len(ZONES)]
-        code, label, why, _ = EXITS[i % 3]
+        _zid, zlabel, zdesc = ZONES[i % len(ZONES)]
+        _code, label, _why, _ = EXITS[i % 3]
         text = ANNOUNCE_CLEAR[i % len(ANNOUNCE_CLEAR)].format(
             lieu=zdesc, sortie=label,
             detail=f"La zone concernée est {zlabel}.",
         )
         _write(root, "annonces", f"claire-{i+1:02d}",
                f"Annonce claire n°{i+1} — {zlabel}", text,
-               120 + i * 15, PROFILES + ["foule"], 0.9)
+               # Un run dure 90 ticks au plus (configs/run/e2e.yaml). Les
+               # annonces étaient datées t120–t590 : aucune n'était lisible.
+               10 + i, PROFILES, 0.9)
         n += 1
     for i in range(12):
-        zid, zlabel, zdesc = ZONES[(i + 3) % len(ZONES)]
+        _zid, zlabel, zdesc = ZONES[(i + 3) % len(ZONES)]
         text = ANNOUNCE_AMBIGUOUS[i % len(ANNOUNCE_AMBIGUOUS)].format(
             detail=f"Le secteur {zlabel} fait l'objet d'une attention particulière."
         )
         _write(root, "annonces", f"ambigue-{i+1:02d}",
                f"Annonce ambiguë n°{i+1} — {zlabel}", text,
-               300 + i * 20, PROFILES + ["foule"], 0.8)
+               20 + i, PROFILES, 0.8)
         n += 1
     for i in range(12):
-        code, label, why, _ = EXITS[i % 3]
+        _code, label, _why, _ = EXITS[i % 3]
         text = RUMOURS[i % len(RUMOURS)].format(sortie=label)
         _write(root, "annonces", f"rumeur-{i+1:02d}",
                f"Rumeur n°{i+1} — {label}", text,
-               240 + i * 25, PROFILES + ["foule"], 0.7)
+               15 + i * 2, PROFILES, 0.7)
         n += 1
     return n
 
@@ -342,7 +347,7 @@ def gen_consignes(root: Path) -> int:
                f"Fiche incident — {kind}", text, 0, ["securite"], 0.9)
         n += 1
     for i in range(8):
-        zid, zlabel, zdesc = ZONES[i % len(ZONES)]
+        _zid, zlabel, zdesc = ZONES[i % len(ZONES)]
         text = (
             f"Consigne de zone : {zlabel} ({zdesc}). Effectif minimal : deux "
             f"agents. Points de conflit à tenir : l'entrée de la zone, l'angle "
@@ -382,10 +387,10 @@ def gen_plan(root: Path) -> int:
             f"par un agent ou une barrière."
         )
         _write(root, "plan_signalétique", f"plan-zone-{zid}",
-               f"Plan — {zlabel}", text, 0, PROFILES + ["foule"], 0.7)
+               f"Plan — {zlabel}", text, 0, PROFILES, 0.7)
         n += 1
     for i in range(12):
-        code, label, why, cap = EXITS[i % 3]
+        code, label, why, _cap = EXITS[i % 3]
         text = (
             f"Cheminement vers {label} : {why}. Depuis la scène, compter "
             f"{3 + i % 4} minutes à pied en flux normal, davantage si la foule "
@@ -394,7 +399,7 @@ def gen_plan(root: Path) -> int:
             f"forment les goulots."
         )
         _write(root, "plan_signalétique", f"cheminement-{code}-{i+1:02d}",
-               f"Cheminement — {label} n°{i+1}", text, 0, PROFILES + ["foule"], 0.75)
+               f"Cheminement — {label} n°{i+1}", text, 0, PROFILES, 0.75)
         n += 1
     for i in range(19):
         zid, zlabel, zdesc = ZONES[i % len(ZONES)]
@@ -472,15 +477,15 @@ def gen_savoir(root: Path) -> int:
             ("enfant", "je n'ai pas d'enfant avec moi"),
             ("peur", "je ne veux pas créer de panique en courant"),
         ],
-        "amis": [
-            ("groupe", "nous sommes quatre et nous restons ensemble"),
-            ("video", "je filme la soirée et je ne veux pas rater la scène"),
-            ("sortie", "nous sommes arrivés par le nord"),
-            ("blague", "on plaisante pour masquer le stress"),
-            ("charge", "mon téléphone est à trente pour cent"),
-            ("point", "on s'est donné le point info comme rendez-vous"),
-            ("rue", "je connais une rue derrière la sortie C"),
-            ("fumee", "on a vu la fumée avant d'entendre l'annonce"),
+        "vendeur": [
+            ("stand", "mon stand est mon gagne-pain, je ne l'abandonne pas sur une rumeur"),
+            ("caisse", "je sécurise la caisse avant de songer à partir"),
+            ("stock", "mes cartons encombrent le passage derrière le stand"),
+            ("habitués", "je reconnais les habitués et je repère les visages qui paniquent"),
+            ("sortie-c", "la sortie C passe derrière les stands, je la connais"),
+            ("fumee", "une fumée de cuisson n'a rien à voir avec un début d'incendie"),
+            ("pli", "je plie le stand en dix minutes si on me le demande"),
+            ("rue", "je connais la rue derrière le quai pour partir sans la foule"),
         ],
     }
     for prof, items in details.items():
@@ -506,10 +511,10 @@ def gen_souvenirs(root: Path) -> int:
         ("annonce", "une annonce trop tardive avait inquiété le public"),
         ("agents", "les agents en gilet avaient gardé leur calme"),
     ]
-    for idx, (year, event_key, event_txt) in enumerate(EDITIONS):
-        for t_idx, (theme, theme_txt) in enumerate(themes):
+    for idx, (year, _event_key, event_txt) in enumerate(EDITIONS):
+        for t_idx, (theme, _theme_txt) in enumerate(themes):
             prof = PROFILES[(idx + t_idx) % len(PROFILES)]
-            zid, zlabel, zdesc = ZONES[(idx + t_idx) % len(ZONES)]
+            _zid, zlabel, zdesc = ZONES[(idx + t_idx) % len(ZONES)]
             lesson = LESSONS[(idx + t_idx) % len(LESSONS)]
             text = MEMORY_TEMPLATES[(idx + t_idx) % len(MEMORY_TEMPLATES)].format(
                 year=year, event=event_txt, zone=zlabel, lesson=lesson,

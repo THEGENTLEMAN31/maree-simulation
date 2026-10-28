@@ -1,8 +1,8 @@
 ---
 title: Rumeur de fermeture de la sortie B
 collection: annonces
-available_tick: 300
-allowed_profiles: [securite, habitue, famille, visiteur, amis]
+available_tick: 18
+allowed_profiles: [securite, habitue, famille, visiteur, vendeur]
 importance: 0.8
 ---
 (Information fausse circulant dans la foule, à diffuser en injection D3.)

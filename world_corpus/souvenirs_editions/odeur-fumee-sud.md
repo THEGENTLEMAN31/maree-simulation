@@ -1,8 +1,8 @@
 ---
 title: Odeur de fumée signalée côté sud
 collection: souvenirs_editions
-available_tick: 590
-allowed_profiles: [securite, habitue, famille, visiteur, amis]
+available_tick: 8
+allowed_profiles: [securite, habitue, famille, visiteur, vendeur]
 importance: 0.7
 ---
 (Perception initiale du danger, partagée par les zones proches des stands sud.)

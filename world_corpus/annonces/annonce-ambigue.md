@@ -1,8 +1,8 @@
 ---
 title: Annonce ambiguë du haut-parleur
 collection: annonces
-available_tick: 360
-allowed_profiles: [securite, habitue, famille, visiteur, amis]
+available_tick: 22
+allowed_profiles: [securite, habitue, famille, visiteur, vendeur]
 importance: 0.9
 ---
 (Annonce type « ambiguë » diffusée plus de 6 minutes après le premier signal.)

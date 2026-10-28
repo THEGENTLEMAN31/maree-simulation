@@ -26,7 +26,7 @@ se déforme, et parfois piège la foule qui l'a adoptée.
 ```bash
 cp .env.example .env
 make up          # Redpanda + Schema Registry + llama.cpp + simulateur
-make index       # construit l'index RAG (bge-m3, 214 passages)
+make index       # construit l'index RAG (bge-m3, 215 passages)
 make run         # un run de démonstration
 make replay      # rejoue le dernier run depuis le journal
 make serve       # diffuse le run en WebSocket
@@ -73,7 +73,7 @@ deux instantanés. C'est ce découplage qui rend 60 agents tenables.
 | Cognition | **LangGraph 1.2** | `recall → retrieve? → decide → validate` |
 | Configuration | **Hydra 1.3** | tout paramètre en YAML, rien en dur |
 | LLM | **SDK OpenAI** → llama.cpp | décisions, embeddings, récit |
-| RAG | **FAISS** + bge-m3 | 214 passages, filtres profil/tick |
+| RAG | **FAISS** + bge-m3 | 215 passages, filtres profil/tick |
 | Bus | **Redpanda** | diffusion temps réel, jamais persistance |
 | Mesure | **scipy**, **DuckDB** | médianes, Mann-Whitney, agrégats |
 
@@ -82,7 +82,7 @@ deux instantanés. C'est ce découplage qui rend 60 agents tenables.
 - **Mesa** : son ordonnanceur (`Model.run_until`) est synchrone et ne peut
   pas héberger un appel LLM asynchrone. L'utiliser aurait signifié le
   combattre. LangGraph couvre le besoin multi-agents, JuPedSim la physique.
-- **LlamaIndex** : le corpus est déjà découpé en 214 passages annotés. Le
+- **LlamaIndex** : le corpus est déjà découpé en 215 passages annotés. Le
   seul traitement qui compte — le centrage sur la moyenne du corpus, qui
   fait passer la précision@1 de 0,17 à 0,73 — aurait dû être réécrit
   par-dessus l'abstraction. Voir `docs/architecture-v2.md`.
