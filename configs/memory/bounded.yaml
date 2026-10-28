@@ -1,0 +1,13 @@
+# ============================================================
+# Mémoire épisodique — bornée, cloisonnée, reconstruisible
+#
+# `window` est le nombre d'épisodes conservés en clair ; au-delà, les
+# plus anciens sont résumés par un gabarit déterministe (pas d'appel
+# LLM : la consolidation doit être rejouable à l'identique).
+# ============================================================
+enabled: true
+window: 12
+recall_k: 5
+
+#: La consolidation ne produit jamais de texte généré.
+consolidation: template

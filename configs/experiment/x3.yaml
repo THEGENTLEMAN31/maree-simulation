@@ -1,0 +1,28 @@
+# ============================================================
+# X3 — synchrone contre asynchrone (H3)
+#
+# En mode asynchrone, la répartition entre sorties diffère-t-elle du
+# mode synchrone, parce que les agents qui décident vite atteignent les
+# sorties en premier ?
+#
+# ATTENTION — dans cette architecture, la perception est figée à
+# l'instant T et les décisions sont appliquées dans l'ordre canonique
+# des agent_id. L'effet prédit par H3 devrait donc être NUL. C'est un
+# résultat, pas un échec : il signifie que l'ordre d'arrivée des
+# réponses LLM ne contamine pas la dynamique. On mesure aussi le temps
+# mural, qui, lui, change du tout au tout.
+# ============================================================
+# @package _global_
+experiment:
+  id: X3
+  hypothesis: H3
+  indicators: [I1_consensus, I5_max_density, wall_clock_s]
+  arms:
+    - name: synchrone
+      description: un seul appel LLM à la fois
+      run:
+        max_concurrency: 1
+    - name: asynchrone
+      description: quatre appels simultanés
+      run:
+        max_concurrency: 4

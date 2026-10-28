@@ -7,41 +7,39 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 dist/
 build/
 
-# ---- Models (huge, on host only) ----
+# ---- Modèles (volumineux, hôte uniquement) ----
 models/
 *.gguf
 
-# ---- Simulation data ----
+# ---- Données de simulation ----
 data/
 logs/
-experiments/runs/
-experiments/analysis/
+runs/
 *.jsonl
 *.parquet
+mlruns/
 
 # ---- Godot ----
 .godot/
 *.import
 *.tmp_import
-.godot/imported/
-godot/project/.godot/
-# Fichiers d'identité générés par l'éditeur (régénérés à l'ouverture).
 *.uid
 
-# ---- Graphify (graphe versionné, mais pas les caches) ----
-graphify-out/cache/
+# ---- Protobuf généré ----
+src/maree/gen/
 
 # ---- Docker ----
 *.log
 
-# ---- Editors / OS ----
+# ---- Éditeurs / OS ----
 .vscode/
 .idea/
 *.swp
 .DS_Store
 
-# ---- Local secrets (never commit real API keys) ----
+# ---- Secrets ----
 .env

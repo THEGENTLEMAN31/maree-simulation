@@ -1,72 +1,86 @@
+# ============================================================
+# MARÉE v2 — stack de simulation
+#
+#   redpanda    bus d'événements + Schema Registry (Protobuf)
+#   llama-cpp   routeur d'inférence local (E2B + bge-m3)
+#   sim         moteur : JuPedSim + LangGraph + FAISS
+#
+# Le client Godot tourne sur l'hôte (`godot --path godot/project`) et se
+# connecte à `maree serve`. Il n'est pas conteneurisé : le rendu OpenGL
+# en container demanderait un serveur X ou noVNC, pour un gain nul.
+#
+# Le journal (source de vérité, décision 1) est écrit par `sim` en JSONL
+# append-only ET publié sur Redpanda. Le rejeu lit le JSONL : il ne
+# dépend ni du bus ni du LLM.
+# ============================================================
+name: maree
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
-  # ============================================================
-  # REDPANDA - Kafka KRaft + Schema Registry + Console
-  # ============================================================
+  # ----------------------------------------------------------
+  # Bus d'événements + registre de schémas
+  # ----------------------------------------------------------
   redpanda:
     image: redpandadata/redpanda:v26.2.4
     container_name: maree-redpanda
+    logging: *logging
     command:
       - redpanda
       - start
-      - --overprovisioned
       - --smp=1
       - --memory=1G
+      - --overprovisioned
+      - --node-id=0
       - --check=false
-      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --schema-registry-addr=0.0.0.0:8081
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=localhost:8082
       - --rpc-addr=0.0.0.0:33145
       - --advertise-rpc-addr=redpanda:33145
     ports:
-      - "9092:9092"      # Kafka API
-      - "9644:9644"      # Admin API
-      - "8081:8081"      # Schema Registry / Console (HTTP)
+      - "9092:9092"    # Kafka (hôte)
+      - "8081:8081"    # Schema Registry
+      - "8082:8082"    # HTTP Proxy
+      - "9644:9644"    # Admin API
     volumes:
       - redpanda-data:/var/lib/redpanda/data
-    environment:
-      REDPANDA_RPK_ENABLE_SASL: "false"
-      REDPANDA_DEVELOPER_MODE: "true"
-      REDPANDA_LOG_LEVEL: "info"
     healthcheck:
-      test: ["CMD", "rpk", "cluster", "health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - maree-net
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  # ============================================================
-  # LLAMA.CPP ROUTER - E2B + bge-m3 (résidents) + E4B (à la demande)
-  # ============================================================
+  # ----------------------------------------------------------
+  # Inférence locale — routeur llama.cpp
+  # ----------------------------------------------------------
   llama-cpp:
+    image: maree/llama-cpp:b11609
     build:
-      context: ./llama.cpp
-      dockerfile: Dockerfile.prebuilt
-    container_name: maree-llama-cpp
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=0
-      - CUDA_VISIBLE_DEVICES=0
-      - GGML_CUDA_FORCE_MMQ=1
+      context: .
+      dockerfile: llama.cpp/Dockerfile.prebuilt
+    container_name: maree-llama
+    logging: *logging
+    command:
+      - --models-preset
+      - /presets/maree.ini
+      - --models-max
+      - "2"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
     volumes:
       - ./models:/models:ro
       - ./presets:/presets:ro
-      # Binaires précompilés b11609 (CUDA 12.8, Ubuntu 24.04).
-      - ./models/llama-b11609:/opt/llama:ro
-    command: >
-      --host 0.0.0.0
-      --port 8081
-      --models-preset /presets/maree.ini
-      --models-max 2
-      --flash-attn on
-      --cache-type-k q8_0
-      --cache-type-v q8_0
-      --batch-size 512
-      --ubatch-size 512
-      --threads 16
-      --no-webui
-      --metrics
-      --reasoning off
+    ports:
+      - "8080:8080"
     deploy:
       resources:
         reservations:
@@ -74,92 +88,37 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    depends_on:
-      redpanda:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 30
       start_period: 60s
-    networks:
-      - maree-net
 
-  # ============================================================
-  # PYTHON SIMULATION - Orchestrateur, agents, RAG, Kafka, WS
-  # ============================================================
-  python-sim:
+  # ----------------------------------------------------------
+  # Moteur de simulation
+  # ----------------------------------------------------------
+  sim:
+    image: maree/sim:2.0.0
     build:
-      context: ./python-sim
-      dockerfile: Dockerfile
-    container_name: maree-python-sim
-    runtime: nvidia
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
-      - LLM_BASE_URL=http://llama-cpp:8081/v1
-      - RAG_DB_PATH=/data/rag
-      - WORLD_CORPUS_PATH=/world_corpus
-      - SIMULATION_CONFIG=/config/simulation.yaml
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    volumes:
-      - ./python-sim/src:/app/src:ro
-      - ./python-sim/tests:/app/tests:ro
-      - ./python-sim/config:/config:ro
-      - ./world_corpus:/world_corpus:ro
-      - sim-data:/data
-      - sim-logs:/logs
-    command: python -m src.cli run --config /config/simulation.yaml
+      context: .
+      dockerfile: docker/sim.Dockerfile
+    container_name: maree-sim
+    logging: *logging
     depends_on:
       redpanda:
         condition: service_healthy
       llama-cpp:
-        condition: service_healthy
-    healthcheck:
-      # Le service n'expose pas d'endpoint HTTP : on teste l'ouverture du
-      # serveur WebSocket (8765), démarré au début de l'orchestrateur.
-      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('127.0.0.1',8765))==0 else 1)"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 30s
-    networks:
-      - maree-net
-
-  # ============================================================
-  # GODOT HEADLESS - Consommateur pur du flux (compute only)
-  # ============================================================
-  godot-headless:
-    build:
-      context: ./godot
-      dockerfile: Dockerfile.headless
-    container_name: maree-godot-headless
-    runtime: nvidia
+        condition: service_started
     environment:
-      - SIMULATION_WS=ws://python-sim:8765
-      - GODOT_RENDERING_DRIVER=dummy
-    depends_on:
-      python-sim:
-        condition: service_healthy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [compute]
-    networks:
-      - maree-net
-
-networks:
-  maree-net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
+      MAREE_KAFKA_BOOTSTRAP: redpanda:29092
+      MAREE_SCHEMA_REGISTRY: http://redpanda:8081
+      MAREE_LLM_BASE_URL: http://llama-cpp:8080/v1
+      MAREE_RUNS_DIR: /runs
+    volumes:
+      - ./runs:/runs
+      - ./configs:/app/configs:ro
+    command: ["maree", "run", "run=demo"]
 
 volumes:
   redpanda-data:
-  sim-data:
-  sim-logs:

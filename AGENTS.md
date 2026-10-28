@@ -1,199 +1,139 @@
-# AGENTS.md — Fil conducteur pour les agents IA travaillant sur MARÉE
+# AGENTS.md — mémoire de chantier
 
-Ce fichier est la **mémoire de contexte unique** du projet. Lis-le en entier
-avant toute modification. Il te dit quoi faire, où sont les choses, et ce
-qu'il ne faut JAMAIS casser.
+_Ce fichier n'est pas de la documentation utilisateur. C'est ce qu'il faut
+savoir **avant** de toucher au code, et surtout ce qui a déjà coûté du
+temps. Mis à jour le 2026-10-28._
 
-## Qu'est-ce que MARÉE ?
+---
 
-MARÉE est la simulation pour le projet 5A IABD (EIGSI Casablanca). Monde 02
-du catalogue : **foule et évacuation** à la Fête des Lanternes de Port-Aubel
-(ville fictive). Question de recherche : *une foule qui ne sait rien
-construit-elle une croyance partagée sur la sortie sûre, et cette croyance la
-sauve-t-elle ou la piège-t-elle ?*
+## 1. Ce qu'est ce dépôt
 
-Le cahier des charges complet est dans `../monde vivant` (fichier HTML
-téléchargé) et le cadrage détaillé dans `docs/cadrage-maree.md` (copie de
-`MARÉE — Cadrage du projet.md` dans `~/school/mondes_vivants/`).
+MARÉE v2 : simulation d'évacuation de foule à Port-Aubel, 60 agents,
+trois sorties, une croyance par agent. Python 3.12+, `uv`, Hydra,
+LangGraph, JuPedSim, FAISS, Redpanda, Godot 4.
 
-## Stack (ne pas diverger sans mettre à jour ce fichier)
+La v1 est conservée par le tag `v0-prototype`. **Ne pas la ressusciter** :
+elle décidait à chaque tick (2 160 appels LLM par run) et n'était pas
+rejouable de bout en bout.
 
-- **LLM** : Gemma 4 E2B (rapide) + E4B (raisonnement), en local via llama.cpp
-  router (Docker `llama-cpp`, binaires officiels **b11609** — voir
-  `llama.cpp/Dockerfile.prebuilt`). **N'utilise pas Ollama** : il ne gère pas
-  l'expert offload MoE et évince les modèles sur 4 Go de VRAM.
-  Contraintes matérielles (RTX 3050, 4 Go) :
-  - E2B (2,9 Go) tient intégralement sur le GPU ;
-  - E4B (4,7 Go) **ne tient pas** → offload partiel CPU
-    (`n-gpu-layers = 20` dans `presets/maree.ini`), latence plus élevée ;
-  - en mode router, `ctx-size` est **réparti entre les `--parallel` slots** :
-    dimensionner `ctx-size = slots × fenêtre voulue` (sinon les prompts réels
-    sont rejetés et les agents replient silencieusement sur la règle) ;
-  - `--models-max 2` : **E2B + bge-m3 Q4 cohabitent** (mesuré 3692 Mio /
-    4096, chat + lot de 60 embeddings + chat validé). E4B évince l'un des
-    deux : il est réservé aux runs X4/E5 **sans RAG** ;
-  - sortie LLM : `--reasoning off` + `MAX_TOKENS = 256`. Sans cela, Gemma 4
-    produit ~460 tokens de raisonnement par décision (9 s/appel, 9 min/run).
-    Mesuré après correction : ~1,9 min/run.
-- **Streaming** : Redpanda (Kafka API) dans Docker, `schema_version` par
-  enveloppe, topics `world.events`, `agent.decisions`, `metrics.indicators`,
-  `control.commands`, `dlq.invalid`.
-- **Simulation** : Python 3.11+ asyncio dans `python-sim/`.
-- **Visualisation** : Godot 4.4 (headless pour CI, VNC pour démo jury).
-- **RAG** : corpus Markdown dans `world_corpus/` (**214 passages**, 5
-  collections, ~103 mots/passage), embeddings **bge-m3 Q4 sur GPU** via
-  `LLMGateway.embed()` (point d'entrée unique, décision 7), index
-  **FAISS IndexFlatIP** + correction d'anisotropie (centrage sur la moyenne
-  du corpus). Pas de Chroma : FAISS + numpy suffit et tient dans le budget
-  disque/VRAM. Le repli lexical existe mais est **signalé** par
-  `RagClient.degraded` — jamais présenté comme du sémantique.
-  Qualité mesurée (F2) : précision@1 = 0,733, précision@3 = 0,867, MRR = 0,79
-  sur 30 questions annotées. Un premier essai avec `multilingual-e5-small`
-  donnait 0,167 : embeddings dégénérés (cos 0,93 entre textes sans rapport).
+---
 
-## Arborescence
+## 2. Pièges d'environnement (tous rencontrés pour de vrai)
 
-```
-maree-simulation/
-├── docker-compose.yml           # stack principale
-├── docker-compose.demo.yml      # + Godot VNC (profil demo) + éditeur (profil editor)
-├── docker-compose.e2e.yml       # override du test de bout en bout
-├── presets/maree.ini            # config llama.cpp router (2 modèles)
-├── models/                      # GGUF + binaires llama.cpp (jamais commités)
-├── python-sim/
-│   ├── src/
-│   │   ├── orchestrator.py      # TISSU CONNECTEUR : câble tout
-│   │   ├── events.py            # enveloppe d'événements (schema_version)
-│   │   ├── config.py            # pydantic, chargé depuis YAML
-│   │   ├── temporal.py          # SimClock + Scheduler (sync/async)
-│   │   ├── world.py             # esplanade, fumée, vérité terrain
-│   │   ├── kafka_client.py      # wrapper aiokafka (+ mode mémoire tests)
-│   │   ├── llm_gateway.py       # passerelle LLM unique (retry, coût, dry_run)
-│   │   ├── ws_server.py         # relais Websocket -> Godot
-│   │   ├── replay.py            # RunLogger + ReplayEngine (E3)
-│   │   ├── oracle.py            # cohérence temporelle (C6, I5)
-│   │   ├── agents/              # base, profiles, llm_agent, rules_agent
-│   │   ├── rag/rag.py           # retrieve_by_profil + C6 + traçabilité F2
-│   │   ├── metrics/indicators.py# I1..I5
-│   │   └── experiments/         # X1..X7 (runner) + report (F5)
-│   ├── tests/                   # pytest — 12 tests verts
-│   └── config/                  # simulation.yaml + configs e2e (sync/async/E4B)
-├── godot/project/               # scenes + scripts GDScript
-│   └── tests/                   # run_tests.gd (26), run_ws_tests.gd (8), run_e2e_client.gd
-├── world_corpus/                # corpus RAG (5 collections)
-├── docs/                        # decisions.md, architecture.md, cadrage…
-└── scripts/                     # download_models.sh + run_e2e.sh
-```
+### Python
 
-## Les 16 décisions d'architecture (ne JAMAIS violer)
+- **`hash()` est salé par processus** (`PYTHONHASHSEED`). Deux runs
+  « identiques » divergent. Utiliser SHA-256 pour toute graine dérivée.
+  C'est corrigé dans `agents/graph.py` et `engine/simulation.py`.
+- Le venv est en **Python 3.13** (`uv` l'a choisi), le lock est fait pour
+  `--python 3.12`. Les deux fonctionnent ; ne pas « corriger » l'un pour
+  l'autre sans raison.
 
-1. **Journal = source de vérité.** Tout événement passe par le JSONL
-   (`replay.py`) et Kafka. Une sortie LLM non enregistrée = événement perdu.
-2. **Double horodatage** `t_prod` / `t_trait` (+ réel) dans l'enveloppe.
-3. **Déterminisme.** Graine par run/agent, ordre canonique (tri `seq`),
-   aucune horloge système dans la logique `world.py`.
-4. **Enveloppe versionnée.** `schema_version`, `causation_id`.
-5. **Identité de run** = `run_id` + `config_hash()`. Un run seul par run_id
-   (append du JSONL : ne réutilise PAS un run_id).
-6. **Interface unique** `decide(perception) -> Intention` pour LLM et règles.
-7. **Passerelle LLM unique** (retries, timeout, repli règle, journal coût).
-8. **Moteur exécute les intentions** — Godot ne calcule rien.
-9. **Godot = consommateur pur.**
-10. **Ordonnanceur séparé**, perception figée à l'instant T.
-11. **Tout paramètre dans le YAML**, rien en dur.
-12. **Traçabilité RAG** : chaque décision stocke les passages retrouvés.
-13. **Hypothèses préenregistrées** dans `docs/hypotheses.md`, datées.
-14. **Versions figées** (lockfiles, tags images, modèles GGUF précis).
-15. **Accès RAG par profil + date de disponibilité simulée** (C6).
-16. **Chaque indicateur référence les offsets sources** (F6).
+### llama.cpp
 
-## Exigences couvertes (32)
+- `parallel = 4` **et** `ctx-size = slots × fenêtre` : `8192 = 4 × 2048`.
+  Un `ctx-size` de 4096 avec 4 slots donne 1024 tokens par slot, et les
+  prompts réels (~700 tokens + 256 de sortie) sont rejetés.
+- `reasoning = off` + `max_tokens = 256` sont **obligatoires**. Sans eux,
+  Gemma 4 émet ~460 tokens de raisonnement : 9 s par décision au lieu de
+  2,8 s.
+- Budget VRAM (RTX 3050, 4 Go) : E2B 2,9 Go + bge-m3 0,42 Go = 3,3 Go.
+  **E4B (4,7 Go) évince un modèle.** Si OOM au premier `make up` :
+  `parallel = 2`, `ctx-size = 4096`.
+- bge-m3 est un BERT : **pooling CLS**, pas mean pooling.
 
-La correspondance complète est dans `docs/correspondance-exigences.md`.
-**Règle : après toute modification, mets à jour cette correspondance** si
-une exigence change de statut.
+### JuPedSim 1.4
 
-## Commandes utiles
+- Un agent doit être **à plus de 0,2 m des parois** et **à plus de 0,4 m
+  d'un autre agent**, sinon `RuntimeError` à l'ajout. D'où `_place()` en
+  spirale déterministe et `_safe_position()`.
+- L'issue est un **polygone à l'intérieur** du domaine marchable. La
+  normale brute pointe vers l'extérieur pour B et C : `stage_polygon()`
+  la réoriente vers le centroïde.
+- `switch_agent_journey(agent_id, journey_id, stage_id)` prend **trois**
+  arguments (le `stage_id` est obligatoire).
+- `Simulation(..., seed=…)` est accepté (via `**kwargs`).
+- Les agents sortis sont retirés : `removed_agents()` / `agents()`.
+- Les obstacles sont passés en **trous** du polygone marchable. Sans eux,
+  les agents traversent la scène.
+
+### Docker
+
+- La publication de ports est cassée dans cet environnement. Seul le
+  relais sur **16080** fonctionne (`~/.local/share/maree-relay/`).
+- `apt-get` n'a **pas** de réseau pendant les builds. PyPI fonctionne.
+- Ne pas ajouter de service Godot dans `docker-compose.yml` : le rendu
+  OpenGL en container exige X ou noVNC pour un gain nul. Godot tourne sur
+  l'hôte.
+
+---
+
+## 3. Conventions non négociables
+
+1. **Le journal est la source de vérité.** Tout ce qui n'est pas journalisé
+   n'existe pas. Un appel LLM sans trace = run non rejouable.
+2. **Aucune horloge système** dans la logique du monde. Le temps est un
+   entier (`tick`). `t_real` est réservé au journal.
+3. **Ordre canonique** : les décisions s'appliquent par `agent_id`
+   croissant, jamais dans l'ordre d'arrivée des réponses.
+4. **Perception figée** : tous les agents perçoivent le même instant T.
+5. **Un `run_id` ne se réutilise jamais.** Le journal est en append.
+6. **Les agents ne parlent à la physique que par une intention.** Ni
+   croyance, ni message dans l'adaptateur physique.
+7. **Le narrateur lit tout, n'écrit rien chez les agents.** Aucun agent ne
+   s'abonne à `narrative.generated`.
+8. **Le vocabulaire du domaine est en français** (`croyance`, `intention`,
+   `sortie`, `écart`). Le code technique peut rester en anglais. Ne pas
+   mélanger dans un même identifiant.
+9. **Pas de framework décoratif.** Si un outil n'a pas de rôle mesurable,
+   il sort (voir `docs/architecture-v2.md` §10).
+
+---
+
+## 4. Mesures de référence
+
+| Mesure | Valeur | Méthode |
+|---|---|---|
+| JuPedSim, 60 agents × 2 000 pas | 0,06 s → **1 761×** temps réel | spike `spike4.py` |
+| JuPedSim + `SocialForceModel` | 0,07 s → 1 353× | idem |
+| Déterminisme JuPedSim | identique à 1e-9 | idem |
+| Un appel LLM (E2B) | 2,8 s | v1 |
+| Débit `parallel=1` / `parallel=4` | 0,36 / **1,43** décision/s | v1 |
+| Run 60 agents à règles (v2) | 20 ticks, 924 événements, 4,6 s | `run_smoke_03` |
+
+**Non mesuré en v2** : le run hybride 12 LLM + 48 règles de bout en bout.
+Le chemin est câblé et testé unitairement, mais il faut un GPU pour le
+confirmer.
+
+---
+
+## 5. Commandes
 
 ```bash
-make up           # stack complète (headless)
-make up-demo      # + Godot VNC (navigateur :6080)
-make editor       # éditeur Godot dans le navigateur (:6081, projet monté)
-make pull-models  # télécharge les GGUF sur l'hôte
-make test         # pytest (12 tests)
-make test-godot   # tests des composants Godot (headless, hors ligne)
-make e2e          # chaîne réelle sync (Redpanda + LLM + Godot + rejeu E3)
-make e2e-async    # idem en mode asynchrone
-make e2e-e4b      # idem avec le grand modèle (offload partiel)
-make run          # run single dry-run
-make replay       # rejeu E3
-make experiments  # protocole X1–X7
-make report       # rapport F5
+uv sync --all-extras          # venv + deps
+uv run pytest                 # 86 tests, sans GPU
+uv run maree run population=rules_only bus.backend=memory narrative.enabled=false
+uv run maree serve            # WebSocket sur 8765
+godot --path godot/project    # client
+uv run maree replay           # rejeu du dernier run
+uv run maree experiment --name x1 --seeds 3
 ```
 
-## Cartographier la codebase (graphify)
+`make smoke` enchaîne le run sans LLM. `make test` lance pytest.
 
-Le dépôt inclut un **graphe de connaissances** de la codebase dans
-`graphify-out/` (graph.json + graph.html interactif + GRAPH_REPORT.md).
-Il est versionné : sans relire le code, interroge-le :
+---
 
-```bash
-# après une modification du code, régénère le graphe (aucun coût API)
-graphify update . --code-only --no-viz
-graphify explain "Orchestrator"     # un nœud et ses voisins
-graphify path "Orchestrator" "Perception"  # chemin entre deux nœuds
-graphify query "comment agents et RAG se relient-ils ?"
-```
+## 6. Ce qui reste ouvert
 
-- Install : `uv tool install graphifyy` puis `graphify install --project`.
-- Nœuds centraux attendus : `Orchestrator` (48 arêtes), `Perception`,
-  `LLMAgent`, `EventEnvelope`. Si ces nœuds disparaissent du rapport, c'est
-  un signal d'alerte.
-- `graphify-out/` est commité : ne le supprime pas sans raison.
-
-## Règles pour un agent IA ici
-
-1. **Lis les docs avant de modifier.** Surtout `docs/decisions.md`.
-2. **Ne casse jamais le replay (E3)** : si tu changes le format d'enveloppe,
-   tu dois mettre à jour `replay.py` ET `schema_version`.
-3. **Tests verts avant de pousser** : `cd python-sim && pytest`.
-4. **Le JSONL est append-only** : chaque run a son `run_id` unique.
-5. **Language de code et commentaires : français** (sujet francophone) sauf
-   noms de variables en anglais (conventions de code).
-6. **Ne touche pas à la config Ollama de l'hôte** (gemma4/qwen3) : la
-   simulation utilise ses propres GGUF dans `models/`.
-
-## État courant
-
-- Socle Python complet + tests verts (orchestrateur, agents, RAG, replay,
-  indicateurs, protocole, statistiques, rapport) — **22 tests pytest**.
-- **Godot réparé et validé** : scène `.tscn` réécrite en syntaxe Godot 4
-  valide, scripts (client WS, rendu, inspection D2, courbes B2, HUD D3)
-  fonctionnels. Tests : 27 composants + 8 chaîne WS (mock) + 6 e2e réel. Interface refondue le 22/10 (carte, fumée, courbes, inspection D2, HUD D3).
-- **Chaîne réelle validée de bout en bout** le 20/10 : Redpanda + llama.cpp
-  (E2B réel) + python-sim + Godot, en sync, async et avec E4B ; rejeu E3 OK.
-  Tout est reproductible via `make e2e` / `make e2e-async` / `make e2e-e4b`.
-- Corpus RAG : **214 passages** générés de façon déterministe par
-  `scripts/generate_corpus.py` (5 collections, dates `available_tick`,
-  `allowed_profiles`) — `make corpus`.
-- Variantes expérimentales X1–X7 : **leviers réellement câblés** (`rag`,
-  `memory`, `leaders`, `communication`, `swap_profiles`, `exits_closed`,
-  `announcement_*`). `validate_experiments()` refuse toute paire identique.
-  Résumé = I1–I5, distribution des sorties, taux de citation RAG.
-  Test exact de Mann-Whitney (permutation, n=5 vs 5) dans
-  `experiments/report.py`, rapport rédigé avec section limites.
-- Graphify : graphe de la codebase généré (339 nœuds, 11 communautés).
-- Audit du 22/10 : statuts honnêtes dans `docs/correspondance-exigences.md`.
-  Non livré et non revendiqué : B4, C7, C8, E5, F6, E3 intégral, contrôles B3
-  complets. Correctifs du jour : oracle C6 branché, dérives A4 journalisées,
-  injection D3 journalisée, justification LLM dans l'inspection, interface
-  Godot refondue.
-- À faire : F6/B4 si le temps le permet ; runs B3 dédiés ; captures vidéo.
-
-## Prochaines tâches (ordre suggéré)
-
-1. Lire `logs/report.md` et vérifier les conclusions (surtout les résultats
-   négatifs : ils sont conservés, pas retirés).
-2. README GitHub de qualité + synchroniser le dépôt distant.
-3. Optionnel : augmenter la population expérimentale (30 → 60 agents) pour
-   gagner en puissance statistique, si le temps GPU le permet.
+- **Premier `make up`** : vérifier que le KV cache de 4 slots tient dans
+  4 Go. Repli prévu : `parallel=2`.
+- **Index RAG** : `maree index` n'a jamais tourné (pas de GPU ici).
+  `FaissRetriever.build()` est écrit mais non exercé.
+- **Godot** : le client n'a pas été ouvert dans l'éditeur. Il compile
+  probablement, mais ce n'est pas vérifié.
+- **X1–X7** : la commande `experiment` existe, aucun protocole complet
+  n'a été exécuté (≥ 5 graines × 2 bras = long).
+- **Le suivi d'agent** vise la position du meneur au moment de la
+  décision, pas en continu.
+- **La fermeture d'issue** redirige vers un point d'arrêt, ce n'est pas
+  une barrière physique.

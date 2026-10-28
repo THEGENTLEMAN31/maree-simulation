@@ -1,0 +1,29 @@
+# ============================================================
+# X6 — le profil change la décision (H6)
+#
+# Deux profils placés dans la même situation décident-ils
+# différemment ? Échanger les profils échange-t-il les décisions ?
+#
+# Limite assumée : les zones de spawn diffèrent par profil (le vendeur
+# naît près de son stand). Pour isoler l'effet du SAVOIR, il faudrait
+# forcer une position identique — c'est une évolution du protocole,
+# notée ici plutôt que masquée.
+# ============================================================
+# @package _global_
+experiment:
+  id: X6
+  hypothesis: H6
+  indicators: [I1_consensus, I6_belief_gap]
+  arms:
+    - name: visiteurs_seuls
+      description: 20 visiteurs, ne connaissent que A
+      population:
+        entries:
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 16, kind: rules }
+    - name: habitues_seuls
+      description: 20 habitués, connaissent la ruelle B
+      population:
+        entries:
+          - { profile: habitue, count: 4, kind: llm }
+          - { profile: habitue, count: 16, kind: rules }

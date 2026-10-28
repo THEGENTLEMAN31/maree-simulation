@@ -1,0 +1,25 @@
+# ============================================================
+# Run de démonstration — scénario de référence
+#
+#   t10  fumée près de la scène
+#   t18  annonce officielle (D3)
+#   t40  (optionnel) fermeture de la sortie A — levier X2
+#
+# 72 ticks de 10 s = 12 minutes simulées.
+# ============================================================
+name: demo
+max_ticks: 72
+
+smoke_tick: 10
+smoke_position: [44.0, 15.0]
+smoke_radius: 15.0
+
+close_exit: null
+close_tick: 40
+
+announcement_tick: 18
+announcement: "Évacuation. Rejoignez la sortie nord."
+
+max_concurrency: 4
+message_radius: 8.0
+density_radius: 3.0

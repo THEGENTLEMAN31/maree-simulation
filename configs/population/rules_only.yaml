@@ -1,0 +1,14 @@
+# ============================================================
+# Population « règles seules » — pour les tests de bout en bout.
+#
+# Aucun appel LLM : le run tourne sans GPU ni serveur d'inférence.
+# C'est la configuration utilisée par `make smoke` et par la CI.
+# ============================================================
+total: 60
+
+entries:
+  - { profile: securite, count: 4, kind: rules }
+  - { profile: habitue, count: 8, kind: rules }
+  - { profile: famille, count: 16, kind: rules }
+  - { profile: visiteur, count: 28, kind: rules }
+  - { profile: vendeur, count: 4, kind: rules }

@@ -1,94 +1,102 @@
-.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report test-godot editor e2e e2e-async e2e-e4b eval-rag experiments experiments-dry corpus c8 c7 b3
-
+# ============================================================
+# MARÉE v2 — raccourcis de développement
+# ============================================================
+.DEFAULT_GOAL := help
 SHELL := /bin/bash
-COMPOSE := docker compose
 
-help: ## Affiche l'aide
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
+# ------------------------------------------------------------
+help:  ## liste les cibles
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-up: ## Démarre la stack complète (headless, CI)
-	$(COMPOSE) up --build
+# ------------------------------------------------------------
+# Installation
+# ------------------------------------------------------------
+install:  ## crée le venv et verrouille les dépendances
+	uv sync --all-extras
+	uv run pre-commit install || true
 
-up-demo: ## Démarre la stack avec visaulisation Godot VNC (navigateur :6080)
-	$(COMPOSE) -f docker-compose.yml -f docker-compose.demo.yml up --build
+lock:  ## régénère uv.lock
+	uv lock
 
-down: ## Arrête tout
-	$(COMPOSE) down
-	$(COMPOSE) -f docker-compose.yml -f docker-compose.demo.yml down
+# ------------------------------------------------------------
+# Qualité
+# ------------------------------------------------------------
+test:  ## pytest (unitaires, sans GPU ni Docker)
+	uv run pytest
 
-logs: ## Suit les logs
-	$(COMPOSE) logs -f
+test-all:  ## pytest y compris physique et LLM (lent)
+	uv run pytest -m "slow or gpu"
 
-build: ## Rebuild les images
-	$(COMPOSE) build
+lint:  ## ruff
+	uv run ruff check src tests
 
-pull-models: ## Télécharge les modèles GGUF (host, une fois)
-	./scripts/download_models.sh
+fmt:  ## ruff format
+	uv run ruff format src tests
+	uv run ruff check --fix src tests
 
-ingest: ## Ingère le corpus RAG dans LanceDB
-	$(COMPOSE) run --rm python-sim python -m src.cli ingest
+type:  ## mypy
+	uv run mypy src
 
-run: ## Lance un run de simulation unique
-	$(COMPOSE) run --rm python-sim python -m src.cli run --run-id run_demo
+# ------------------------------------------------------------
+# Corpus et modèles
+# ------------------------------------------------------------
+corpus:  ## régénère world_corpus/ (déterministe)
+	uv run python scripts/generate_corpus.py
 
-replay: ## Rejoue un run depuis le journal (E3)
-	$(COMPOSE) run --rm python-sim python -m src.cli replay --run-id run_demo
+pull-models:  ## télécharge les GGUF sur l'hôte
+	bash scripts/download_models.sh
 
-test: ## Lance les tests Python
-	$(COMPOSE) run --rm python-sim python -m pytest tests/ -q
+# ------------------------------------------------------------
+# Stack
+# ------------------------------------------------------------
+up:  ## Redpanda + llama.cpp + simulation (headless)
+	docker compose up -d
 
-fmt: ## Formate le code
-	cd python-sim && uvx ruff format src tests scripts
+down:  ## arrête la stack
+	docker compose down
 
-lint: ## Lint le code
-	cd python-sim && uvx ruff check src tests scripts
+logs:  ## journaux de la simulation
+	docker compose logs -f sim
 
-report: ## Génère le rapport (tableaux, tests, F2, F5)
-	$(COMPOSE) run --rm python-sim python -m src.cli report \
-	  --log-dir /logs --out /logs/report.md --rag-eval /logs/rag_eval.json
+topics:  ## crée les topics Redpanda
+	docker compose exec redpanda rpk topic create \
+		world.events agent.decisions agent.beliefs narrative.generated \
+		metrics.indicators control.commands dlq.invalid --if-not-exists
 
-eval-rag: ## Évalue la récupération sémantique (F2) sur le corpus réel
-	$(COMPOSE) run --rm python-sim python -m src.experiments.rag_eval \
-	  /world_corpus http://llama-cpp:8081/v1
+# ------------------------------------------------------------
+# Exécution
+# ------------------------------------------------------------
+run:  ## un run de démonstration
+	uv run maree run run=demo
 
-experiments: ## Exécute X1–X7 (5 runs × 14 configurations)
-	$(COMPOSE) run --rm python-sim python -m src.cli experiments \
-	  -c config/experiments.yaml --runs-per-config 5 \
-	  --log-dir /logs --corpus /world_corpus --llm-url http://llama-cpp:8081/v1
+run-e2e:  ## le scénario du piège (A se ferme à t40)
+	uv run maree run run=e2e
 
-experiments-dry: ## Répétition générale du protocole sans appel LLM
-	$(COMPOSE) run --rm python-sim python -m src.cli experiments \
-	  -c config/experiments.yaml --runs-per-config 2 --dry-run \
-	  --log-dir /logs --corpus /world_corpus
+smoke:  ## run complet sans LLM ni GPU (60 agents à règles)
+	uv run maree run population=rules_only bus.backend=memory narrative.enabled=false
 
-corpus: ## Régénère le corpus synthétique structuré (209 passages)
-	python3 scripts/generate_corpus.py
-	python3 scripts/generate_corpus.py --check
+replay:  ## rejeu E3 du dernier run
+	uv run maree replay
 
-test-godot: ## Tests des composants Godot (headless, hors ligne)
-	docker run --rm -v "$$PWD/godot/project:/godot/project" \
-	  --entrypoint /usr/local/bin/godot maree-simulation-godot-headless \
-	  --path /godot/project --headless --script res://tests/run_tests.gd
+serve:  ## diffuse le dernier run en WebSocket (pour Godot)
+	uv run maree serve
 
-editor: ## Éditeur Godot dans le navigateur (:6081) — projet monté depuis l'hôte
-	$(COMPOSE) -f docker-compose.yml -f docker-compose.demo.yml --profile editor up godot-editor
+godot:  ## lance le client de visualisation
+	godot --path godot/project
 
-e2e: ## Test de bout en bout de la chaîne réelle (Redpanda + LLM + Godot + rejeu)
-	./scripts/run_e2e.sh
+experiments:  ## protocole X1–X7 (par défaut X1, 3 graines)
+	uv run maree experiment --name x1 --seeds 3
 
-e2e-async: ## Idem en mode asynchrone
-	E2E_CONFIG=e2e-godot-async.yaml E2E_RUN_ID=e2e_godot_async ./scripts/run_e2e.sh
+report:  ## rapport agrégé
+	uv run maree report
 
-e2e-e4b: ## Idem avec le grand modèle (E4B, offload partiel)
-	E2E_CONFIG=e2e-godot-e4b.yaml E2E_RUN_ID=e2e_godot_e4b ./scripts/run_e2e.sh
+# ------------------------------------------------------------
+# Diagnostic
+# ------------------------------------------------------------
+spike:  ## vérifie JuPedSim / Mesa / registry
+	uv run python scripts/spike.py
 
-c8: ## Deux populations 20/60, rejeu comparé (C8)
-	$(COMPOSE) run --rm python-sim python -m src.experiments.c8 --ticks 30 --out /logs/c8_summary.json
+vram:  ## usage VRAM courant
+	nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 
-c7: ## Latence LLM -> ticks + rafale (C7)
-	$(COMPOSE) run --rm python-sim python -m src.experiments.c7 --ticks 30 --out /logs/c7_summary.json
-
-b3: ## Contrôles négatifs B3 (20 runs, embeddings réels)
-	$(COMPOSE) run --rm python-sim python -m src.cli experiments \
-	  -c config/experiments.yaml --runs-per-config 5 --only B3 \
-	  --log-dir /logs/b3 --corpus /world_corpus --llm-url http://llama-cpp:8081/v1
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay serve godot experiments report spike vram

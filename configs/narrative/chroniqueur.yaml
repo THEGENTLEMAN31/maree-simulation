@@ -1,0 +1,19 @@
+# ============================================================
+# Chroniqueur — narrateur omniscient et stérile
+#
+# Il lit tout, il n'écrit rien chez les agents. Sans cette isolation,
+# il deviendrait un oracle : les agents apprendraient par lui, et
+# l'expérience ne mesurerait plus la construction d'une croyance
+# partagée mais la diffusion d'une vérité officielle.
+#
+# Le texte est validé contre le digest (sorties et nombres autorisés).
+# ============================================================
+enabled: true
+every_ticks: 5          # un récit toutes les 50 s simulées
+model: gemma4-e2b
+max_tokens: 160
+temperature: 0.4
+
+#: En cas de texte non conforme, on publie le gabarit de repli et on
+#: journalise l'incident. On ne « corrige » jamais silencieusement.
+on_invalid: fallback

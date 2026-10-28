@@ -1,0 +1,23 @@
+# ============================================================
+# X7 — le RAG change-t-il la croyance ? (H7)
+#
+# Désactiver le RAG augmente-t-il l'écart croyance/réalité ?
+#
+# Sans RAG, l'agent décide sur sa seule perception et sa mémoire. Avec,
+# il peut retrouver une consigne de sécurité ou un souvenir d'édition.
+# C'est la seule expérience qui isole la contribution documentaire.
+# ============================================================
+# @package _global_
+experiment:
+  id: X7
+  hypothesis: H7
+  indicators: [I6_belief_gap, I2_entropy, I1_consensus]
+  arms:
+    - name: avec_rag
+      description: bge-m3 + FAISS, filtré par profil et par tick
+      rag:
+        enabled: true
+    - name: sans_rag
+      description: aucune récupération documentaire
+      rag:
+        enabled: false

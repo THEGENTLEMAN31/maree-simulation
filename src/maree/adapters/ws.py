@@ -1,0 +1,104 @@
+"""Diffusion temps réel — le journal relu, rien d'autre.
+
+Le serveur ne « pousse » pas l'état du moteur : il **relit le journal**
+et diffuse les instantanés. Conséquence importante :
+
+    * un client peut se connecter en cours de run (le fichier grandit) ;
+    * un client peut rejouer un run terminé sans le moteur ;
+    * si le serveur tombe, rien n'est perdu — le JSONL est toujours là.
+
+C'est la même source de vérité que le rejeu E3, vue par un autre bout.
+
+Protocole (JSON, un objet par trame) :
+
+    {"type": "hello",      "run_id": …, "plan": {…}}
+    {"type": "snapshot",   "tick": …, "sim_time": …, "agents": […], …}
+    {"type": "indicators", "I1_consensus": …, …}
+    {"type": "narrative",  "text": …, "tick": …}
+    {"type": "end",        "ticks": …}
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from typing import Any
+
+from maree.domain.events import EventType
+from maree.ports import JournalPort
+
+
+class JournalStreamer:
+    def __init__(
+        self,
+        journal: JournalPort,
+        run_id: str,
+        *,
+        plan: dict[str, Any],
+        host: str = "0.0.0.0",
+        port: int = 8765,
+        speed: float = 5.0,
+    ) -> None:
+        self._journal = journal
+        self._run_id = run_id
+        self._plan = plan
+        self._host = host
+        self._port = port
+        #: ticks par seconde ; 0 = aussi vite que possible.
+        self._speed = speed
+
+    async def _frames(self) -> AsyncIterator[dict[str, Any]]:
+        """Rejoue le journal, puis attend les événements suivants.
+
+        Le délai est appliqué **par instantané**, pas par lot : sinon un
+        run déjà terminé se déverserait d'un coup et l'animation
+        n'existerait pas.
+        """
+        seen = 0
+        delay = 1.0 / self._speed if self._speed > 0 else 0.0
+        while True:
+            events = self._journal.read(self._run_id)
+            if seen >= len(events):
+                await asyncio.sleep(0.2)
+                continue
+            for event in events[seen:]:
+                seen += 1
+                if event.type is EventType.SNAPSHOT:
+                    yield {"type": "snapshot", **event.data}
+                    if delay:
+                        await asyncio.sleep(delay)
+                elif event.type is EventType.INDICATORS:
+                    yield {"type": "indicators", **event.data}
+                elif event.type is EventType.NARRATIVE:
+                    yield {
+                        "type": "narrative",
+                        "tick": event.t_prod,
+                        "text": event.data.get("text", ""),
+                    }
+                elif event.type is EventType.RUN_ENDED:
+                    yield {"type": "end", **event.data}
+                    return
+
+    async def _handler(self, websocket) -> None:
+        await websocket.send(
+            json.dumps(
+                {"type": "hello", "run_id": self._run_id, "plan": self._plan},
+                ensure_ascii=False,
+            )
+        )
+        try:
+            async for frame in self._frames():
+                await websocket.send(json.dumps(frame, ensure_ascii=False))
+        except Exception:
+            return
+
+    async def serve_forever(self) -> None:
+        from websockets.asyncio.server import serve
+
+        async with serve(self._handler, self._host, self._port):
+            print(
+                f"MARÉE — diffusion de {self._run_id} sur ws://{self._host}:{self._port} "
+                f"({self._speed} ticks/s)"
+            )
+            await asyncio.Future()

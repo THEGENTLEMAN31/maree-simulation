@@ -1,0 +1,49 @@
+# ============================================================
+# X4 — LLM contre règles (H4)
+#
+# La version LLM diffère-t-elle de la baseline à règles sur l'écart
+# croyance/réalité, mais pas sur le temps d'évacuation ?
+#
+# Un résultat contraire reste recevable s'il est démontré.
+# Le bras « tout LLM » sert de borne de coût : 60 agents × N ticks,
+# c'est le run qu'on ne peut pas se permettre — et c'est la mesure qui
+# justifie l'hybride 12/48.
+# ============================================================
+# @package _global_
+experiment:
+  id: X4
+  hypothesis: H4
+  indicators: [I6_belief_gap, I4_seconds, llm_calls, wall_clock_s]
+  arms:
+    - name: hybride_12
+      description: 12 agents LLM, 48 à règles (configuration de référence)
+      population:
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+    - name: regles_60
+      description: aucun LLM — la référence déterministe
+      population:
+        entries:
+          - { profile: securite, count: 4, kind: rules }
+          - { profile: habitue, count: 8, kind: rules }
+          - { profile: famille, count: 16, kind: rules }
+          - { profile: visiteur, count: 28, kind: rules }
+          - { profile: vendeur, count: 4, kind: rules }
+    - name: llm_60
+      description: borne de coût — 60 agents LLM, run long
+      population:
+        entries:
+          - { profile: securite, count: 4, kind: llm }
+          - { profile: habitue, count: 8, kind: llm }
+          - { profile: famille, count: 16, kind: llm }
+          - { profile: visiteur, count: 28, kind: llm }
+          - { profile: vendeur, count: 4, kind: llm }

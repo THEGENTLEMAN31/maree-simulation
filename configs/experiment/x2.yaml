@@ -1,0 +1,45 @@
+# ============================================================
+# X2 — le piège de la sortie A (H2)
+#
+# La fermeture soudaine de la sortie la plus chargée piège-t-elle
+# davantage de monde quand la foule suit des meneurs que quand chacun
+# décide seul ?
+#
+# Le levier « meneurs » est la présence d'agents de sécurité, qui
+# guident au lieu de fuir seuls (IntentionKind.GUIDE).
+# ============================================================
+# @package _global_
+defaults:
+  - override /run: e2e
+
+experiment:
+  id: X2
+  hypothesis: H2
+  indicators: [I6_belief_gap, I3_evacuated, I5_max_density]
+  arms:
+    - name: avec_meneurs
+      description: 4 agents de sécurité guident
+      population:
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+    - name: sans_meneurs
+      description: aucun agent de sécurité, 32 visiteurs
+      population:
+        entries:
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 28, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }

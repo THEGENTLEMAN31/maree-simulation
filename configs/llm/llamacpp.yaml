@@ -1,0 +1,23 @@
+# ============================================================
+# Passerelle LLM — llama.cpp derrière l'API OpenAI
+#
+# Un seul point d'entrée pour les décisions, les embeddings et le
+# chroniqueur (décision 7). Le SDK officiel OpenAI gère les retries et
+# les timeouts ; on ne réécrit pas un client HTTP.
+#
+# Mesuré : 2,8 s par décision, 1,43 décision/s avec parallel=4.
+# ============================================================
+base_url: ${oc.env:MAREE_LLM_URL,http://llama-cpp:8080/v1}
+api_key: ${oc.env:MAREE_LLM_KEY,sk-local}
+
+model: gemma4-e2b          # décisions (2,9 Go)
+embed_model: bge-m3        # RAG (417 Mo)
+
+#: Au-delà, on considère le serveur perdu et on replie sur les règles.
+timeout_s: 120
+
+#: Sans plafond, Gemma 4 émet ~460 tokens de raisonnement par décision.
+max_tokens: 256
+
+#: Nombre d'appels simultanés. Doit rester <= `parallel` du preset.
+max_concurrency: 4

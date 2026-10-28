@@ -1,0 +1,23 @@
+# ============================================================
+# Run « e2e » — scénario du piège
+#
+# Identique à `demo`, mais la sortie A se ferme à t40. C'est le moment
+# où la croyance partagée (« A est la bonne sortie ») cesse d'être vraie.
+# Le levier est celui de l'expérience X2.
+# ============================================================
+name: e2e
+max_ticks: 90
+
+smoke_tick: 10
+smoke_position: [44.0, 15.0]
+smoke_radius: 15.0
+
+close_exit: A
+close_tick: 40
+
+announcement_tick: 18
+announcement: "Évacuation. Rejoignez la sortie nord."
+
+max_concurrency: 4
+message_radius: 8.0
+density_radius: 3.0

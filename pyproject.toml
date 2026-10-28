@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "maree"
+version = "2.0.0"
+description = "MARÉE — foule et évacuation interprétative à Port-Aubel (monde 02)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+
+# Versions figées par plancher : `uv lock` produit le verrou exact (décision 14).
+dependencies = [
+    # --- simulation ---
+    # JuPedSim 1.4 fournit CollisionFreeSpeedModel ET SocialForceModel
+    # (Helbing & Molnár 1995). C'est le moteur de foule, pas un utilitaire.
+    "jupedsim>=1.4,<2",
+    "shapely>=2.0,<3",
+    # --- cognition ---
+    "langgraph>=1.2,<2",
+    "openai>=1.60,<3",
+    # --- RAG ---
+    # Pas de LlamaIndex : le corpus est déjà découpé et annoté, et le seul
+    # traitement qui compte (centrage d'anisotropie) devrait être réécrit
+    # par-dessus. Voir docs/architecture-v2.md § « Ce qu'on n'utilise pas ».
+    "faiss-cpu>=1.8,<2",
+    "numpy>=1.26,<3",
+    # --- flux ---
+    "aiokafka>=0.11,<0.13",
+    "websockets>=13,<15",
+    "protobuf>=5.28,<7",
+    # --- configuration et CLI ---
+    "hydra-core>=1.3,<2",
+    "omegaconf>=2.3,<3",
+    "typer>=0.12,<1",
+    "pydantic>=2.9,<3",
+    "pyyaml>=6.0,<7",
+    # --- mesure ---
+    "scipy>=1.14,<2",
+    "duckdb>=1.1,<2",
+    "structlog>=24.1,<26",
+]
+
+[project.optional-dependencies]
+experiments = ["mlflow>=3.0,<4"]
+dev = [
+    "pytest>=8.0,<9",
+    "pytest-asyncio>=0.24,<1",
+    "hypothesis>=6.100,<7",
+    "ruff>=0.6,<1",
+    "mypy>=1.11,<2",
+]
+
+[project.scripts]
+maree = "maree.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/maree"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# E501 : la longueur est gérée par le formateur.
+# RUF001/2/3 : le texte est en français — « × », « – » et « ’ » sont voulus.
+# B008 : `typer.Argument(...)` en défaut est le motif officiel de Typer.
+ignore = ["E501", "RUF001", "RUF002", "RUF003", "B008"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: tests longs (physique, LLM)",
+    "gpu: nécessite llama.cpp",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+ignore_missing_imports = true

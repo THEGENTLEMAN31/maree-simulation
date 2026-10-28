@@ -1,0 +1,19 @@
+# ============================================================
+# RAG — bge-m3 + FAISS exact, centré sur la moyenne du corpus
+#
+# Le centrage n'est pas un détail : sans lui, les embeddings de bge-m3
+# sont anisotropes et la précision@1 s'effondre. C'est le seul traitement
+# qui compte, et c'est pourquoi il n'est pas délégué à une abstraction
+# générique.
+# ============================================================
+enabled: true
+
+#: Recherche exacte : 214 passages, 0,9 Mo de vecteurs. Un index
+#: approximatif serait plus lent à charger qu'à interroger.
+k: 3
+min_score: 0.0
+
+#: Filtrage (décision 15) : un agent ne lit que les collections de son
+#: profil et les passages disponibles à son tick simulé.
+respect_profile: true
+respect_availability: true

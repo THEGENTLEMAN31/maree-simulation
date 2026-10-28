@@ -1,0 +1,24 @@
+# ============================================================
+# Population — 60 agents, dont 12 « pensants »
+#
+# Pourquoi 12 et pas 60 : le débit du routeur est de 1,43 décision/s
+# (4 slots / 2,8 s). Soixante agents qui décideraient ensemble
+# demanderaient 2 décisions/s en pointe. Les 48 autres sont des agents
+# à règles — ce qui est aussi le bras de comparaison X4.
+#
+# `kind: llm`   décision par LangGraph + RAG
+# `kind: rules` décision déterministe (référence)
+# ============================================================
+total: 60
+
+entries:
+  - { profile: securite, count: 2, kind: llm }
+  - { profile: securite, count: 2, kind: rules }
+  - { profile: habitue, count: 2, kind: llm }
+  - { profile: habitue, count: 6, kind: rules }
+  - { profile: famille, count: 2, kind: llm }
+  - { profile: famille, count: 14, kind: rules }
+  - { profile: visiteur, count: 4, kind: llm }
+  - { profile: visiteur, count: 24, kind: rules }
+  - { profile: vendeur, count: 2, kind: llm }
+  - { profile: vendeur, count: 2, kind: rules }

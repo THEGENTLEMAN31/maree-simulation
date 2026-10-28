@@ -1,51 +1,26 @@
-; Engine configuration file.
-; It's best edited using the editor UI and not directly,
-; since the parameters that go here are not all obvious.
+; MARÉE — client de visualisation
 ;
-; Format:
-;   [section] ; section goes between []
-;   param=value ; assign values to parameters
+; Consommateur pur (décision 9) : il ne calcule rien, il dessine ce que
+; le journal lui envoie. Le plan vient du message `hello`, pas d'une
+; copie en GDScript — c'était le défaut de la v1.
+;
+; Rendu GL Compatibility : pas de Vulkan, tourne en VM et en container.
 
 config_version=5
 
 [application]
 
-config/name="MAREE Visualisation"
+config/name="MARÉE — Port-Aubel"
 run/main_scene="res://scenes/main.tscn"
-; L'interface est dessinée à la demande (queue_redraw) et reçoit ses données
-; à 1 Hz : inutile de redessiner 60 fois par seconde. Mesuré sous Xvfb en
-; rendu logiciel (llvmpipe) : 550 % d'un cœur -> 54 % avec ce réglage.
-run/low_processor_mode=true
-run/max_fps=30
-config/features=PackedStringArray("4.4")
-config/icon="res://icon.svg"
+config/features=PackedStringArray("4.4", "GL Compatibility")
 
 [display]
 
-; 1280x800 = résolution exacte de l'écran Xvfb du conteneur de démo
-; (godot/supervisord.conf). Le mode plein écran évite que le gestionnaire
-; de fenêtres (fluxbox) ne rogne le bas de la scène avec sa barre de titre.
-window/size/viewport_width=1280
-window/size/viewport_height=800
-window/size/mode=3
+window/size/viewport_width=1000
+window/size/viewport_height=640
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
-
-[gui]
-
-theme/default_font=""
-theme/icon_font=""
-
-[network]
-
-network/tls/enabled=true
-debug/remote_port=8765
 
 [rendering]
 
-environment/defaults/default_clear_color=Color(0.043, 0.059, 0.09, 1)
-
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-renderer/antialiasing=1
-environment/defaults/main_canvas_item_size=Vector2i(1280, 800)

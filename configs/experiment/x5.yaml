@@ -1,0 +1,27 @@
+# ============================================================
+# X5 — effet de la mémoire (H5)
+#
+# Un agent qui a reçu un échange préalable choisit-il plus souvent la
+# sortie recommandée, ou évite-t-il la déconseillée, que le même agent
+# sans échange ?
+#
+# Le bras « sans mémoire » n'est pas un agent amnésique : c'est un
+# agent qui ne rappelle rien au moment de décider. La différence est
+# exactement ce que la mémoire apporte.
+# ============================================================
+# @package _global_
+experiment:
+  id: X5
+  hypothesis: H5
+  indicators: [I6_belief_gap, I1_consensus, I2_entropy]
+  arms:
+    - name: avec_memoire
+      description: rappel de 5 épisodes
+      memory:
+        enabled: true
+        recall_k: 5
+    - name: sans_memoire
+      description: aucun rappel au moment de décider
+      memory:
+        enabled: false
+        recall_k: 0

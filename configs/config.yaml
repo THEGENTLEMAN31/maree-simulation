@@ -1,0 +1,36 @@
+# ============================================================
+# MARÉE v2 — configuration racine (Hydra)
+#
+# Tout paramètre vit ici, rien en dur (décision 11). Une expérience est
+# une surcharge : `maree run run=x2 close_exit=A`.
+# ============================================================
+defaults:
+  - world: port_aubel
+  - population: default
+  - llm: llamacpp
+  - rag: bge_m3_faiss
+  - memory: bounded
+  - narrative: chroniqueur
+  - run: demo
+  - _self_
+
+#: Graine maîtresse : dérive les graines par agent (décision 3).
+seed: 0
+
+#: Laissé vide, un identifiant unique est généré à chaque lancement.
+#: Ne JAMAIS réutiliser un run_id : le journal est en append (décision 5).
+run_id: null
+
+paths:
+  runs: runs
+  corpus: world_corpus
+  index: data/rag
+
+bus:
+  backend: redpanda          # redpanda | memory
+  bootstrap: ${oc.env:MAREE_KAFKA_BOOTSTRAP,localhost:9092}
+  schema_registry: ${oc.env:MAREE_SCHEMA_REGISTRY,http://localhost:8081}
+
+ws:
+  host: 0.0.0.0
+  port: 8765

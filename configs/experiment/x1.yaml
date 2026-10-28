@@ -1,0 +1,26 @@
+# ============================================================
+# X1 — clarté du signal (H1)
+#
+# Une annonce claire, émise moins de 3 min après la première fumée,
+# réduit-elle le temps d'évacuation et l'écart croyance/réalité ?
+#
+# Protocole : ≥ 5 runs par bras, ≥ 2 bras. Médiane + IQR.
+# ============================================================
+# @package _global_
+experiment:
+  id: X1
+  hypothesis: H1
+  indicators: [I4_seconds, I6_belief_gap, I1_consensus]
+  arms:
+    - name: clair
+      description: annonce explicite à T+2 min
+      run:
+        smoke_tick: 5
+        announcement_tick: 17
+        announcement: "Évacuation immédiate. Rejoignez la sortie nord, Grand Quai."
+    - name: ambigu
+      description: annonce vague à T+8 min
+      run:
+        smoke_tick: 5
+        announcement_tick: 53
+        announcement: "Veuillez rester calmes et suivre les indications."
