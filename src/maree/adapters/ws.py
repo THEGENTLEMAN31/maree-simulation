@@ -11,15 +11,23 @@ C'est la même source de vérité que le rejeu E3, vue par un autre bout.
 
 Protocole (JSON, un objet par trame) :
 
-    {"type": "hello",      "run_id": …, "plan": {…}}
+    {"type": "hello",      "run_id": …, "plan": {…}, "run": {…}}
     {"type": "world",      "kind": "smoke"|"announcement"|"exit_closed", …}
     {"type": "decision",   "tick": …, "agent_id": …, "kind": "llm"|"rules", …}
     {"type": "message",    "tick": …, "from": …, "to": […], "content": …}
+    {"type": "heard",      "tick": …, "agent_id": …, "from": …, "content": …}
+    {"type": "belief",     "tick": …, "agent_id": …, "beliefs": {…}}
     {"type": "evacuated",  "tick": …, "agent_id": …, …}
     {"type": "snapshot",   "tick": …, "sim_time": …, "agents": […], …}
     {"type": "indicators", "I1_consensus": …, …}
     {"type": "narrative",  "text": …, "tick": …}
+    {"type": "event",      "event": "run.started"|…, "tick": …, "data": {…}}
     {"type": "end",        "ticks": …}
+
+**Aucun événement du journal n'est filtré** : ceux qui n'ont pas de trame
+typée passent en `event`, enveloppe comprise (`seq`, `tick`, `data`). Un
+client peut donc tout exploiter, y compris un type d'événement qui
+n'existait pas quand ce fichier a été écrit.
 
 L'ordre est celui du journal : pour un tick donné, les décisions et les
 messages précèdent l'instantané, qui précède les indicateurs. Un client
@@ -103,6 +111,10 @@ class JournalStreamer:
                     yield self._decision_frame(event)
                 elif event.type is EventType.MESSAGE_SENT:
                     yield {"type": "message", "tick": event.t_prod, **event.data}
+                elif event.type is EventType.MESSAGE_HEARD:
+                    yield {"type": "heard", "tick": event.t_prod, **event.data}
+                elif event.type is EventType.BELIEF_UPDATED:
+                    yield {"type": "belief", "tick": event.t_prod, **event.data}
                 elif event.type is EventType.EVACUATED:
                     yield {"type": "evacuated", "tick": event.t_prod, **event.data}
                 elif event.type in _WORLD_KINDS:
@@ -121,11 +133,35 @@ class JournalStreamer:
                 elif event.type is EventType.RUN_ENDED:
                     yield {"type": "end", **event.data}
                     return
+                else:
+                    # Aucun événement n'est filtré : ce qui n'a pas de trame
+                    # typée passe quand même, enveloppe comprise. Un client
+                    # peut donc tout exploiter, y compris ce qui n'existait
+                    # pas quand ce code a été écrit.
+                    yield {
+                        "type": "event",
+                        "event": str(event.type),
+                        "tick": event.t_prod,
+                        "seq": event.seq,
+                        "data": event.data,
+                    }
+
+    def _run_meta(self) -> dict[str, Any]:
+        """Métadonnées du run (`run.started`), pour l'en-tête du client."""
+        for event in self._journal.read(self._run_id):
+            if event.type is EventType.RUN_STARTED:
+                return dict(event.data)
+        return {}
 
     async def _handler(self, websocket) -> None:
         await websocket.send(
             json.dumps(
-                {"type": "hello", "run_id": self._run_id, "plan": self._plan},
+                {
+                    "type": "hello",
+                    "run_id": self._run_id,
+                    "plan": self._plan,
+                    "run": self._run_meta(),
+                },
                 ensure_ascii=False,
             )
         )

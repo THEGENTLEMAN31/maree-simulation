@@ -186,7 +186,7 @@ rejouable de bout en bout.
 | Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
 | Run hybride 12 LLM + 48 règles, démo | 21 ticks, **44 appels / 44 succès**, 21,9 s, **60/60** | `run_hybrid_08` |
 | Récits du chroniqueur | 4, **0 repli**, chiffres conformes au digest | `run_hybrid_08` |
-| Trames diffusées, démo à règles | **377** (212 décisions, 60 messages, 60 évacuations, 21 instantanés, 20 indicateurs) | `maree serve` |
+| Trames diffusées, démo à règles | **1 024** (212 décisions, 212 croyances, 60 messages, 434 écoutes, 60 évacuations, 21 instantanés) | `maree serve` |
 | `maree index` sur le corpus réel | 215 passages en **7 s** | bge-m3, `data/rag` |
 
 **Le KV cache de 4 slots tient** : 1 980 Mo sur 4 096, 2,1 Go libres.
@@ -213,10 +213,12 @@ uv run maree experiment --name x1 --seeds 3
 `make smoke` enchaîne le run sans LLM. `make test` lance pytest.
 
 **Contrat d'affichage** : `docs/protocol-ui.md` décrit chaque trame
-(`hello`, `world`, `decision`, `message`, `evacuated`, `snapshot`,
-`indicators`, `narrative`, `end`) avec un exemple réel. C'est le document
-à donner à la personne qui écrit le client : elle n'a pas besoin de lire
-le moteur.
+(`hello`, `world`, `decision`, `belief`, `message`, `heard`, `evacuated`,
+`snapshot`, `indicators`, `narrative`, `event`, `end`) avec un exemple
+réel. **Aucun événement du journal n'est filtré** : les types sans trame
+dédiée passent en `event`, enveloppe comprise. C'est le document à donner
+à la personne qui écrit le client : elle n'a pas besoin de lire le
+moteur.
 
 ---
 

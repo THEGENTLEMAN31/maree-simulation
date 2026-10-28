@@ -43,8 +43,11 @@ Pour un tick donné, l'ordre est celui du journal :
 ```
 world (fumée / annonce / fermeture)
 decision × n
+belief × n
 message × n
+heard × n
 evacuated × n
+event (tout ce qui n'a pas de trame typée)
 snapshot
 indicators
 narrative (tous les N ticks)
@@ -53,6 +56,10 @@ narrative (tous les N ticks)
 Un client peut donc animer « X décide » puis « voilà le nouvel état »,
 sans deviner. Le premier tick (`snapshot` de `tick: 0`) arrive juste
 après `hello`.
+
+**Rien n'est filtré.** Les événements qui n'ont pas de trame dédiée
+(`run.started`, `control.injection`, un futur type) passent en `event`,
+enveloppe comprise. Un client peut donc tout exploiter.
 
 ---
 
@@ -67,6 +74,16 @@ valide à copier tel quel._
 {
   "type": "hello",
   "run_id": "run_20261028-204217_0_50cb",
+  "run": {
+    "config_hash": "33cc92cafd6784c3",
+    "seed": 0,
+    "plan": "port_aubel",
+    "population": [
+      {"profile": "securite", "count": 4, "kind": "rules"},
+      {"profile": "famille", "count": 16, "kind": "rules"},
+      {"profile": "visiteur", "count": 28, "kind": "rules"}
+    ]
+  },
   "plan": {
     "name": "Port-Aubel",
     "width": 60.0,
@@ -88,12 +105,20 @@ valide à copier tel quel._
 }
 ```
 
+`run` donne la graine, le hash de configuration et la population réelle :
+de quoi afficher un en-tête honnête (« graine 7, 60 agents, 12 LLM /
+48 règles ») et vérifier qu'un run correspond à la config qu'on croit.
+
 `walkable` est le domaine marchable, `obstacles` en sont les **trous**.
 Une zone peut porter `"hidden": true` (la Ruelle Z8) : elle existe pour la
 physique mais n'est pas une destination annoncée.
 
 `smoke` donne le disque de fumée **prévu** ; c'est `smoke_active` dans
 l'instantané qui dit s'il est déjà là.
+
+> Le plan vient de la configuration courante (`configs/world/`), pas du
+> journal. Un run et sa diffusion doivent donc utiliser le même fichier
+> de monde.
 
 ### `world` — un événement du monde
 
@@ -166,6 +191,52 @@ le panneau « pourquoi » inutilisable.
 Un agent ne parle **qu'une fois**, et seulement s'il a perçu quelque
 chose. `to` est la liste des voisins qui entendent : de quoi dessiner des
 arcs émetteur → récepteurs.
+
+### `heard` — une écoute
+
+```json
+{"type": "heard", "tick": 10, "agent_id": "A02", "from": "A01", "content": "il faut sortir par la sortie A"}
+```
+
+Un `heard` par destinataire. Redondant avec `message.to` si tu dessines
+des arcs, indispensable si tu veux montrer **ce que chaque agent a
+entendu** (une timeline par agent, un halo de propagation).
+
+### `belief` — une croyance mise à jour
+
+```json
+{
+  "type": "belief",
+  "tick": 10,
+  "agent_id": "A01",
+  "beliefs": {
+    "A": {"confidence": 0.85, "source": "decision:t10", "tick": 10},
+    "B": {"confidence": 0.322, "source": "connu", "tick": 0},
+    "C": {"confidence": 0.322, "source": "connu", "tick": 0}
+  }
+}
+```
+
+Émis juste après chaque décision. La même table est déjà dans
+`decision.beliefs` et dans `snapshot.agents[].beliefs` : c'est une
+commodité pour tracer une courbe de croyance sans relire les instantanés.
+
+### `event` — tout le reste, sans filtre
+
+```json
+{
+  "type": "event",
+  "event": "run.started",
+  "tick": 0,
+  "seq": 1,
+  "data": {"config_hash": "33cc92cafd6784c3", "seed": 0, "plan": "port_aubel", "population": ["…"]}
+}
+```
+
+Tout événement du journal qui n'a pas de trame dédiée arrive ici, avec son
+`seq` et son `data` d'origine : `run.started`, `control.injection`,
+`dlq.invalid`, ou un type ajouté plus tard au moteur. Rien n'est perdu,
+donc rien n'est impossible à dessiner.
 
 ### `evacuated` — une sortie physique
 
@@ -340,3 +411,36 @@ dirigent vers une sortie morte. C'est **le** phénomène du sujet.
 Le journal est la source de vérité : `maree serve` sur un run terminé
 produit exactement les mêmes trames, sans GPU, sans LLM, sans JuPedSim.
 C'est ce qui rend une démonstration rejouable devant un jury.
+
+---
+
+## 8. Ce qui est à toi
+
+`godot/project` est un **client de référence** : une scène, un script,
+~250 lignes, juste de quoi vérifier que le flux arrive. Le moteur n'en
+dépend pas — `maree serve` ne fait qu'écrire du JSON sur une socket.
+Tu peux le supprimer, le réécrire, changer de renderer, passer en C#,
+ajouter des shaders, faire du 2.5D : rien côté moteur ne le remarque.
+
+Deux contrats seulement, et ils sont dans ce document :
+
+1. **les trames** (§4) ;
+2. **le journal JSONL**, si tu veux lire un run hors ligne.
+
+Le reste — disposition, couleurs, panneaux, interactions, timeline — est
+une décision d'interface, pas une décision de moteur.
+
+### La timeline t'appartient
+
+- `maree serve --speed 0` envoie tout le run en moins d'une seconde :
+  bufferise, et tu as la main sur lecture, pause, retour arrière, ralenti.
+- `maree serve --speed N` cadence le flux (N ticks/s) pour une démo en
+  direct ou un run encore en cours.
+
+### Si une donnée manque
+
+Elle est probablement déjà là : `snapshot.agents[]` porte la croyance
+complète, `event` porte tout le journal, `--prompts` porte le prompt LLM.
+Si vraiment il manque quelque chose, c'est un **ajout au moteur** (un
+champ dans l'instantané ou une trame), pas un bricolage côté client : le
+client ne calcule pas, il dessine.
