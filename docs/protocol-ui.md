@@ -329,7 +329,7 @@ entre deux instantanés ; ne pas sauter.
 | `I2_entropy` | incertitude moyenne normalisée | 0 = tous sûrs, 1 = tous perdus |
 | `I3_evacuated` | part des agents sortis | avancement |
 | `I4_seconds` | temps simulé écoulé | durée |
-| `I5_max_density` | densité locale max (pers/m²) | le goulot |
+| `I5_max_density` | densité locale max, noyau de 2 m (pers/m²) | le goulot |
 | `I6_belief_gap` | part des agents croyant à une sortie **fermée** | le piège |
 
 `by_belief` compte les agents **actifs** par sortie crue ; `aucune` est
