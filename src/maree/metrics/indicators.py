@@ -168,7 +168,12 @@ def summarise(series: Sequence[Mapping[str, Any]]) -> dict[str, float]:
 
         I3, I4   au dernier tick (évacuation finale, durée)
         I5, I6   au pic (le pire moment — c'est le piège qu'on étudie)
-        I1, I2   en moyenne temporelle (état moyen de la croyance)
+        I1, I2   en moyenne temporelle sur la partie **active** du run
+
+    Le tick dégénéré est exclu de la moyenne : sinon un run de 19 ticks
+    compte un zéro sur 19 et un run de 55 ticks un zéro sur 55 — les runs
+    courts sont pénalisés par construction, et comparer deux bras de
+    durées différentes devient faux.
     """
     if not series:
         return {
@@ -183,8 +188,17 @@ def summarise(series: Sequence[Mapping[str, Any]]) -> dict[str, float]:
     def values(key: str) -> list[float]:
         return [float(sample.get(key, 0.0) or 0.0) for sample in series]
 
+    def active(key: str) -> list[float]:
+        """Série restreinte aux ticks où au moins un agent est encore là."""
+        kept = [
+            float(s.get(key, 0.0) or 0.0)
+            for s in series
+            if float(s.get("I3_evacuated", 0.0) or 0.0) < 1.0
+        ]
+        return kept or values(key)
+
     last = series[-1]
-    i1, i2 = values("I1_consensus"), values("I2_entropy")
+    i1, i2 = active("I1_consensus"), active("I2_entropy")
     return {
         "I1_consensus": sum(i1) / len(i1),
         "I2_entropy": sum(i2) / len(i2),

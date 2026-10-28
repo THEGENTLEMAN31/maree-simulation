@@ -131,9 +131,29 @@ def test_summarise_ignore_le_dernier_tick_degenere() -> None:
     summary = summarise(series)
     assert summary["I6_belief_gap"] == pytest.approx(0.62)
     assert summary["I5_max_density"] == pytest.approx(3.5)
-    assert summary["I1_consensus"] == pytest.approx((0.4 + 0.8 + 0.0) / 3)
+    assert summary["I1_consensus"] == pytest.approx((0.4 + 0.8) / 2)
     assert summary["I3_evacuated"] == pytest.approx(1.0)
     assert summary["I4_seconds"] == pytest.approx(480.0)
+
+
+def test_summarise_ne_penalise_pas_les_runs_courts() -> None:
+    """Deux runs d'état actif identique doivent résumer identiquement.
+
+    Constaté en X1 : `clair` sort en 19 ticks, `ambigu` en 55. Le tick
+    dégénéré (tout sorti, I1 = 0) pesait 1/19 dans l'un et 1/55 dans
+    l'autre — le bras court était pénalisé par la durée, pas par la
+    cognition.
+    """
+    from maree.metrics.indicators import summarise
+
+    def tick(i1: float, evac: float) -> dict[str, float]:
+        return {"I1_consensus": i1, "I2_entropy": 0.5, "I3_evacuated": evac,
+                "I4_seconds": 0.0, "I5_max_density": 2.0, "I6_belief_gap": 0.0}
+
+    court = [tick(0.9, 0.0), tick(0.9, 0.5), tick(0.0, 1.0)]
+    long = [tick(0.9, 0.0)] * 20 + [tick(0.9, 0.5)] * 4 + [tick(0.0, 1.0)]
+    assert summarise(court)["I1_consensus"] == pytest.approx(0.9)
+    assert summarise(long)["I1_consensus"] == pytest.approx(0.9)
 
 
 def test_summarise_serie_vide() -> None:

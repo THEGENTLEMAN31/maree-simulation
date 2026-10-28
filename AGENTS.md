@@ -83,7 +83,19 @@ rejouable de bout en bout.
   quand `llm_ok == 0`. Un run à 0 succès n'est **pas** un run hybride.
 - **Le dernier tick d'indicateurs est dégénéré** : tout le monde est
   sorti, donc I1/I2/I5/I6 valent 0. Utiliser `metrics.summarise()` (pic
-  pour I5/I6, moyenne pour I1/I2) et non `indicators[-1]`.
+  pour I5/I6, moyenne sur la partie **active** pour I1/I2) et non
+  `indicators[-1]`. Le tick dégénéré était inclus dans la moyenne : un
+  run de 19 ticks comptait un zéro sur 19, un run de 55 ticks un sur 55,
+  donc les runs courts étaient pénalisés par leur durée. Corrigé.
+- **I6 = 0 par construction si aucune sortie ne ferme.** I6 est la part
+  des agents croyant en une sortie fermée ; avec `close_exit: null`
+  (config `demo`, celle de X1, X3–X7), elle ne peut pas bouger. Seul X2
+  passe `run: e2e` (fermeture de A à t14). Ne pas déclarer I6 dans un
+  protocole qui ne ferme rien.
+- **I5 sature à 2.0 avec 60 agents.** Grille de 1 m et séparation
+  minimale de 0,4 m : au plus 2 agents par cellule. Le pic vaut 2 dans
+  tous les runs, donc l'indicateur n'a aucune variance. À 60 agents, I5
+  ne mesure rien ; il faudrait une cellule plus fine ou un noyau.
 - Les protocoles `configs/experiment/*.yaml` sont le **contenu** du
   groupe Hydra : pas de `# @package _global_`, pas de clé `experiment:`
   englobante, sinon `cfg.experiment.experiment.arms`.
@@ -211,6 +223,20 @@ uv run maree experiment --name x1 --seeds 3
 ```
 
 `make smoke` enchaîne le run sans LLM. `make test` lance pytest.
+
+Depuis l'hôte, `experiment` exige deux choses, sinon il échoue ou ment :
+
+- `bus.backend=memory` — le bus Kafka pointe sur `redpanda:9092`, qui ne
+  résout pas hors compose (`KafkaConnectionError: No connection to node
+  with id 0`, au premier `run.started`) ;
+- `MAREE_LLM_URL=http://172.19.0.3:8080/v1` — sans lui, le client vise
+  `llama-cpp:8080`, tous les appels échouent et les 10 runs sont des
+  replis règles qui *ressemblent* à des résultats.
+
+```bash
+MAREE_LLM_URL=http://172.19.0.3:8080/v1 \
+  uv run maree experiment --name x1 --seeds 5 bus.backend=memory
+```
 
 **Contrat d'affichage** : `docs/protocol-ui.md` décrit chaque trame
 (`hello`, `world`, `decision`, `belief`, `message`, `heard`, `evacuated`,

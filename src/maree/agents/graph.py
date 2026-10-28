@@ -37,6 +37,10 @@ from maree.domain.ids import AgentId
 from maree.domain.intentions import Intention, IntentionKind
 from maree.ports import ChatMessage, LLMPort, MemoryPort, RetrieverPort
 
+#: Ce que le LLM écrit quand il n'a pas de cible, mais qu'il remplit quand même
+#: le champ. Comparé en minuscules, après `strip()`.
+_EMPTY_TARGETS = {"", "null", "none", "aucun", "aucune", "n/a", "undefined"}
+
 
 class AgentState(TypedDict, total=False):
     agent_id: AgentId
@@ -289,6 +293,13 @@ class DecisionGraph:
         except ValueError:
             return None
         target = parsed.get("target")
+        # Le LLM écrit parfois `"target": "null"` (la chaîne), ou une cible
+        # qui ne veut rien dire pour l'action choisie. Sans ce nettoyage,
+        # `stay` partait au journal avec `target: "null"`, et le client
+        # dessinait une cible sur un agent immobile.
+        if isinstance(target, str):
+            cleaned = target.strip()
+            target = None if cleaned.lower() in _EMPTY_TARGETS else cleaned
         # Une intention qui mène physiquement à une sortie doit porter un
         # identifiant de sortie réel. `guide` et `follow` acceptaient une
         # étiquette ou une sortie dans le champ agent : l'agent croyait
@@ -307,6 +318,10 @@ class DecisionGraph:
                 return None
         elif kind is IntentionKind.SEARCH:
             target = None  # chercher un proche ne vise personne de précis
+        elif kind is IntentionKind.STAY:
+            # Rester ne vise rien : `_apply` ignore la cible de toute façon,
+            # mais le journal et le client, eux, la liraient.
+            target = None
         try:
             confidence = float(parsed.get("confidence", 0.0))
         except (TypeError, ValueError):

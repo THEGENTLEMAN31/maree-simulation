@@ -158,3 +158,42 @@ async def test_suivre_une_sortie_devient_y_aller(plan: Plan) -> None:
     assert intention.kind is IntentionKind.GO_EXIT
     assert intention.target == "C"
     assert not state.get("fallback")
+
+
+class StayWithTargetLLM:
+    """Répond « rester », mais remplit quand même le champ cible."""
+
+    def __init__(self, target: str) -> None:
+        self.target = target
+
+    async def chat(self, messages: list[ChatMessage], *, seed: int, **kwargs) -> LLMResult:
+        return LLMResult(
+            text=f'{{"action": "stay", "target": "{self.target}", "confidence": 0.7}}',
+            prompt="…",
+            seed=seed,
+            model="factice",
+            ok=True,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_rester_ne_porte_jamais_de_cible(plan: Plan) -> None:
+    """`stay` + cible : la cible est effacée avant le journal.
+
+    Constaté en X1 : `stay` partait avec `target: "null"` (la chaîne) et
+    `target: "A"`. La physique l'ignorait, mais le journal et le client
+    affichaient une destination pour un agent immobile.
+    """
+    for brut in ("null", "A", "  ", "Aucune"):
+        intention, state = await _graph(StayWithTargetLLM(brut), plan).decide(
+            agent_id="A01",
+            profile=get_profile("visiteur"),
+            percept=_percept(),
+            trigger="annonce",
+        )
+        assert intention.kind is IntentionKind.STAY
+        assert intention.target is None, brut
+        assert intention.to_dict()["target"] is None
+        assert not state.get("fallback")
