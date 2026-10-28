@@ -179,6 +179,7 @@ def run(
                     "ticks": result.ticks,
                     "events": result.events,
                     "llm_calls": result.llm_calls,
+                    "llm_ok": result.llm_ok,
                     "duration_s": round(result.duration_s, 1),
                     "evacuated": last.counts.get("evacuated") if last else 0,
                     "total": last.counts.get("agents") if last else 0,
@@ -191,6 +192,13 @@ def run(
                 ensure_ascii=False,
             )
         )
+        if result.llm_calls and not result.llm_ok:
+            typer.secho(
+                "\nATTENTION — aucun appel LLM n'a abouti : toutes les décisions "
+                "sont des replis sur les règles. Ce run n'est pas un run hybride.",
+                fg=typer.colors.RED,
+                err=True,
+            )
 
     asyncio.run(_go())
 
@@ -309,13 +317,14 @@ def experiment(
                     "I5": summary["I5_max_density"],
                     "I6": summary["I6_belief_gap"],
                     "llm_calls": result.llm_calls,
+                    "llm_ok": result.llm_ok,
                     "wall_s": round(result.duration_s, 1),
                 }
             )
             typer.echo(
                 f"  {arm.name:<18} graine {seed}  "
                 f"I6pic={rows[-1]['I6']:.3f}  I4={rows[-1]['I4']:.0f}s  "
-                f"LLM={result.llm_calls}  {result.duration_s:.0f}s"
+                f"LLM={result.llm_ok}/{result.llm_calls}  {result.duration_s:.0f}s"
             )
 
     out = Path(str(cfg.paths.runs)) / f"experiment_{spec.id.lower()}.json"
@@ -328,6 +337,15 @@ def experiment(
         if values:
             median = values[len(values) // 2]
             typer.echo(f"  {arm.name:<18} médiane I6 = {median:.3f}  (n={len(values)})")
+    degraded = [r for r in rows if r["llm_calls"] and not r["llm_ok"]]
+    if degraded:
+        typer.secho(
+            f"\nATTENTION — {len(degraded)} run(s) sans aucun appel LLM abouti : "
+            "leurs décisions sont des replis sur les règles. Le protocole ne "
+            "mesure pas ce qu'il prétend mesurer.",
+            fg=typer.colors.RED,
+            err=True,
+        )
 
 
 @app.command()

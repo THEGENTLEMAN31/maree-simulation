@@ -76,6 +76,11 @@ rejouable de bout en bout.
 - `agent.decision` ≠ `agent.evacuated`. Le second est un fait physique
   (l'agent a franchi l'issue), le premier une cognition. Les confondre
   faisait compter 60 « décisions » fantômes par run.
+- **Un appel LLM raté ne fait pas échouer le run** : le graphe replie
+  sur les règles. Sans serveur, `maree run` produisait 43 « appels LLM »
+  en 11 s et un résultat d'apparence normale. `RunResult.llm_ok` compte
+  les succès, le journal marque `llm.fallback=true`, et la CLI crie
+  quand `llm_ok == 0`. Un run à 0 succès n'est **pas** un run hybride.
 - **Le dernier tick d'indicateurs est dégénéré** : tout le monde est
   sorti, donc I1/I2/I5/I6 valent 0. Utiliser `metrics.summarise()` (pic
   pour I5/I6, moyenne pour I1/I2) et non `indicators[-1]`.

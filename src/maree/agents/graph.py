@@ -50,6 +50,8 @@ class AgentState(TypedDict, total=False):
     intention: dict[str, Any] | None
     reasoning: str
     llm: dict[str, Any]
+    #: Vrai si l'intention finale vient des règles et non du modèle.
+    fallback: bool
 
 
 class DecisionGraph:
@@ -185,7 +187,11 @@ class DecisionGraph:
             intention = rules_decide(
                 _percept_from_state(state), self._plan, profile=state["profile"]
             )
-            state = {**state, "reasoning": f"[repli regles] {intention.reason}"}
+            state = {
+                **state,
+                "fallback": True,
+                "reasoning": f"[repli regles] {intention.reason}",
+            }
         return {**state, "intention": intention.to_dict()}
 
     # ---- API --------------------------------------------------

@@ -114,6 +114,9 @@ class RunResult:
     narratives: tuple[Narrative, ...]
     llm_calls: int
     duration_s: float
+    #: Appels LLM réellement aboutis. `llm_calls` compte les tentatives :
+    #: sans serveur, un run « hybride » n'est qu'un run à règles déguisé.
+    llm_ok: int = 0
 
 
 # ============================================================
@@ -180,6 +183,7 @@ class Simulation:
         self._narratives: list[Narrative] = []
         self._recent: list[str] = []
         self._llm_calls = 0
+        self._llm_ok = 0
         self._t0 = time.monotonic()
 
     # ---- journal ----------------------------------------------
@@ -355,6 +359,7 @@ class Simulation:
             {
                 "ticks": tick,
                 "llm_calls": self._llm_calls,
+                "llm_ok": self._llm_ok,
                 "evacuated": sum(1 for a in self._agents.values() if a.evacuated),
                 "total": len(self._agents),
             },
@@ -367,6 +372,7 @@ class Simulation:
             indicators=tuple(self._events),
             narratives=tuple(self._narratives),
             llm_calls=self._llm_calls,
+            llm_ok=self._llm_ok,
             duration_s=time.monotonic() - self._t0,
         )
 
@@ -485,6 +491,10 @@ class Simulation:
                     )
                     trace = state.get("llm")
                     self._llm_calls += 1
+                    if trace:
+                        trace["fallback"] = bool(state.get("fallback"))
+                        if trace.get("ok"):
+                            self._llm_ok += 1
             out.append((agent_id, reason, intention, trace))
 
         await asyncio.gather(*(one(a, r) for a, r in todo))
