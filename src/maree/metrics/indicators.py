@@ -100,16 +100,33 @@ def density_cells(points: Iterable[Point], cell: float = 1.0) -> list[dict[str, 
     ]
 
 
-def max_density(agents: Iterable[AgentState], cell: float = 1.0) -> float:
-    """I5 — densité locale max sur une grille de `cell` mètres.
+def max_density(agents: Iterable[AgentState], radius: float = 2.0) -> float:
+    """I5 — densité locale max, noyau circulaire de `radius` mètres.
 
-    C'est la mesure du goulot : elle ne dit pas « il y a du monde », elle
-    dit « à cet endroit précis, on est à 4,2 personnes au mètre carré ».
+    Pour chaque agent actif, on compte ses voisins à moins de `radius`
+    et on divise par l'aire du disque. Le maximum est le goulot : « à cet
+    endroit précis, on est à 0,8 personne au mètre carré ».
+
+    Pourquoi pas une grille : à 60 agents sur un domaine de 60 × 40 m
+    avec une séparation minimale de 0,4 m, une cellule de 1 m contient au
+    plus 2 agents — l'indicateur valait **2,0 dans tous les runs**, sans
+    aucune variance. Une cellule de 0,5 m ne fait que déplacer le palier
+    (0,0 ou 4,0). Le noyau est continu, donc il mesure quelque chose.
     """
-    cells = density_cells((a.position for a in agents if not a.evacuated), cell)
-    if not cells:
+    points = [a.position for a in agents if not a.evacuated]
+    if len(points) < 2:
         return 0.0
-    return max(c["n"] for c in cells) / (cell * cell)
+    area = math.pi * radius * radius
+    best = 0.0
+    for i, (x, y) in enumerate(points):
+        neighbours = 0
+        for j, (u, v) in enumerate(points):
+            if i == j:
+                continue
+            if (u - x) ** 2 + (v - y) ** 2 <= radius * radius:
+                neighbours += 1
+        best = max(best, neighbours / area)
+    return best
 
 
 def belief_gap(agents: Iterable[AgentState], open_exits: set[ExitId]) -> float:

@@ -9,12 +9,20 @@
 # Le bras « tout LLM » sert de borne de coût : 60 agents × N ticks,
 # c'est le run qu'on ne peut pas se permettre — et c'est la mesure qui
 # justifie l'hybride 12/48.
+#
+# Scénario piège (`e2e`) : H4 porte sur l'écart croyance/réalité (I6).
+# Sans fermeture d'issue, I6 vaut 0 dans les trois bras et l'hypothèse
+# ne peut pas être testée. La sortie A se ferme donc à t14 dans tous
+# les bras — la comparaison reste valide, seul le scénario change.
 # ============================================================
+
+defaults:
+  - override /run: e2e
 
 experiment:
   id: X4
   hypothesis: H4
-  indicators: [I6_belief_gap, I4_seconds, llm_calls, wall_clock_s]
+  indicators: [I6_belief_gap, I4_seconds, llm_calls, wall_s]
   arms:
     - name: hybride_12
       description: 12 agents LLM, 48 à règles (configuration de référence)

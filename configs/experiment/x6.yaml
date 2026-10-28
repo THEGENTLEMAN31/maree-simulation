@@ -9,12 +9,15 @@
 # naît près de son stand). Pour isoler l'effet du SAVOIR, il faudrait
 # forcer une position identique — c'est une évolution du protocole,
 # notée ici plutôt que masquée.
+#
+# I6 est retiré : aucune sortie ne ferme ici, donc il serait nul par
+# construction. La mesure du choix se lit dans `counts.by_belief`.
 # ============================================================
 
 experiment:
   id: X6
   hypothesis: H6
-  indicators: [I1_consensus, I6_belief_gap]
+  indicators: [I1_consensus, I4_seconds]
   arms:
     - name: visiteurs_seuls
       description: 20 visiteurs, ne connaissent que A

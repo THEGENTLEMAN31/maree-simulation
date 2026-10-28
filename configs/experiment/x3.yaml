@@ -17,7 +17,7 @@
 experiment:
   id: X3
   hypothesis: H3
-  indicators: [I1_consensus, I5_max_density, wall_clock_s]
+  indicators: [I1_consensus, I5_max_density, wall_s]
   arms:
     - name: synchrone
       description: un seul appel LLM à la fois

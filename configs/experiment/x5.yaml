@@ -9,12 +9,17 @@
 # Le bras « sans mémoire » n'est pas un agent amnésique : c'est un
 # agent qui ne rappelle rien au moment de décider. La différence est
 # exactement ce que la mémoire apporte.
+#
+# La mesure principale est la part d'agents qui choisissent la sortie
+# recommandée : elle se lit dans `counts.by_belief` du journal (trame
+# `indicators`), pas dans I1–I6. I6 est retiré : aucune sortie ne ferme
+# dans ce scénario, il serait nul par construction.
 # ============================================================
 
 experiment:
   id: X5
   hypothesis: H5
-  indicators: [I6_belief_gap, I1_consensus, I2_entropy]
+  indicators: [I1_consensus, I2_entropy, I4_seconds]
   arms:
     - name: avec_memoire
       description: rappel de 5 épisodes

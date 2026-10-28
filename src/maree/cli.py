@@ -24,6 +24,20 @@ import typer
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf
 
+#: Nom d'indicateur du protocole -> clé de la ligne de résultat.
+#: Le YAML nomme les indicateurs comme le sujet (I4_seconds), les lignes
+#: de `experiment_*.json` les abrègent (I4) : cette table fait le pont.
+_INDICATOR_KEYS = {
+    "I1_consensus": "I1",
+    "I2_entropy": "I2",
+    "I3_evacuated": "I3",
+    "I4_seconds": "I4",
+    "I5_max_density": "I5",
+    "I6_belief_gap": "I6",
+    "llm_calls": "llm_calls",
+    "wall_s": "wall_s",
+}
+
 app = typer.Typer(add_completion=False, help="MARÉE — foule et évacuation interprétative")
 
 
@@ -323,20 +337,28 @@ def experiment(
             )
             typer.echo(
                 f"  {arm.name:<18} graine {seed}  "
-                f"I6pic={rows[-1]['I6']:.3f}  I4={rows[-1]['I4']:.0f}s  "
-                f"LLM={result.llm_ok}/{result.llm_calls}  {result.duration_s:.0f}s"
+                + "  ".join(
+                    f"{name}={rows[-1][_INDICATOR_KEYS.get(name, name)]:.2f}"
+                    for name in spec.indicators
+                )
+                + f"  LLM={result.llm_ok}/{result.llm_calls}  {result.duration_s:.0f}s"
             )
 
     out = Path(str(cfg.paths.runs)) / f"experiment_{spec.id.lower()}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
     typer.echo(f"\n{len(rows)} runs -> {out}")
-    typer.echo("Médianes par bras (I6 = écart croyance/réalité) :")
+    typer.echo("Médianes par bras :")
     for arm in spec.arms:
-        values = sorted(r["I6"] for r in rows if r["arm"] == arm.name)
-        if values:
-            median = values[len(values) // 2]
-            typer.echo(f"  {arm.name:<18} médiane I6 = {median:.3f}  (n={len(values)})")
+        values = [r for r in rows if r["arm"] == arm.name]
+        if not values:
+            continue
+        parts = []
+        for name in spec.indicators:
+            key = _INDICATOR_KEYS.get(name, name)
+            xs = sorted(float(r[key]) for r in values)
+            parts.append(f"{name}={xs[len(xs) // 2]:.2f}")
+        typer.echo(f"  {arm.name:<18} " + "  ".join(parts) + f"  (n={len(values)})")
     degraded = [r for r in rows if r["llm_calls"] and not r["llm_ok"]]
     if degraded:
         typer.secho(

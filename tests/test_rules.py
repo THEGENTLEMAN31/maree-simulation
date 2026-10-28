@@ -50,6 +50,44 @@ def test_une_annonce_suffit_a_declencher(plan: Plan) -> None:
     assert intention.kind is IntentionKind.GO_EXIT
 
 
+def test_une_annonce_vague_ne_declenche_pas(plan: Plan) -> None:
+    """« Restez calmes » n'est pas un ordre d'évacuation.
+
+    Sans cette distinction, les 48 agents à règles sortaient sur n'importe
+    quelle annonce : la clarté du message (H1) ne pouvait pas être mesurée,
+    puisque la manipulation n'atteignait que les 12 agents LLM.
+    """
+    intention = rules_decide(
+        _percept(
+            smoke_visible=False,
+            smoke_intensity=0.0,
+            announcement="Veuillez rester calmes et suivre les indications.",
+        ),
+        plan,
+        profile="visiteur",
+    )
+    assert intention.kind is IntentionKind.STAY
+
+
+def test_une_annonce_qui_nomme_une_sortie_y_dirige(plan: Plan) -> None:
+    """« Grand Quai » désigne A, même pour un habitué posé près de B.
+
+    Sans cela, une annonce explicite ne faisait que déclencher
+    l'évacuation : elle ne dirigeait personne, et la clarté du message
+    n'avait aucun effet sur le choix de sortie.
+    """
+    intention = rules_decide(
+        _percept(
+            position=(53.0, 16.0),
+            announcement="Évacuation immédiate. Rejoignez la sortie nord, Grand Quai.",
+        ),
+        plan,
+        profile="habitue",
+    )
+    assert intention.kind is IntentionKind.GO_EXIT
+    assert intention.target == "A"
+
+
 def test_visiteur_ne_connait_que_A(plan: Plan) -> None:
     intention = rules_decide(_percept(), plan, profile="visiteur")
     assert intention.kind is IntentionKind.GO_EXIT

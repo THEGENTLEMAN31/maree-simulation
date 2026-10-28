@@ -1,27 +1,52 @@
 # @package _global_
 # ============================================================
-# X1 — clarté du signal (H1)
+# X1 — clarté et délai du signal (H1)
 #
-# Une annonce claire, émise moins de 3 min après la première fumée,
-# réduit-elle le temps d'évacuation et l'écart croyance/réalité ?
+# Deux variables, quatre bras : le **texte** (clair / ambigu) et le
+# **délai** (tôt / tard). Le protocole précédent confondait les deux :
+# `clair` annonçait à t17 et `ambigu` à t53, donc on ne savait pas si
+# l'écart venait du contenu ou du moment.
 #
-# Protocole : ≥ 5 runs par bras, ≥ 2 bras. Médiane + IQR.
+# Calibration mesurée (2026-10-28, 5 graines) : sans annonce, la fumée
+# de t5 fait sortir tout le monde entre t39 et t60. Une annonce à t53
+# tombait donc **après la sortie** dans 2 runs sur 5 — le bras « ambigu »
+# ne recevait rien du tout. t30 est avant la fin naturelle, donc
+# l'annonce est toujours délivrée.
+#
+# H1 dit « une annonce claire, moins de 3 min après la première fumée » :
+#   tôt  = t17 = 2,0 min après la fumée (t5)
+#   tard = t30 = 4,2 min après la fumée
+#
+# I6 n'est pas déclaré : X1 ne ferme aucune sortie, donc aucun agent ne
+# peut croire à une fermeture. L'indicateur serait nul par construction.
 # ============================================================
 
 experiment:
   id: X1
   hypothesis: H1
-  indicators: [I4_seconds, I6_belief_gap, I1_consensus]
+  indicators: [I4_seconds, I1_consensus, I2_entropy]
   arms:
-    - name: clair
+    - name: clair_tot
       description: annonce explicite à T+2 min
       run:
         smoke_tick: 5
         announcement_tick: 17
         announcement: "Évacuation immédiate. Rejoignez la sortie nord, Grand Quai."
-    - name: ambigu
-      description: annonce vague à T+8 min
+    - name: ambigu_tot
+      description: annonce vague à T+2 min
       run:
         smoke_tick: 5
-        announcement_tick: 53
+        announcement_tick: 17
+        announcement: "Veuillez rester calmes et suivre les indications."
+    - name: clair_tard
+      description: annonce explicite à T+4,2 min
+      run:
+        smoke_tick: 5
+        announcement_tick: 30
+        announcement: "Évacuation immédiate. Rejoignez la sortie nord, Grand Quai."
+    - name: ambigu_tard
+      description: annonce vague à T+4,2 min
+      run:
+        smoke_tick: 5
+        announcement_tick: 30
         announcement: "Veuillez rester calmes et suivre les indications."

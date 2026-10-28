@@ -73,6 +73,14 @@ rejouable de bout en bout.
 - **Sans signal de danger, les agents restent** (`rules_decide` →
   `STAY`). La version qui faisait fuir tout le monde dès t0 rendait la
   fumée de t10 décorative : l'évacuation était finie au tick 9.
+- **Toute annonce valait danger.** `rules_decide` testait
+  `bool(percept.announcement)` : « Veuillez rester calmes » faisait
+  sortir les 48 agents à règles. La clarté du message (H1) n'était donc
+  mesurable que sur les 12 agents LLM — et un plan 2×2 à 5 graines l'a
+  montré : 190 s dans les deux bras. Une annonce n'est un ordre que si
+  elle en contient un (`_EVACUATION_WORDS`), et si elle nomme une sortie
+  par son étiquette (`_announced_exit`), les agents y vont — ce qui crée
+  un goulot que I5 peut mesurer. Corrigé avant la campagne X1–X7.
 - `agent.decision` ≠ `agent.evacuated`. Le second est un fait physique
   (l'agent a franchi l'issue), le premier une cognition. Les confondre
   faisait compter 60 « décisions » fantômes par run.

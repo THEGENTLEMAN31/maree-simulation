@@ -32,6 +32,35 @@ SATURATION = 2.5
 #: jamais — 5 agents sur 60 dans un run hybride réel.
 SEARCH_TICKS = 5
 
+#: Verbes qui font d'une annonce un **ordre** d'évacuation.
+#: « Veuillez rester calmes et suivre les indications » n'en est pas un :
+#: la traiter comme telle rendait la clarté du message (H1) inobservable,
+#: puisque les 48 agents à règles sortaient sur n'importe quelle annonce.
+_EVACUATION_WORDS = ("évacu", "evacu", "rejoignez", "sortez", "quittez", "dirigez-vous")
+
+
+def _announcement_is_order(text: str | None) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    return any(word in low for word in _EVACUATION_WORDS)
+
+
+def _announced_exit(text: str | None, plan: Plan) -> ExitId | None:
+    """La sortie que l'annonce nomme par son étiquette, s'il y en a une.
+
+    « Rejoignez la sortie nord, Grand Quai » désigne A. Une annonce qui ne
+    nomme aucune sortie laisse le choix au coût (distance, densité,
+    étroitesse).
+    """
+    if not text:
+        return None
+    low = text.lower()
+    for exit_id, ex in plan.exits.items():
+        if ex.label and ex.label.lower() in low:
+            return exit_id
+    return None
+
 
 def _known_open(plan: Plan, profile_id: str, percept: Percept) -> list[ExitId]:
     profile = get_profile(profile_id)
@@ -65,7 +94,7 @@ def rules_decide(percept: Percept, plan: Plan, *, profile: str) -> Intention:
     #    causale au lieu d'être décorative.
     danger = (
         percept.smoke_visible
-        or bool(percept.announcement)
+        or _announcement_is_order(percept.announcement)
         or bool(percept.messages)
         or percept.missing_kin
     )
@@ -101,13 +130,18 @@ def rules_decide(percept: Percept, plan: Plan, *, profile: str) -> Intention:
         return (total, exit_id)
 
     best = min(candidates, key=cost)
+    reason = f"{best} minimise distance + densité + étroitesse"
+    announced = _announced_exit(percept.announcement, plan)
+    if announced is not None and announced in candidates:
+        best = announced
+        reason = f"l'annonce nomme {best}"
 
     # 3. L'agent de sécurité guide au lieu de fuir seul.
     if profile == "securite" and percept.nearby:
         return Intention(
             IntentionKind.GUIDE,
             target=best,
-            reason=f"orienter vers {best}, la sortie la mieux dégagée",
+            reason=f"orienter vers {best} : {reason}",
             tick=tick,
             confidence=0.85,
         )
@@ -115,7 +149,7 @@ def rules_decide(percept: Percept, plan: Plan, *, profile: str) -> Intention:
     return Intention(
         IntentionKind.GO_EXIT,
         target=best,
-        reason=f"{best} minimise distance + densité + étroitesse",
+        reason=reason,
         tick=tick,
         confidence=0.7,
     )

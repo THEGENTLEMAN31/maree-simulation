@@ -50,14 +50,30 @@ def test_entropie_normalisee() -> None:
     assert mean_entropy([0.0, 0.0], n_exits=3) == 0.0
 
 
-def test_densite_max_compte_par_cellule() -> None:
+def test_densite_max_par_noyau() -> None:
+    """I5 compte les voisins dans un rayon, pas dans une cellule.
+
+    Trois agents serrés et un isolé : le maximum est 2 voisins (pour l'un
+    des trois) sur l'aire du disque, et l'isolé ne compte pas.
+    """
     agents = [
         _agent("A", (1.1, 1.1)),
         _agent("B", (1.4, 1.4)),
         _agent("C", (1.9, 1.9)),
         _agent("D", (8.0, 8.0)),
     ]
-    assert max_density(agents, cell=1.0) == pytest.approx(3.0)
+    assert max_density(agents, radius=1.0) == pytest.approx(2.0 / math.pi)
+
+
+def test_densite_max_ne_sature_pas() -> None:
+    """La grille valait 2,0 partout ; le noyau doit varier avec le nombre.
+
+    Deux paquets de tailles différentes doivent donner deux valeurs
+    différentes — c'est ce que la grille de 1 m ne savait pas faire.
+    """
+    serre = [_agent(str(i), (10.0 + 0.5 * i, 10.0)) for i in range(4)]
+    dense = [_agent(str(i), (10.0 + 0.5 * i, 10.0)) for i in range(10)]
+    assert max_density(serre, radius=3.0) < max_density(dense, radius=3.0)
 
 
 def test_densite_ignore_les_evacues() -> None:

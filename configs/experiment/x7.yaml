@@ -7,12 +7,16 @@
 # Sans RAG, l'agent décide sur sa seule perception et sa mémoire. Avec,
 # il peut retrouver une consigne de sécurité ou un souvenir d'édition.
 # C'est la seule expérience qui isole la contribution documentaire.
+#
+# I6 est retiré : aucune sortie ne ferme ici. La croyance se lit dans
+# `counts.by_belief` et dans I2 (entropie) — pas dans un écart à une
+# fermeture qui n'a pas lieu.
 # ============================================================
 
 experiment:
   id: X7
   hypothesis: H7
-  indicators: [I6_belief_gap, I2_entropy, I1_consensus]
+  indicators: [I2_entropy, I1_consensus, I4_seconds]
   arms:
     - name: avec_rag
       description: bge-m3 + FAISS, filtré par profil et par tick
