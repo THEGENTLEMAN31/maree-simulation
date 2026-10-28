@@ -40,7 +40,7 @@ class WorldSpec(BaseModel):
     pre_days_ticks: int = 3 * 24 * 60  # 3 jours simulés (minutes)
     # Variantes expérimentales (protocole X1–X7) — optionnelles.
     announcement_tick: int | None = None
-    announcement_clarity: Literal["clear", "ambiguous"] | None = None
+    announcement_clarity: Literal["clear", "ambiguous", "neutral"] | None = None
     exits_closed: dict[str, int] = Field(default_factory=dict)  # code -> tick fermeture
     # Les leviers expérimentaux ne sont pas tous des booléens : `swap_profiles`
     # est une liste d'identifiants. Typer `bool` provoquait un warning de

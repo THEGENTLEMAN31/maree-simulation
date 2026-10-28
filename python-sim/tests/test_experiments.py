@@ -25,19 +25,24 @@ from src.experiments.runner import (
 def test_protocole_paires_distinctes() -> None:
     """Aucune expérience ne doit comparer deux configurations identiques."""
     assert validate_experiments() == []
-    assert set(EXPERIMENTS) == {"X1", "X2", "X3", "X4", "X5", "X6", "X7"}
+    assert set(EXPERIMENTS) == {"X1", "X2", "X3", "X4", "X5", "X6", "X7", "B3"}
 
 
 def test_chaque_paire_change_un_levier() -> None:
     """Le levier modifié doit être réellement transmis à l'orchestrateur."""
     for exp_id, cfgs in EXPERIMENTS.items():
-        a, b = cfgs
-        fa, fb = a.flags(), b.flags()
-        changed = {k for k in set(fa) | set(fb) if fa.get(k) != fb.get(k)}
-        changed |= {k for k in ("mode", "announcement_tick", "announcement_clarity",
-                                "close_exit", "close_exit_tick")
-                    if getattr(a, k) != getattr(b, k)}
-        assert changed, f"{exp_id} ne change aucun paramètre"
+        # B3 a quatre bras : on vérifie les paires (contrôle, variante) deux
+        # à deux ; X1–X7 ont exactement deux bras.
+        pairs = [(cfgs[0], cfgs[1])]
+        if len(cfgs) >= 4:
+            pairs.append((cfgs[2], cfgs[3]))
+        for a, b in pairs:
+            fa, fb = a.flags(), b.flags()
+            changed = {k for k in set(fa) | set(fb) if fa.get(k) != fb.get(k)}
+            changed |= {k for k in ("mode", "announcement_tick", "announcement_clarity",
+                                    "close_exit", "close_exit_tick")
+                        if getattr(a, k) != getattr(b, k)}
+            assert changed, f"{exp_id} ne change aucun paramètre ({a.name}/{b.name})"
 
 
 def test_mann_whitney_separation_complete() -> None:

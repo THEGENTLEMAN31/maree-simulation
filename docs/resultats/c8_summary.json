@@ -1,0 +1,241 @@
+{
+  "ticks": 30,
+  "pop20": {
+    "calls": 31,
+    "tokens_in": 53814,
+    "tokens_out": 4061,
+    "total_ms": 62099,
+    "avg_ms": 2003.1935483870968,
+    "run_id": "c8_pop20",
+    "mode": "sync",
+    "passages_ingested": 214,
+    "temporal_violations": 0,
+    "config_hash": "92c68cfe8dfa37a4",
+    "llm_latency_ms": {
+      "n": 25,
+      "median": 2440.0,
+      "p95": 3112.0,
+      "max": 3241
+    },
+    "processing_delay_ticks": {
+      "n": 25,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0
+    },
+    "processing_delay_all_ticks": {
+      "n": 83,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0
+    },
+    "I1_median": 0.1048,
+    "I1_final": 0.1287,
+    "I2_median": 0.4,
+    "I2_final": 0.4,
+    "I4_median": 0.55,
+    "I4_final": 0.6,
+    "I3_evacuated": 16,
+    "I3_evacuated_ratio": 0.8,
+    "I3_trapped": 0,
+    "I3_trapped_ratio": 0.0,
+    "I5_temporal_violations": 0,
+    "exit_distribution": {
+      "A": 11,
+      "B": 2,
+      "C": 3
+    },
+    "rag_citation_rate": 1.0,
+    "rag_degraded": false,
+    "llm_drifts": 0,
+    "llm_decisions": 25,
+    "agent_last_exits": {
+      "amis_01": "A",
+      "famille_01": "C",
+      "foule_01": "A",
+      "foule_02": "A",
+      "foule_03": "B",
+      "foule_04": "A",
+      "foule_05": "A",
+      "foule_06": "A",
+      "foule_07": "A",
+      "foule_08": "C",
+      "foule_09": "A",
+      "foule_10": "C",
+      "foule_11": "B",
+      "foule_12": "A",
+      "foule_13": "A",
+      "foule_14": "A",
+      "foule_15": "A",
+      "habitue_01": "C",
+      "securite_01": "null",
+      "visiteur_01": "null"
+    },
+    "replay": {
+      "events": 241,
+      "indicator_hash": "751c2434a3bf373e",
+      "decisions_reconstructed": 25,
+      "decisions_total": 25
+    }
+  },
+  "pop60": {
+    "calls": 81,
+    "tokens_in": 102693,
+    "tokens_out": 12382,
+    "total_ms": 190369,
+    "avg_ms": 2350.2345679012346,
+    "run_id": "c8_pop60",
+    "mode": "sync",
+    "passages_ingested": 214,
+    "temporal_violations": 0,
+    "config_hash": "80f936eecacc8487",
+    "llm_latency_ms": {
+      "n": 75,
+      "median": 2481.0,
+      "p95": 3456.0,
+      "max": 3779
+    },
+    "processing_delay_ticks": {
+      "n": 75,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0
+    },
+    "processing_delay_all_ticks": {
+      "n": 241,
+      "median": 0.0,
+      "p95": 0.0,
+      "max": 0
+    },
+    "I1_median": 0.0215,
+    "I1_final": 0.0277,
+    "I2_median": 0.6298,
+    "I2_final": 0.5667,
+    "I4_median": 0.6027,
+    "I4_final": 0.6429,
+    "I3_evacuated": 48,
+    "I3_evacuated_ratio": 0.8,
+    "I3_trapped": 0,
+    "I3_trapped_ratio": 0.0,
+    "I5_temporal_violations": 0,
+    "exit_distribution": {
+      "A": 23,
+      "B": 14,
+      "C": 11
+    },
+    "rag_citation_rate": 1.0,
+    "rag_degraded": false,
+    "llm_drifts": 2,
+    "llm_decisions": 75,
+    "agent_last_exits": {
+      "amis_01": "null",
+      "amis_02": "null",
+      "famille_01": "null",
+      "famille_02": "A",
+      "famille_03": "A",
+      "foule_01": "A",
+      "foule_02": "A",
+      "foule_03": "B",
+      "foule_04": "A",
+      "foule_05": "A",
+      "foule_06": "A",
+      "foule_07": "A",
+      "foule_08": "C",
+      "foule_09": "A",
+      "foule_10": "C",
+      "foule_11": "B",
+      "foule_12": "A",
+      "foule_13": "A",
+      "foule_14": "A",
+      "foule_15": "A",
+      "foule_16": "A",
+      "foule_17": "C",
+      "foule_18": "C",
+      "foule_19": "A",
+      "foule_20": "C",
+      "foule_21": "A",
+      "foule_22": "C",
+      "foule_23": "B",
+      "foule_24": "A",
+      "foule_25": "B",
+      "foule_26": "C",
+      "foule_27": "B",
+      "foule_28": "A",
+      "foule_29": "A",
+      "foule_30": "B",
+      "foule_31": "B",
+      "foule_32": "B",
+      "foule_33": "A",
+      "foule_34": "A",
+      "foule_35": "B",
+      "foule_36": "A",
+      "foule_37": "A",
+      "foule_38": "B",
+      "foule_39": "A",
+      "foule_40": "B",
+      "foule_41": "B",
+      "foule_42": "C",
+      "foule_43": "B",
+      "foule_44": "A",
+      "foule_45": "B",
+      "habitue_01": "C",
+      "habitue_02": "C",
+      "habitue_03": "C",
+      "securite_01": "null",
+      "securite_02": "null",
+      "visiteur_01": "null",
+      "visiteur_02": "null",
+      "visiteur_03": "null",
+      "visiteur_04": "null",
+      "visiteur_05": "A"
+    },
+    "replay": {
+      "events": 694,
+      "indicator_hash": "29dc657dabb323b6",
+      "decisions_reconstructed": 73,
+      "decisions_total": 75
+    }
+  },
+  "comparison": {
+    "I1_median": {
+      "20": 0.1048,
+      "60": 0.0215,
+      "delta": -0.08330000000000001
+    },
+    "I2_median": {
+      "20": 0.4,
+      "60": 0.6298,
+      "delta": 0.2298
+    },
+    "I3_evacuated_ratio": {
+      "20": 0.8,
+      "60": 0.8,
+      "delta": 0.0
+    },
+    "I4_median": {
+      "20": 0.55,
+      "60": 0.6027,
+      "delta": 0.05269999999999997
+    },
+    "calls": {
+      "20": 31,
+      "60": 81,
+      "delta": 50
+    },
+    "total_ms": {
+      "20": 62099,
+      "60": 190369,
+      "delta": 128270
+    },
+    "tokens_in": {
+      "20": 53814,
+      "60": 102693,
+      "delta": 48879
+    },
+    "tokens_out": {
+      "20": 4061,
+      "60": 12382,
+      "delta": 8321
+    }
+  }
+}

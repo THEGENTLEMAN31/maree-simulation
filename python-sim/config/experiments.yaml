@@ -13,7 +13,9 @@
 run_id: exp_default
 seed: 42
 mode: sync
-tick_duration_ms: 1000
+# 1 tick = 10 s : permet de respecter les fenêtres du cadrage (3/6 min,
+# fermeture 5 min après la fumée) sans dépasser 60 ticks.
+tick_duration_ms: 10000
 max_ticks: 60
 
 world:

@@ -94,6 +94,7 @@ class ExperimentConfig:
     announcement_clarity: str = "clear"  # clear | ambiguous
     close_exit: str | None = None
     close_exit_tick: int | None = None
+    justification_diversity: bool = False
     seed: int = 42
 
     def flags(self) -> dict:
@@ -105,6 +106,8 @@ class ExperimentConfig:
             "leaders": self.leaders,
             "communication": self.communication,
         }
+        if self.justification_diversity:
+            f["justification_diversity"] = True
         if self.swap_profiles:
             f["swap_profiles"] = list(self.swap_profiles)
         return f
@@ -118,10 +121,14 @@ EXPERIMENTS: dict[str, list[ExperimentConfig]] = {
     # X1 — clarté et moment de l'annonce (confondus volontairement, cf. cadrage)
     "X1": [
         ExperimentConfig(
-            name="X1_clear_early", announcement_tick=5, announcement_clarity="clear"
+            name="X1_clear_early",
+            announcement_tick=18,  # 3 min à 10 s/tick
+            announcement_clarity="clear",
         ),
         ExperimentConfig(
-            name="X1_ambig_late", announcement_tick=40, announcement_clarity="ambiguous"
+            name="X1_ambig_late",
+            announcement_tick=36,  # 6 min à 10 s/tick
+            announcement_clarity="ambiguous",
         ),
     ],
     # X2 — sortie A fermée, avec meneurs vs sans meneur (I4 doit chuter)
@@ -129,13 +136,13 @@ EXPERIMENTS: dict[str, list[ExperimentConfig]] = {
         ExperimentConfig(
             name="X2_leaders",
             close_exit="A",
-            close_exit_tick=15,
+            close_exit_tick=40,  # 5 min après la fumée (tick 10) à 10 s/tick
             leaders=True,
         ),
         ExperimentConfig(
             name="X2_noleaders",
             close_exit="A",
-            close_exit_tick=15,
+            close_exit_tick=40,
             leaders=False,
         ),
     ],
@@ -164,6 +171,39 @@ EXPERIMENTS: dict[str, list[ExperimentConfig]] = {
         ExperimentConfig(name="X7_rag_on", rag_enabled=True),
         ExperimentConfig(name="X7_rag_off", rag_enabled=False),
     ],
+    # B3 — contrôles négatifs : la communication coupée doit faire chuter I1,
+    # l'annonce neutre ne doit pas faire baisser I2, et les justifications
+    # doivent rester diverses (embeddings). 4 bras × 5 runs = 20 runs dédiés.
+    "B3": [
+        ExperimentConfig(
+            name="B3_comm_on",
+            communication=True,
+            justification_diversity=True,
+            max_ticks=30,
+        ),
+        ExperimentConfig(
+            name="B3_comm_off",
+            communication=False,
+            justification_diversity=True,
+            max_ticks=30,
+        ),
+        ExperimentConfig(
+            name="B3_neutral",
+            communication=True,
+            announcement_tick=18,
+            announcement_clarity="neutral",
+            justification_diversity=True,
+            max_ticks=30,
+        ),
+        ExperimentConfig(
+            name="B3_neutral_comm_off",
+            communication=False,
+            announcement_tick=18,
+            announcement_clarity="neutral",
+            justification_diversity=True,
+            max_ticks=30,
+        ),
+    ],
 }
 
 
@@ -178,21 +218,27 @@ def validate_experiments() -> list[str]:
         if len(configs) < 2:
             problems.append(f"{exp_id}: moins de 2 configurations")
             continue
-        a, b = configs[0], configs[1]
-        signature = (
-            a.mode, a.llm_enabled, a.rag_enabled, a.memory_enabled, a.leaders,
-            a.communication, tuple(a.swap_profiles or ()),
-            a.announcement_tick, a.announcement_clarity,
-            a.close_exit, a.close_exit_tick,
-        )
-        signature_b = (
-            b.mode, b.llm_enabled, b.rag_enabled, b.memory_enabled, b.leaders,
-            b.communication, tuple(b.swap_profiles or ()),
-            b.announcement_tick, b.announcement_clarity,
-            b.close_exit, b.close_exit_tick,
-        )
-        if signature == signature_b:
-            problems.append(f"{exp_id}: configurations identiques ({a.name}/{b.name})")
+        # B3 possède quatre bras : on valide (contrôle, variante) deux à deux.
+        pairs = [(configs[0], configs[1])]
+        if len(configs) >= 4:
+            pairs.append((configs[2], configs[3]))
+        for a, b in pairs:
+            signature = (
+                a.mode, a.llm_enabled, a.rag_enabled, a.memory_enabled,
+                a.leaders, a.communication, tuple(a.swap_profiles or ()),
+                a.announcement_tick, a.announcement_clarity,
+                a.close_exit, a.close_exit_tick,
+            )
+            signature_b = (
+                b.mode, b.llm_enabled, b.rag_enabled, b.memory_enabled,
+                b.leaders, b.communication, tuple(b.swap_profiles or ()),
+                b.announcement_tick, b.announcement_clarity,
+                b.close_exit, b.close_exit_tick,
+            )
+            if signature == signature_b:
+                problems.append(
+                    f"{exp_id}: configurations identiques ({a.name}/{b.name})"
+                )
     return problems
 
 
@@ -283,6 +329,10 @@ class ExperimentRunner:
         """Médiane, IQR et valeurs brutes (E2 : dispersion + Mann-Whitney)."""
         import statistics
 
+        def mean_field_from(items: list[dict], key: str) -> float | None:
+            vals = [float(x[key]) for x in items if x.get(key) is not None]
+            return round(sum(vals) / len(vals), 4) if vals else None
+
         def med_iqr(values: list[float]) -> dict:
             vals = sorted(values)
             if not vals:
@@ -332,6 +382,33 @@ class ExperimentRunner:
         out["temporal_violations"] = sum(s.get("temporal_violations", 0) for s in samples)
         out["rag_degraded"] = any(s.get("rag_degraded", False) for s in samples)
 
+        # B3 : diversité des justifications (moyenne des distances cosinus).
+        divs = [s.get("justification_diversity") or {} for s in samples]
+        def mean_field(name: str) -> float | None:
+            vals = [float(d[name]) for d in divs if d.get(name) is not None]
+            return round(sum(vals) / len(vals), 4) if vals else None
+        out["justification_diversity"] = {
+            "n": sum(int(d.get("n", 0)) for d in divs),
+            "mean_pairwise_cosine_distance": mean_field("mean_pairwise_cosine_distance"),
+            "same_model": mean_field("same_model"),
+            "cross_model": mean_field("cross_model"),
+            "degraded": any(bool(d.get("degraded", False)) for d in divs),
+        }
+
+        # C7 : latence et décalage de traitement (médiane des p95 par run).
+        lat = [s.get("llm_latency_ms") or {} for s in samples]
+        delay = [s.get("processing_delay_ticks") or {} for s in samples]
+        out["llm_latency_ms"] = {
+            "median_of_run_medians": mean_field_from(lat, "median"),
+            "median_of_run_p95": mean_field_from(lat, "p95"),
+            "max": max((v.get("max") or 0 for v in lat), default=0) or None,
+        }
+        out["processing_delay_ticks"] = {
+            "median_of_run_medians": mean_field_from(delay, "median"),
+            "median_of_run_p95": mean_field_from(delay, "p95"),
+            "max": max((v.get("max") or 0 for v in delay), default=0) or None,
+        }
+
         # Valeurs brutes conservées pour les tests non paramétriques (F5).
         out["samples"] = [
             {
@@ -343,6 +420,9 @@ class ExperimentRunner:
                 "rag_citation_rate": s.get("rag_citation_rate"),
                 "exit_distribution": s.get("exit_distribution"),
                 "agent_last_exits": s.get("agent_last_exits"),
+                "justification_diversity": s.get("justification_diversity"),
+                "processing_delay_ticks": s.get("processing_delay_ticks"),
+                "llm_latency_ms": s.get("llm_latency_ms"),
             }
             for s in samples
         ]

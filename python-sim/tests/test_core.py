@@ -203,3 +203,145 @@ def test_oracle_detecte_un_message_non_arrivé():
     assert oracle.violations[0].agent_id == "a1"
     with pytest.raises(AssertionError):
         oracle.assert_clean()
+
+
+def test_f6_offsets_sources_et_b4_causation() -> None:
+    """F6/B4 : chaque indicateur cite des offsets Kafka réels, et les
+    événements ont une chaîne causale (message -> décision -> mouvement)."""
+    from src.replay import ReplayEngine
+
+    from src.llm_gateway import LLMCallResult
+
+    cfg = _cfg("sync").model_copy(update={"run_id": "test_f6_b4"})
+    orch = Orchestrator(cfg, dry_run=True, corpus_path="/tmp/empty_corpus")
+
+    async def fake_chat(model, messages, *, temperature=0.3, max_tokens=None):
+        return LLMCallResult(
+            text='{"explanation":"je préviens mon voisin","action":"stay",'
+                 '"target_zone":"scene","exit_choice":null,'
+                 '"message":"restons groupés"}',
+            call_id=1, model=model, duration_ms=5,
+        )
+
+    orch.gateway.chat = fake_chat  # type: ignore[method-assign]
+    asyncio.run(orch.run())
+
+    events = ReplayEngine.load(cfg.run_id, cfg.log_dir)
+    decisions = [e for e in events if e.type == "agent.decision"]
+    messages = [e for e in events if e.type == "agent.message"]
+    indicators = [e for e in events if e.type == "metrics.indicators"]
+
+    assert decisions and messages
+    decision_ids = {e.event_id for e in decisions}
+    assert any(e.causation_id for e in decisions)
+    assert any(m.causation_id in decision_ids for m in messages)
+
+    assert any(i.data.get("sources") for i in indicators)
+    for ind in indicators:
+        for topic, rng in ind.data.get("sources", {}).items():
+            assert topic in {
+                "world.events", "agent.decisions", "metrics.indicators",
+                "control.commands", "dlq.invalid",
+            }
+            assert isinstance(rng["from"], int)
+            assert rng["from"] <= rng["to"]
+            assert rng["events"] >= 1
+
+    # Clic Godot -> événements bruts : on répond avec les parents causaux.
+    sent: list[dict] = []
+
+    async def collect(payload: dict) -> None:
+        sent.append(payload)
+
+    orch.ws.broadcast = collect  # type: ignore[method-assign]
+    tick = indicators[0].t_prod
+    asyncio.run(orch._inspect_indicator(tick, "I1"))
+    assert sent and sent[0]["type"] == "indicator_events"
+    assert sent[0]["events"]
+    assert any(e["causation_id"] for e in sent[0]["events"])
+
+
+def test_c7_latence_llm_devient_delai_de_ticks() -> None:
+    """C7/C6 : une latence de 2,5 s à 1 s/tick doit produire 3 ticks de
+    traitement, et le message ne doit être délivré qu'à l'arrivée."""
+    from src.llm_gateway import LLMCallResult
+    from src.replay import ReplayEngine
+
+    cfg = _cfg("async").model_copy(
+        update={
+            "run_id": "test_c7",
+            "max_ticks": 15,
+            "tick_duration_ms": 1000,
+            "world": WorldSpec(smoke_tick=5),
+        }
+    )
+    orch = Orchestrator(cfg, dry_run=True, corpus_path="/tmp/empty_corpus")
+
+    async def slow_chat(model, messages, *, temperature=0.3, max_tokens=None):
+        return LLMCallResult(
+            text='{"explanation":"je préviens","action":"stay",'
+                 '"target_zone":"scene","exit_choice":null,'
+                 '"message":"attention"}',
+            call_id=1, model=model, duration_ms=2500,
+        )
+
+    orch.gateway.chat = slow_chat  # type: ignore[method-assign]
+    summary = asyncio.run(orch.run())
+    assert summary["processing_delay_ticks"]["median"] == 3.0
+    assert summary["processing_delay_ticks"]["max"] == 3
+    assert summary["llm_latency_ms"]["median"] == 2500.0
+    assert summary["temporal_violations"] == 0
+
+    events = ReplayEngine.load(cfg.run_id, cfg.log_dir)
+    messages = [e for e in events if e.type == "agent.message"]
+    assert messages
+    assert all(m.t_trait == m.t_prod + 3 for m in messages)
+
+
+def test_e3_reconstruction_depuis_journal_seul() -> None:
+    """E3 : prompt, graine et sortie brute sont journalisés, et chaque
+    décision LLM est reconstruite sans rappeler le modèle."""
+    from src.llm_gateway import LLMCallResult
+    from src.replay import reconstruct_decisions
+
+    cfg = _cfg("sync").model_copy(update={"run_id": "test_e3"})
+    orch = Orchestrator(cfg, dry_run=True, corpus_path="/tmp/empty_corpus")
+
+    async def fake_chat(model, messages, *, temperature=0.3, max_tokens=None):
+        return LLMCallResult(
+            text='{"explanation":"sortir par B","action":"move",'
+                 '"target_zone":"nord","exit_choice":"B",'
+                 '"message":"suivez-moi vers B"}',
+            call_id=1, model=model, duration_ms=12,
+            tokens_in=120, tokens_out=30,
+        )
+
+    orch.gateway.chat = fake_chat  # type: ignore[method-assign]
+    asyncio.run(orch.run())
+    check = reconstruct_decisions(cfg.run_id, cfg.log_dir)
+    assert check["n_decisions"] > 0
+    assert check["trace_complete"] == check["n_decisions"]
+    assert check["matching"] == check["n_decisions"], check["mismatches"][:2]
+
+
+def test_b3_diversite_justifications_embeddings() -> None:
+    """B3 : la diversité compare les justifications par embeddings, avec
+    une séparation même modèle / modèles différents."""
+    cfg = _cfg().model_copy(update={"run_id": "test_b3_div"})
+    orch = Orchestrator(cfg, dry_run=True, corpus_path="/tmp/empty_corpus")
+    for i, agent in enumerate(orch.llm_agents):
+        orch.runtime[agent.agent_id].last_explanation = {
+            "kind": "llm",
+            "reasoning": f"justification {i}",
+        }
+
+    async def fake_embed(texts):
+        return [[1.0, 0.0] if i % 2 == 0 else [0.0, 1.0] for i, _ in enumerate(texts)]
+
+    orch.gateway.embed = fake_embed  # type: ignore[method-assign]
+    result = asyncio.run(orch._compute_justification_diversity())
+    assert result["n"] == len(orch.llm_agents)
+    assert result["mean_pairwise_cosine_distance"] > 0.5
+    assert result["same_model"] > 0.5
+    assert result["cross_model"] >= 0.5
+    assert result["degraded"] is False

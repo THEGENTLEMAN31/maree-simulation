@@ -1,0 +1,65 @@
+# ============================================================
+# MARÉE — variante tout-E2B de `simulation.yaml` (démo visuelle).
+#
+# Pourquoi : E4B (4,7 Go) ne tient pas sur la RTX 3050 (4 Go). Avec
+# `--models-max 2`, il évince E2B ou bge-m3 et le routeur recharge les
+# modèles en boucle (thrashing). On force donc E2B partout : E2B + bge-m3
+# cohabitent, le RAG reste chaud (mesuré 3692/4096 Mio, ~1,9 min/run).
+#
+# Différence avec simulation.yaml : uniquement le champ `model` des profils
+# `securite` et `habitue` (passés de gemma4-e4b à gemma4-e2b). Population,
+# monde et budget de ticks inchangés.
+#
+# Régénérer la version de référence : utiliser simulation.yaml.
+# ============================================================
+
+run_id: run_e2b
+seed: 42
+mode: sync
+tick_duration_ms: 1000
+max_ticks: 120
+# Laisse le client Godot se connecter avant le premier tick (démo visuelle).
+wait_for_client: true
+
+world:
+  smoke_tick: 10            # la fumée apparaît au tick 10
+  smoke_spread_interval: 6
+  evac_duration_ticks: 900
+  pre_days_ticks: 4320
+
+population:
+  - name: famille
+    count: 3
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.3
+  - name: securite          # était gemma4-e4b (thrashing VRAM)
+    count: 2
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.2
+  - name: habitue           # était gemma4-e4b (thrashing VRAM)
+    count: 3
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.2
+  - name: visiteur
+    count: 5
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.3
+  - name: amis
+    count: 2
+    kind: llm
+    model: gemma4-e2b
+    temperature: 0.4
+  - name: foule
+    count: 45
+    kind: rules
+
+llm:
+  base_url: http://llama-cpp:8081/v1
+
+log_dir: /logs
+collect:
+  sample_size: 30

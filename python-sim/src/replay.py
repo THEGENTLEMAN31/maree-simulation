@@ -85,3 +85,113 @@ class ReplayEngine:
             n_events=len(events),
             indicator_hash=h.hexdigest()[:16],
         )
+
+def _parse_raw_decision(text: str | None) -> dict | None:
+    """Parse la sortie brute LLM sans appeler le modèle (E3)."""
+    if not text:
+        return None
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()[1:]
+        cleaned = "\n".join(lines).strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+    try:
+        value = json.loads(cleaned)
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        # Dernier objet JSON équilibré (Gemma peut entourer le JSON de texte).
+        start = cleaned.find("{")
+        while start != -1:
+            depth = 0
+            in_string = False
+            for i in range(start, len(cleaned)):
+                ch = cleaned[i]
+                if ch == '"' and (i == 0 or cleaned[i - 1] != "\\"):
+                    in_string = not in_string
+                elif not in_string and ch in "{}":
+                    depth += 1 if ch == "{" else -1
+                    if depth == 0:
+                        try:
+                            value = json.loads(cleaned[start : i + 1])
+                            return value if isinstance(value, dict) else None
+                        except json.JSONDecodeError:
+                            break
+            start = cleaned.find("{", start + 1)
+    return None
+
+
+def reconstruct_decisions(run_id: str, log_dir: str | Path) -> dict:
+    """E3 : reconstruit chaque décision LLM depuis le journal seul.
+
+    Le journal doit contenir le prompt, la graine et la sortie brute. On
+    re-parse la sortie brute et on compare l'action, la zone, la sortie et
+    le message à ce que le moteur a réellement appliqué.
+    """
+    events = ReplayEngine.load(run_id, log_dir)
+    decisions = [
+        e for e in events
+        if e.type == "agent.decision" and e.data.get("kind") == "llm"
+    ]
+    trace_complete = parsed = matching = 0
+    mismatches: list[dict] = []
+    for event in decisions:
+        trace = event.data.get("llm") or {}
+        raw = trace.get("raw_output")
+        prompt = trace.get("prompt")
+        seed = trace.get("seed")
+        if raw is not None and prompt is not None and seed is not None:
+            trace_complete += 1
+        parsed_decision = _parse_raw_decision(raw)
+        if parsed_decision is None:
+            mismatches.append({
+                "event_id": event.event_id,
+                "reason": "raw_output_unparseable",
+            })
+            continue
+        parsed += 1
+        raw_action = parsed_decision.get("action", "stay")
+        if raw_action not in {"move", "stay", "evacuate"}:
+            raw_action = "stay"
+        raw_target = parsed_decision.get("target_zone")
+        raw_exit = parsed_decision.get("exit_choice")
+        applied = event.data
+        # Pour "stay", la zone cible n'est pas une information de décision :
+        # le moteur la normalise sur la zone courante. On ne la compare donc
+        # que pour un déplacement ou une évacuation.
+        target_same = (
+            raw_action == "stay"
+            or (raw_target or None) == (applied.get("target_zone") or None)
+        )
+        exit_same = (raw_exit or None) == (applied.get("exit") or None)
+        same = raw_action == applied.get("action") and target_same and exit_same
+        applies_message = (
+            (parsed_decision.get("message") or None)
+            == (applied.get("message") or None)
+        )
+        if same and applies_message:
+            matching += 1
+        else:
+            mismatches.append({
+                "event_id": event.event_id,
+                "raw": {
+                    "action": raw_action,
+                    "target_zone": raw_target,
+                    "exit_choice": raw_exit,
+                    "message": parsed_decision.get("message"),
+                },
+                "applied": {
+                    "action": applied.get("action"),
+                    "target_zone": applied.get("target_zone"),
+                    "exit": applied.get("exit"),
+                    "message": applied.get("message"),
+                },
+            })
+    return {
+        "run_id": run_id,
+        "n_decisions": len(decisions),
+        "trace_complete": trace_complete,
+        "parsed": parsed,
+        "matching": matching,
+        "mismatches": mismatches,
+    }

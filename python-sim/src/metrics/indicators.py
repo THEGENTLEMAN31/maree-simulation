@@ -27,7 +27,11 @@ class IndicatorSet:
     # majoritaire parmi ses voisins visibles ? (mesuré, pas déduit)
     follow_observations: list[bool] = field(default_factory=list)
     temporal_violations: int = 0
-    source_offsets: dict[str, int] = field(default_factory=dict)
+    # F6 / décision 16 : plage d'offsets Kafka par topic, et identifiants
+    # des événements qui ont produit cette valeur. `sources` reste un dict
+    # sérialisable JSON : {topic: {partition, from, to, events}}.
+    source_offsets: dict[str, dict] = field(default_factory=dict)
+    source_event_ids: list[str] = field(default_factory=list)
 
     @property
     def informed(self) -> list[tuple[str, str | None, bool]]:
@@ -89,4 +93,5 @@ class Indicators:
             "I4_leader_follow": round(i4, 4),
             "I5_temporal_violations": i5,
             "sources": state.source_offsets,
+            "source_events": state.source_event_ids,
         }

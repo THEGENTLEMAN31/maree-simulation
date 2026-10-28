@@ -1,4 +1,4 @@
-.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report test-godot editor e2e e2e-async e2e-e4b eval-rag experiments experiments-dry corpus
+.PHONY: help up up-demo down logs build pull-models ingest run replay test fmt lint report test-godot editor e2e e2e-async e2e-e4b eval-rag experiments experiments-dry corpus c8 c7 b3
 
 SHELL := /bin/bash
 COMPOSE := docker compose
@@ -81,3 +81,14 @@ e2e-async: ## Idem en mode asynchrone
 
 e2e-e4b: ## Idem avec le grand modèle (E4B, offload partiel)
 	E2E_CONFIG=e2e-godot-e4b.yaml E2E_RUN_ID=e2e_godot_e4b ./scripts/run_e2e.sh
+
+c8: ## Deux populations 20/60, rejeu comparé (C8)
+	$(COMPOSE) run --rm python-sim python -m src.experiments.c8 --ticks 30 --out /logs/c8_summary.json
+
+c7: ## Latence LLM -> ticks + rafale (C7)
+	$(COMPOSE) run --rm python-sim python -m src.experiments.c7 --ticks 30 --out /logs/c7_summary.json
+
+b3: ## Contrôles négatifs B3 (20 runs, embeddings réels)
+	$(COMPOSE) run --rm python-sim python -m src.cli experiments \
+	  -c config/experiments.yaml --runs-per-config 5 --only B3 \
+	  --log-dir /logs/b3 --corpus /world_corpus --llm-url http://llama-cpp:8081/v1

@@ -11,6 +11,7 @@ Décisions implémentées : 1 (journal source de vérité), 2 (double horodatage
 from __future__ import annotations
 
 import asyncio
+import math
 import random
 import zlib
 from dataclasses import asdict, dataclass, field
@@ -80,6 +81,10 @@ class Orchestrator:
         self.world = World(config.world, self.rng)
 
         self.agents = build_agents(config.population, self.rng)
+        # E3 : graine stable par agent, dérivée de la graine du run et de
+        # l'identifiant — reproductible sans dépendre de l'ordre de création.
+        for agent in self.agents:
+            agent.seed = (config.seed ^ zlib.crc32(agent.agent_id.encode())) & 0xFFFFFFFF
         self.llm_agents, self.rules_agents = split_agents(self.agents)
         self.runtime: dict[str, AgentRuntime] = {
             a.agent_id: AgentRuntime() for a in self.agents
@@ -139,14 +144,46 @@ class Orchestrator:
         self._follow: list[bool] = []
         # X4 : agents à règles « miroirs » des agents LLM (même profil, même id).
         self._rules_shadow: dict[str, object] = {}
+        # F6/B4 : journal en mémoire pour répondre au clic indicateur, et
+        # tâches de publication Kafka à vider avant de figer les offsets.
+        self._journal_events: list[evmod.EventEnvelope] = []
+        self._events_since_indicator: list[evmod.EventEnvelope] = []
+        self._indicator_windows: dict[int, list[str]] = {}
+        self._pending_publishes: set[asyncio.Task] = set()
+        # B4 : dernière décision par agent et dernière influence reçue
+        # (message ou annonce). Chaque décision cite ainsi un parent réel.
+        self._last_decision_event: dict[str, str] = {}
+        self._last_influence: dict[str, str] = {}
+        self._last_announcement_event: str | None = None
+        # C7 : distribution réelle des latences et des délais de traitement.
+        self._llm_latencies_ms: list[int] = []
+        self._processing_delays: list[int] = []
+        self._llm_processing_delays: list[int] = []
+        # Messages dont l'arrivée est différée par la latence LLM (C7/C6).
+        self._pending_messages: list[tuple[int, str, str, str, str]] = []
 
     # ------------------------------------------------------- journal (déc. 1)
     def _journal(self, topic: str, envelope: evmod.EventEnvelope) -> None:
         """Écrit un événement : une fois dans le journal JSONL (E3) et une
         fois dans Kafka (C1, décision 1). En mode mémoire, la publication
-        est un append synchrone ; en mode réseau, une tâche asyncio."""
+        est un append synchrone ; en mode réseau, une tâche asyncio.
+
+        Les tâches sont suivies (F6) : avant de publier un indicateur, on
+        attend que tous les événements précédents aient un offset Kafka.
+        """
         self.logger.log(envelope)
-        asyncio.create_task(self.kafka.publish(topic, envelope))
+        self._journal_events.append(envelope)
+        self._events_since_indicator.append(envelope)
+        task = asyncio.create_task(self.kafka.publish(topic, envelope))
+        self._pending_publishes.add(task)
+        task.add_done_callback(self._pending_publishes.discard)
+
+    async def _flush_journal(self) -> None:
+        """Attend les publications Kafka en cours avant de figer les offsets."""
+        while self._pending_publishes:
+            tasks = list(self._pending_publishes)
+            self._pending_publishes.clear()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     # ------------------------------------------------------------------ run
     async def run(self, *, max_ticks: int | None = None) -> dict:
@@ -186,6 +223,10 @@ class Orchestrator:
                 self._emit_smoke(tick)
             self._apply_experiment_events(tick)
 
+            # C7/C6 : les messages produits avec un délai de traitement
+            # n'entrent dans la mémoire qu'au tick d'arrivée. Une décision
+            # ne peut donc jamais citer un message futur.
+            self._deliver_due_messages(tick)
             due = self.scheduler.due_agents(tick)
             await self._run_agent_turns(due, tick)
             if due:
@@ -199,7 +240,6 @@ class Orchestrator:
                 await self._emit_indicators(tick)
             await asyncio.sleep(0)  # laisse respirer le scheduler OS
 
-        await self._emit_indicators(limits - 1)
         # I5 / F5 : les violations temporelles doivent exister dans le journal,
         # pas seulement dans un compteur Python — sinon la requête SQL de
         # contrôle ne peut rien vérifier.
@@ -217,7 +257,12 @@ class Orchestrator:
                     },
                 ),
             )
+        await self._flush_journal()
         summary = self.gateway.cost_log.summary()
+        if self.config.world.experiment_flags.get("justification_diversity"):
+            summary["justification_diversity"] = (
+                await self._compute_justification_diversity()
+            )
         summary["run_id"] = self.config.run_id
         summary["mode"] = self.config.mode
         summary["passages_ingested"] = n_passages
@@ -228,6 +273,71 @@ class Orchestrator:
         await self.ws.close()
         self.logger.close()
         return summary
+
+    async def _compute_justification_diversity(self) -> dict:
+        """B3 : distance cosinus entre justifications, même modèle vs modèles
+        différents. Les embeddings passent par la passerelle unique (GPU)."""
+        texts: list[str] = []
+        models: list[str] = []
+        for agent in self.llm_agents:
+            rt = self.runtime[agent.agent_id]
+            explanation = rt.last_explanation or {}
+            text = str(explanation.get("reasoning") or "").strip()
+            if not text:
+                continue
+            texts.append(text)
+            models.append(str(getattr(agent, "model", "?")))
+        if len(texts) < 2:
+            return {
+                "n": len(texts),
+                "mean_pairwise_cosine_distance": None,
+                "same_model": None,
+                "cross_model": None,
+                "degraded": True,
+            }
+        try:
+            vectors = await self.gateway.embed(texts)
+        except Exception as exc:  # pragma: no cover - dépend du GPU
+            return {
+                "n": len(texts),
+                "mean_pairwise_cosine_distance": None,
+                "same_model": None,
+                "cross_model": None,
+                "degraded": True,
+                "error": str(exc),
+            }
+
+        def cosine_distance(a: list[float], b: list[float]) -> float:
+            na = math.sqrt(sum(x * x for x in a))
+            nb = math.sqrt(sum(x * x for x in b))
+            if na == 0 or nb == 0:
+                return 0.0
+            return 1.0 - sum(x * y for x, y in zip(a, b)) / (na * nb)
+
+        same: list[float] = []
+        cross: list[float] = []
+        overall: list[float] = []
+        for i in range(len(vectors)):
+            for j in range(i + 1, len(vectors)):
+                d = cosine_distance(vectors[i], vectors[j])
+                overall.append(d)
+                if models[i] == models[j]:
+                    same.append(d)
+                else:
+                    cross.append(d)
+
+        def mean(values: list[float]) -> float | None:
+            return round(sum(values) / len(values), 4) if values else None
+
+        return {
+            "n": len(texts),
+            "mean_pairwise_cosine_distance": mean(overall),
+            "same_model": mean(same),
+            "cross_model": mean(cross),
+            "degraded": all(
+                all(x == 0.0 for x in v) for v in vectors
+            ),
+        }
 
     def _experiment_summary(self) -> dict:
         """Métriques exploitables par le protocole X1–X7 (E2, B2, F2).
@@ -263,7 +373,38 @@ class Orchestrator:
         rag_citations = sum(getattr(a, "rag_citations", 0) for a in self.llm_agents)
         drifts = sum(len(getattr(a, "drift_events", [])) for a in self.llm_agents)
 
+        def pct(values: list[int], q: float) -> float | None:
+            if not values:
+                return None
+            ordered = sorted(values)
+            pos = min(len(ordered) - 1, max(0, int(round(q * (len(ordered) - 1)))))
+            return float(ordered[pos])
+
+        latencies = self._llm_latencies_ms
+        delays = self._llm_processing_delays
+        latency_stats = {
+            "n": len(latencies),
+            "median": pct(latencies, 0.5),
+            "p95": pct(latencies, 0.95),
+            "max": max(latencies) if latencies else None,
+        }
+        delay_stats = {
+            "n": len(delays),
+            "median": pct(delays, 0.5),
+            "p95": pct(delays, 0.95),
+            "max": max(delays) if delays else None,
+        }
+        all_delay_stats = {
+            "n": len(self._processing_delays),
+            "median": pct(self._processing_delays, 0.5),
+            "p95": pct(self._processing_delays, 0.95),
+            "max": max(self._processing_delays) if self._processing_delays else None,
+        }
+
         return {
+            "llm_latency_ms": latency_stats,
+            "processing_delay_ticks": delay_stats,
+            "processing_delay_all_ticks": all_delay_stats,
             # B2 : indicateurs (médiane sur le run + valeur finale)
             "I1_median": med(i1),
             "I1_final": i1[-1] if i1 else 0.0,
@@ -311,9 +452,9 @@ class Orchestrator:
             if rt.evacuated or rt.trapped:
                 continue
             perception = self._perception_for(agent, tick)
-            t_trait = self.scheduler.process(sched, now=tick)
 
             flags = self.config.world.experiment_flags
+            duration_ms = 0
             if not flags.get("llm", True):
                 # X4 baseline : on force l'agent à utiliser la règle.
                 intention = await self._rules_intention(agent, perception)
@@ -322,6 +463,15 @@ class Orchestrator:
                 drifts_before = len(getattr(agent, "drift_events", []))
                 intention = await agent.decide(perception)
                 explanation = self._explanation(agent, perception, intention)
+                # C7 : la latence réelle du modèle est convertie en ticks de
+                # traitement. En synchrone, le contrat reste t_trait = t_prod.
+                if isinstance(agent, LLMAgent) and agent.last_call is not None:
+                    duration_ms = int(agent.last_call.duration_ms)
+                    self._llm_latencies_ms.append(duration_ms)
+                tick_ms = max(1, self.config.tick_duration_ms)
+                sched.processing_delay_ticks = (
+                    -(-duration_ms // tick_ms) if self.config.mode == "async" else 0
+                )
                 # A4 : une dérive est un événement du journal, pas un simple
                 # compteur en mémoire.
                 for d in getattr(agent, "drift_events", [])[drifts_before:]:
@@ -331,11 +481,23 @@ class Orchestrator:
                             self.config.run_id,
                             "agent.drift",
                             t_prod=tick,
-                            t_trait=t_trait,
+                            t_trait=tick + sched.processing_delay_ticks,
                             agent_id=agent.agent_id,
                             data=d,
                         ),
                     )
+
+            t_trait = self.scheduler.process(sched, now=tick)
+            self._processing_delays.append(t_trait - tick)
+            if isinstance(agent, LLMAgent) and flags.get("llm", True):
+                self._llm_processing_delays.append(t_trait - tick)
+
+            rt.last_explanation = explanation
+            rt.last_intention = asdict(intention)
+            # La décision est journalisée AVANT le message : celui-ci peut
+            # ainsi citer l'événement de décision courant (B4), et non la
+            # décision précédente de l'émetteur.
+            self._apply_intention(agent, intention, tick, t_trait)
 
             # A2 : message en langage naturel vers les voisins. Le levier
             # `communication` (contrôle B3) coupe réellement la diffusion.
@@ -344,9 +506,6 @@ class Orchestrator:
                 for neighbor in perception.visible_neighbors:
                     self._messages(neighbor, tick, pending, agent.agent_id, t_trait)
 
-            rt.last_explanation = explanation
-            rt.last_intention = asdict(intention)
-            self._apply_intention(agent, intention, tick, t_trait)
             self._record_follow(agent, perception, intention)
             self.scheduler.schedule_next(sched, now=tick)
 
@@ -481,6 +640,101 @@ class Orchestrator:
             )
         await self.ws.broadcast(payload)
 
+    async def _inspect_indicator(self, tick: int, metric: str) -> None:
+        """F6/B4 : événements bruts derrière un point d'indicateur.
+
+        On répond depuis le journal en mémoire (source de vérité) et on
+        ajoute la position Kafka de chaque événement ainsi que son parent
+        causal. Le clic Godot n'a donc aucun calcul à refaire.
+        """
+        await self._flush_journal()
+        # Fenêtre exacte publiée pour ce tick ; sinon le dernier tick <= tick.
+        event_ids = self._indicator_windows.get(tick)
+        if event_ids is None:
+            candidates = [t for t in self._indicator_windows if t <= tick]
+            event_ids = self._indicator_windows[max(candidates)] if candidates else []
+        by_id = {e.event_id: e for e in self._journal_events}
+        selected = [by_id[eid] for eid in event_ids if eid in by_id]
+        sources: dict = {}
+        for e in selected:
+            off = self.kafka.event_offset(e.event_id)
+            if not off:
+                continue
+            topic = str(off["topic"])
+            r = sources.setdefault(
+                topic,
+                {"partition": off["partition"], "from": off["offset"],
+                 "to": off["offset"], "events": 0},
+            )
+            r["from"] = min(int(r["from"]), int(off["offset"]))
+            r["to"] = max(int(r["to"]), int(off["offset"]))
+            r["events"] = int(r["events"]) + 1
+        payload = {
+            "type": "indicator_events",
+            "tick": tick,
+            "metric": metric,
+            "sources": sources,
+            "events": [self._event_payload(e, by_id) for e in selected[:120]],
+            "truncated": len(selected) > 120,
+        }
+        await self.ws.broadcast(payload)
+
+    @staticmethod
+    def _event_payload(
+        envelope: evmod.EventEnvelope,
+        by_id: dict[str, evmod.EventEnvelope] | None = None,
+    ) -> dict:
+        """Résumé brut d'un événement, avec son parent causal (B4)."""
+        data = envelope.data
+        if envelope.type == "movement.snapshot":
+            # Un instantané complet noierait la vue de causalité : on garde
+            # les compteurs et l'état des sorties, pas les 60 agents.
+            data = {
+                "tick": data.get("tick"),
+                "counts": data.get("counts"),
+                "exits": data.get("exits"),
+            }
+        elif envelope.type == "agent.decision":
+            # La vue F6/B4 est une vue de causalité, pas un dump de prompt :
+            # on garde l'action et la trace LLM utile, sans le prompt complet.
+            llm = data.get("llm") or {}
+            data = {
+                "action": data.get("action"),
+                "target_zone": data.get("target_zone"),
+                "exit": data.get("exit"),
+                "profile": data.get("profile"),
+                "kind": data.get("kind"),
+                "message": data.get("message"),
+                "llm": {
+                    "model": llm.get("model"),
+                    "seed": llm.get("seed"),
+                    "duration_ms": llm.get("duration_ms"),
+                    "processing_delay_ticks": llm.get("processing_delay_ticks"),
+                    "raw_output": (llm.get("raw_output") or "")[:300],
+                },
+            }
+        parent = None
+        if by_id and envelope.causation_id:
+            p = by_id.get(envelope.causation_id)
+            if p is not None:
+                parent = {
+                    "event_id": p.event_id,
+                    "type": p.type,
+                    "agent_id": p.agent_id,
+                    "t_prod": p.t_prod,
+                    "t_trait": p.t_trait,
+                }
+        return {
+            "event_id": envelope.event_id,
+            "type": envelope.type,
+            "agent_id": envelope.agent_id,
+            "t_prod": envelope.t_prod,
+            "t_trait": envelope.t_trait,
+            "causation_id": envelope.causation_id,
+            "caused_by": parent,
+            "data": data,
+        }
+
     def _apply_intention(self, agent, intention, tick: int, t_trait: int) -> None:
         rt = self.runtime[agent.agent_id]
         rt.decisions += 1
@@ -490,6 +744,55 @@ class Orchestrator:
             rt.belief_safe_exit = intention.exit_code
         if intention.belief_danger is not None:
             rt.belief_danger = intention.belief_danger
+
+        # B4 : la décision cite la dernière influence réellement reçue
+        # (message d'un voisin) ou, à défaut, la dernière annonce mondiale.
+        parent = self._last_influence.get(agent.agent_id) or self._last_announcement_event
+        llm_trace = None
+        if isinstance(agent, LLMAgent):
+            call = agent.last_call
+            llm_trace = {
+                "model": getattr(agent, "model", None),
+                "seed": getattr(agent, "seed", 0),
+                "temperature": getattr(agent, "temperature", None),
+                "prompt": getattr(agent, "last_prompt", None),
+                "raw_output": getattr(agent, "last_raw_output", None),
+                "reasoning": getattr(agent, "last_reasoning", ""),
+                "call_id": getattr(call, "call_id", None),
+                "duration_ms": getattr(call, "duration_ms", None),
+                "tokens_in": getattr(call, "tokens_in", None),
+                "tokens_out": getattr(call, "tokens_out", None),
+                "ok": getattr(call, "ok", None),
+                "processing_delay_ticks": t_trait - tick,
+            }
+        decision = evmod.new_envelope(
+            self.config.run_id,
+            "agent.decision",
+            t_prod=tick,
+            t_trait=t_trait,
+            agent_id=agent.agent_id,
+            causation_id=parent,
+            data={
+                "action": intention.action,
+                "target_zone": intention.target_zone,
+                "exit": intention.exit_code,
+                # Décision 12 / F1 : traçabilité des passages réellement
+                # fournis au modèle, et du profil qui l'a décidé.
+                "profile": getattr(agent, "profile_name", None),
+                "kind": "llm" if hasattr(agent, "model") else "rules",
+                "rag_doc_ids": [
+                    e.get("doc_id")
+                    for e in (getattr(agent, "last_rag", None) or [])
+                    if isinstance(e, dict)
+                ],
+                "message": getattr(agent, "_pending_message", None),
+                "llm": llm_trace,
+            },
+        )
+        # On journalise la décision avant ses conséquences : le mouvement
+        # pointe vers elle, jamais l'inverse (chaîne causale lisible B4).
+        self._journal("agents", decision)
+        self._last_decision_event[agent.agent_id] = decision.event_id
 
         if intention.action == "evacuate":
             # Une sortie fermée ne laisse pas passer : l'agent est piégé.
@@ -510,51 +813,28 @@ class Orchestrator:
                         t_prod=tick,
                         t_trait=t_trait,
                         agent_id=agent.agent_id,
+                        causation_id=decision.event_id,
                         data={"exit": intention.exit_code},
                     ),
                 )
             else:
                 rt.evacuated = True
                 rt.exit_code = intention.exit_code
-            self._journal(
-                "world",
-                evmod.new_envelope(
-                    self.config.run_id,
-                    "movement.evacuated",
-                    t_prod=tick,
-                    t_trait=t_trait,
-                    agent_id=agent.agent_id,
-                    data={"exit": intention.exit_code},
-                ),
-            )
+                self._journal(
+                    "world",
+                    evmod.new_envelope(
+                        self.config.run_id,
+                        "movement.evacuated",
+                        t_prod=tick,
+                        t_trait=t_trait,
+                        agent_id=agent.agent_id,
+                        causation_id=decision.event_id,
+                        data={"exit": intention.exit_code},
+                    ),
+                )
         elif intention.action == "move" and intention.target_zone:
             if intention.target_zone in self.world.zones:
                 rt.zone = intention.target_zone
-        # publish decision event (cœur du journal, E3)
-        self._journal(
-            "agents",
-            evmod.new_envelope(
-                self.config.run_id,
-                "agent.decision",
-                t_prod=tick,
-                t_trait=t_trait,
-                agent_id=agent.agent_id,
-                data={
-                    "action": intention.action,
-                    "target_zone": intention.target_zone,
-                    "exit": intention.exit_code,
-                    # Décision 12 / F1 : traçabilité des passages réellement
-                    # fournis au modèle, et du profil qui l'a décidé.
-                    "profile": getattr(agent, "profile_name", None),
-                    "kind": "llm" if hasattr(agent, "model") else "rules",
-                    "rag_doc_ids": [
-                        e.get("doc_id")
-                        for e in (getattr(agent, "last_rag", None) or [])
-                        if isinstance(e, dict)
-                    ],
-                },
-            ),
-        )
 
     # ---------------------------------------------------------- événements
 
@@ -673,22 +953,29 @@ class Orchestrator:
         w = self.config.world
         if w.announcement_tick == tick:
             clarity = w.announcement_clarity or "clear"
-            text = (
-                "Annonce : évacuez par la sortie la plus proche, elles sont toutes ouvertes."
-                if clarity == "clear"
-                else "Annonce : nous vous prions de bien vouloir rester calmes."
-            )
+            if clarity == "clear":
+                text = (
+                    "Annonce : évacuez par la sortie la plus proche, "
+                    "elles sont toutes ouvertes."
+                )
+            elif clarity == "neutral":
+                # B3 : annonce sans contenu informatif. Elle ne doit pas
+                # faire baisser I2 ; c'est le contrôle négatif.
+                text = "Annonce : nous vous prions de bien vouloir rester calmes."
+            else:
+                text = "Annonce : nous vous prions de bien vouloir rester calmes."
             self._state["announcements"].append(text)
-            self._journal(
-                "world",
-                evmod.new_envelope(
-                    self.config.run_id,
-                    "world.announcement",
-                    t_prod=tick,
-                    t_trait=tick,
-                    data={"text": text, "clarity": clarity},
-                ),
+            announcement = evmod.new_envelope(
+                self.config.run_id,
+                "world.announcement",
+                t_prod=tick,
+                t_trait=tick,
+                data={"text": text, "clarity": clarity},
             )
+            self._journal("world", announcement)
+            # B4 : une décision postérieure peut citer cette annonce comme
+            # influence, même si l'agent n'a pas encore reçu de message.
+            self._last_announcement_event = announcement.event_id
         for code, close_tick in w.exits_closed.items():
             if close_tick == tick and code in self.world.exits:
                 self.world.exits[code].blocked = True
@@ -766,14 +1053,27 @@ class Orchestrator:
         )
 
     async def _emit_indicators(self, tick: int) -> None:
-        result = self.indicators.compute(self._indicator_state(tick))
+        # F6 : on attend les publications en cours pour que `sources` cite
+        # des offsets réellement attribués, pas une borne approximative.
+        await self._flush_journal()
+        events = list(self._events_since_indicator)
+        state = self._indicator_state(tick)
+        state.source_offsets = self.kafka.source_ranges(
+            [e.event_id for e in events]
+        )
+        state.source_event_ids = [e.event_id for e in events]
+        result = self.indicators.compute(state)
         # Champs d'affichage (B2) : ratio évacué et horizon temporel, pour que
         # l'axe des abscisses de Godot soit le tick réel et non l'index.
         result["I3_evacuated_ratio"] = result["I3_evacuation"]["evacuated"] / max(
             1, len(self.agents)
         )
         result["max_ticks"] = self._max_ticks
+        # B4 : l'indicateur est causé par le dernier événement de sa fenêtre.
+        result["causation_id"] = events[-1].event_id if events else None
+        self._indicator_windows[tick] = [e.event_id for e in events]
         self._indicator_history.append(result)
+        self._events_since_indicator.clear()
         self._journal(
             "metrics",
             evmod.new_envelope(
@@ -814,23 +1114,53 @@ class Orchestrator:
         # A2 : le destinataire mémorise le message — c'est ce qui met à jour
         # sa croyance, et c'est ce que mesure le contrôle « communication
         # désactivée » (B3) : sans relais, I1 ne peut pas monter.
+        # B4 : le message est causé par la décision de l'émetteur ; il devient
+        # à son tour la dernière influence du destinataire.
+        message = evmod.new_envelope(
+            self.config.run_id,
+            "agent.message",
+            t_prod=tick,
+            t_trait=t_trait,
+            agent_id=sender,
+            causation_id=self._last_decision_event.get(sender),
+            data={"to": to_agent, "text": text},
+        )
+        self._journal("agents", message)
+        if self.config.mode == "async" and t_trait > tick:
+            # C7 : le message n'est pas encore arrivé. Il sera délivré au
+            # tick `t_trait`, pas avant — sinon la décision du destinataire
+            # citerait une information future (violation C6).
+            self._pending_messages.append(
+                (t_trait, to_agent, text, sender, message.event_id)
+            )
+        else:
+            self._deliver_message(t_trait, to_agent, text, sender, message.event_id)
+
+    def _deliver_message(
+        self, arrival_tick: int, to_agent: str, text: str, sender: str, event_id: str
+    ) -> None:
         dest = self._agent(to_agent)
         if dest is not None and getattr(dest, "use_memory", True) and hasattr(dest, "remember"):
             dest.remember(
-                tick, "exchange", f"{sender} m'a dit : « {text[:180]} »", source=sender
+                arrival_tick,
+                "exchange",
+                f"{sender} m'a dit : « {text[:180]} »",
+                source=sender,
             )
-            self._arrivals.setdefault(to_agent, []).append((t_trait, text))
-        self._journal(
-            "agents",
-            evmod.new_envelope(
-                self.config.run_id,
-                "agent.message",
-                t_prod=tick,
-                t_trait=t_trait,
-                agent_id=sender,
-                data={"to": to_agent, "text": text},
-            ),
-        )
+            self._arrivals.setdefault(to_agent, []).append((arrival_tick, text))
+            self._last_influence[to_agent] = event_id
+
+    def _deliver_due_messages(self, tick: int) -> None:
+        """C7/C6 : délivre les messages dont le tick d'arrivée est atteint."""
+        if not self._pending_messages:
+            return
+        remaining: list[tuple[int, str, str, str, str]] = []
+        for arrival, to_agent, text, sender, event_id in self._pending_messages:
+            if arrival <= tick:
+                self._deliver_message(arrival, to_agent, text, sender, event_id)
+            else:
+                remaining.append((arrival, to_agent, text, sender, event_id))
+        self._pending_messages = remaining
 
     # -------------------------------------------------------------- helpers
 
@@ -886,16 +1216,18 @@ class Orchestrator:
                     self.world.exits[code].blocked = True
             # F4 / control.commands : l'injection Godot est un événement du
             # monde comme un autre, elle doit être journalisée et publiable.
-            self._journal(
-                "control",
-                evmod.new_envelope(
-                    self.config.run_id,
-                    "control.inject",
-                    t_prod=self._current_tick,
-                    t_trait=self._current_tick,
-                    data=data,
-                ),
+            injected = evmod.new_envelope(
+                self.config.run_id,
+                "control.inject",
+                t_prod=self._current_tick,
+                t_trait=self._current_tick,
+                data=data,
             )
+            self._journal("control", injected)
+            if cmd in {"announcement", "neutral_announcement"}:
+                # B4 : l'injection devient une influence citable par les
+                # décisions suivantes, au même titre qu'une annonce du monde.
+                self._last_announcement_event = injected.event_id
             await self.ws.broadcast(
                 {
                     "type": "control_ack",
@@ -906,3 +1238,8 @@ class Orchestrator:
             )
         elif data.get("type") == "inspect":
             await self._inspect(data.get("agent_id", ""))
+        elif data.get("type") == "inspect_indicator":
+            await self._inspect_indicator(
+                int(data.get("tick", self._current_tick)),
+                str(data.get("metric", "")),
+            )

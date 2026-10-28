@@ -16,7 +16,11 @@ services:
       context: ./godot
       dockerfile: Dockerfile.vnc
     container_name: maree-godot-vnc
-    runtime: nvidia
+    # PAS de `runtime: nvidia` ni de réservation GPU : Godot rend en logiciel
+    # (llvmpipe/Mesa) dans ce conteneur — vérifié via glxinfo, et
+    # NVIDIA_VISIBLE_DEVICES y est vide. C'est volontaire : la RTX 3050 n'a
+    # que 4 Go et llama.cpp a besoin de toute la VRAM. Une réservation GPU
+    # ici ne servirait à rien et laisserait croire à un rendu accéléré.
     environment:
       - SIM_WS_URL=ws://python-sim:8765
       - GODOT_FLAGS=
@@ -28,13 +32,6 @@ services:
     depends_on:
       python-sim:
         condition: service_healthy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     networks:
       - maree-net
 

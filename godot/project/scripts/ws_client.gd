@@ -86,6 +86,8 @@ func _handle_message(text: String) -> void:
 			_call_on("IndicatorChart", "push_indicators", data)
 		"inspection":
 			_call_on("InspectPanel", "show_inspection", data)
+		"indicator_events":
+			_call_on("InspectPanel", "show_indicator_events", data)
 		"control_ack":
 			_call_on("ControlPanel", "on_ack", data)
 		_:
@@ -112,6 +114,18 @@ func request_inspect(agent_id: String) -> bool:
 		push_warning("[ws_client] inspection impossible : WebSocket non ouvert")
 		return false
 	_ws.send_text(JSON.stringify({"type": "inspect", "agent_id": agent_id}))
+	return true
+
+## Appelé par le clic sur un indicateur (F6). Envoie le tick et la ligne.
+func request_indicator(tick: int, metric: int) -> bool:
+	if not is_open():
+		push_warning("[ws_client] indicateur impossible : WebSocket non ouvert")
+		return false
+	_ws.send_text(JSON.stringify({
+		"type": "inspect_indicator",
+		"tick": tick,
+		"metric": metric,
+	}))
 	return true
 
 func get_agents() -> Array:

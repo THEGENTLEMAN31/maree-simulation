@@ -56,12 +56,19 @@ def run(config: str, run_id: str | None, mode: str | None, ticks: int | None, dr
 @click.option("--log-dir", type=str, default="/logs")
 def replay(run_id: str, log_dir: str) -> None:
     """Rejoue un run depuis le journal (E3) — aucun appel LLM."""
-    from .replay import ReplayEngine
+    from .replay import ReplayEngine, reconstruct_decisions
 
     result = ReplayEngine.replay(run_id, log_dir)
+    check = reconstruct_decisions(run_id, log_dir)
     click.echo(
         f"rejeu {result.run_id} : {result.n_events} événements, "
         f"hash indicateurs = {result.indicator_hash}"
+    )
+    click.echo(
+        "décisions LLM reconstruites : "
+        f"{check['matching']}/{check['n_decisions']} "
+        f"(traces complètes {check['trace_complete']}, "
+        f"non appariables {len(check['mismatches'])})"
     )
 
 

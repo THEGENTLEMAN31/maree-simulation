@@ -34,8 +34,10 @@ class _MemoryLog:
     def __init__(self) -> None:
         self.events: list[EventEnvelope] = []
 
-    def publish(self, ev: EventEnvelope) -> None:
+    def publish(self, ev: EventEnvelope) -> int:
+        """Publie et retourne l'offset mémoire (0, 1, 2…)."""
         self.events.append(ev)
+        return len(self.events) - 1
 
 
 class KafkaClient:
@@ -55,6 +57,12 @@ class KafkaClient:
         self._consumers: dict[str, AIOKafkaConsumer] = {}
         self._memlogs: dict[str, _MemoryLog] = {}
         self._mem_pos: dict[str, int] = {}
+        # F6 / décision 16 : offsets réellement attribués par Kafka (ou par
+        # la file mémoire). On garde le dernier offset par topic/partition et
+        # la position exacte de chaque event_id, pour que chaque indicateur
+        # puisse citer une plage vérifiable.
+        self._offsets: dict[str, dict[int, int]] = {}
+        self._event_offsets: dict[str, dict[str, int | str]] = {}
 
     # -- producer ----------------------------------------------------------
 
@@ -74,18 +82,81 @@ class KafkaClient:
         return self._memlogs[topic]
 
     async def publish(self, topic: str, envelope: EventEnvelope) -> None:
-        """Publie une enveloppe sérialisée en JSON sur le topic donné."""
+        """Publie une enveloppe et mémorise l'offset attribué (F6).
+
+        `topic` peut être un alias interne (`world`, `agents`, `metrics`…) :
+        on résout le nom Kafka réel avant de publier et d'enregistrer
+        l'offset, sinon la plage source ne serait pas interrogeable.
+        """
+        actual_topic = TOPICS.get(topic, topic)
         if self.memory:
-            self._log_for(topic).publish(envelope)
-            return
-        if self.producer is None:
-            raise RuntimeError("KafkaClient non démarré")
-        key = (envelope.agent_id or envelope.event_id).encode()
-        await self.producer.send(
-            topic,
-            key=key,
-            value=envelope.model_dump_json().encode(),
+            offset = self._log_for(actual_topic).publish(envelope)
+            partition = 0
+        else:
+            if self.producer is None:
+                raise RuntimeError("KafkaClient non démarré")
+            key = (envelope.agent_id or envelope.event_id).encode()
+            # aiokafka `send()` est une coroutine qui rend un Future : il faut
+            # l'attendre deux fois pour obtenir les métadonnées (offset,
+            # partition). Un seul `await` renvoyait le Future et F6 restait
+            # silencieusement vide.
+            pending = await self.producer.send(
+                actual_topic,
+                key=key,
+                value=envelope.model_dump_json().encode(),
+            )
+            metadata = await pending
+            offset = metadata.offset
+            partition = metadata.partition
+        self._record_offset(envelope.event_id, actual_topic, partition, offset)
+
+    def _record_offset(
+        self, event_id: str, topic: str, partition: int, offset: int
+    ) -> None:
+        self._offsets.setdefault(topic, {})[partition] = max(
+            offset, self._offsets.get(topic, {}).get(partition, -1)
         )
+        self._event_offsets[event_id] = {
+            "topic": topic,
+            "partition": partition,
+            "offset": offset,
+        }
+
+    def event_offset(self, event_id: str) -> dict[str, int | str] | None:
+        """Position Kafka d'un événement, ou None s'il n'a pas été publié."""
+        return self._event_offsets.get(event_id)
+
+    def source_ranges(self, event_ids: list[str]) -> dict[str, dict]:
+        """Plage d'offsets par topic pour une liste d'événements (décision 16).
+
+        Les topics MARÉE ont une seule partition. On expose néanmoins la
+        partition et le nombre d'événements, pour que la vue F6/B4 puisse
+        distinguer une plage réelle d'une simple borne haute.
+        """
+        grouped: dict[str, list[tuple[int, int]]] = {}
+        for event_id in event_ids:
+            info = self._event_offsets.get(event_id)
+            if not info or not isinstance(info.get("offset"), int):
+                continue
+            topic = str(info["topic"])
+            grouped.setdefault(topic, []).append(
+                (int(info["partition"]), int(info["offset"]))
+            )
+        ranges: dict[str, dict] = {}
+        for topic, positions in grouped.items():
+            partitions = sorted({p for p, _ in positions})
+            offsets = [o for _, o in positions]
+            ranges[topic] = {
+                "partition": partitions[0] if len(partitions) == 1 else partitions,
+                "from": min(offsets),
+                "to": max(offsets),
+                "events": len(positions),
+            }
+        return ranges
+
+    def high_watermarks(self) -> dict[str, dict[int, int]]:
+        """Dernier offset connu par topic et partition (instantané)."""
+        return {topic: dict(parts) for topic, parts in self._offsets.items()}
 
     async def publish_many(self, topic: str, events: list[EventEnvelope]) -> None:
         for ev in events:

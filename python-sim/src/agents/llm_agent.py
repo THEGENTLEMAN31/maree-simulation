@@ -72,6 +72,12 @@ class LLMAgent(Agent):
         # F2/X7 : nombre de décisions ayant réellement cité un passage RAG.
         self.rag_citations: int = 0
         self.last_call: LLMCallResult | None = None
+        # E3 : tout ce qui est nécessaire pour reconstruire la décision
+        # depuis le journal seul (prompt exact, sortie brute, graine).
+        self.seed: int = 0
+        self.last_prompt: dict | None = None
+        self.last_raw_output: str | None = None
+        self.last_reasoning: str = ""
         self.drift_events: list[dict] = []  # A4 : incidents tracés
         self._pending_message: str | None = None  # A2 : message à relayer
         self.last_rag: list[dict] | None = None  # F2 : passages retrouvés
@@ -128,12 +134,15 @@ class LLMAgent(Agent):
             f"Informations retrouvées :\n{rag_text or '(aucune)'}\n"
             "Décide :"
         )
+        self.last_prompt = {"system": system, "user": user}
         result = await self.gateway.chat(
             self.model,
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=self.temperature,
         )
         self.last_call = result
+        self.last_raw_output = result.text
+        self.last_reasoning = str(getattr(result, "reasoning", "") or "")
 
         intent = self._parse_decision(result, perception)
         # Mémorise ce qu'il vient de décider (auto-observation).

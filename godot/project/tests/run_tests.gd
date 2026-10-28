@@ -104,10 +104,35 @@ func _run() -> void:
 	_check(n_buttons == 4, "ControlPanel : 4 boutons D3")
 	_check(controls.press_button("Fermer sortie A"), "bouton D3 pressable (WS fermé => warning attendu)")
 
+	# --- F6/B4 : clic indicateur -> événements bruts + causation ---
+	var ind_events := {
+		"type": "indicator_events", "tick": 10, "metric": 0,
+		"sources": {
+			"agent.decisions": {
+				"partition": 0, "from": 3, "to": 5, "events": 2,
+			},
+		},
+		"events": [
+			{
+				"type": "agent.message", "agent_id": "a2",
+				"t_prod": 9, "t_trait": 10,
+				"causation_id": "dec123456789",
+				"caused_by": {"type": "agent.decision"},
+				"data": {"to": "a1", "text": "suivez-moi"},
+			},
+		],
+	}
+	world._handle_message(JSON.stringify(ind_events))
+	_check(str(panel._title).find("ÉVÉNEMENTS") >= 0, "F6 -> panneau événements visible")
+	_check(panel.get_text().find("agent.decisions") >= 0, "F6 -> plage Kafka affichée")
+	_check(panel.get_text().find("causé par") >= 0, "B4 -> causation affichée")
+	_check(world.has_method("request_indicator"), "F6 -> request_indicator exposé par le client")
+
 	# --- compteur de messages reçus ---
 	var counts: Dictionary = world.received_counts()
 	_check(int(counts.get("state", 0)) == 1, "compteur state = 1")
 	_check(int(counts.get("indicators", 0)) == 2, "compteur indicators = 2")
 	_check(int(counts.get("inspection", 0)) == 1, "compteur inspection = 1")
+	_check(int(counts.get("indicator_events", 0)) == 1, "compteur indicator_events = 1")
 
 	root_node.queue_free()

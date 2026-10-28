@@ -8,6 +8,7 @@ const UI = preload("res://scripts/ui_theme.gd")
 
 var _text: RichTextLabel
 var _close: Button
+var _title: String = "INSPECTION"
 
 
 func _ready() -> void:
@@ -57,6 +58,7 @@ func get_text() -> String:
 
 
 func show_inspection(data: Dictionary) -> void:
+	_title = "INSPECTION"
 	if data.has("error"):
 		_text.text = "[color=#ef4444]Agent inconnu du moteur.[/color]\n\n%s" % _safe(
 			str(data.get("agent_id", ""))
@@ -213,9 +215,68 @@ func _rule_text(explanation: Dictionary) -> String:
 	return " · ".join(parts) if not parts.is_empty() else "règle déterministe"
 
 
+func show_indicator_events(data: Dictionary) -> void:
+	"""F6/B4 : événements bruts derrière un point d'indicateur, avec la
+	plage d'offsets Kafka et le parent causal de chaque événement."""
+	_title = "ÉVÉNEMENTS SOURCES"
+	var tick := int(data.get("tick", 0))
+	var labels := ["I1 consensus", "I2 écart", "I4 suivi", "I3 évacués"]
+	var metric := int(data.get("metric", -1))
+	var label: String = labels[metric] if metric >= 0 and metric < labels.size() else "indicateur"
+	var sources: Dictionary = data.get("sources", {})
+	var events: Array = data.get("events", [])
+	var b := ""
+	b += "[font_size=19][b]Tick %d[/b][/font_size]  [color=#7dd3fc]%s[/color]\n" % [
+		tick, _safe(label)
+	]
+	b += "[color=#93a2ba]Plage Kafka des événements sources[/color]\n"
+	if sources.is_empty():
+		b += "[color=#5f6c82]— aucun offset disponible (run hors Kafka) —[/color]\n"
+	else:
+		for topic in sources:
+			var r: Dictionary = sources[topic]
+			b += "· [color=#cbd5e1]%s[/color]  part. %s · offsets %s → %s · %s événement(s)\n" % [
+				_safe(str(topic)),
+				str(r.get("partition", "?")),
+				str(r.get("from", "?")),
+				str(r.get("to", "?")),
+				str(r.get("events", 0)),
+			]
+	b += "\n[color=#a78bfa]ÉVÉNEMENTS BRUTS (%d)[/color]\n" % events.size()
+	if events.is_empty():
+		b += "[color=#5f6c82]— aucun événement dans cette fenêtre —[/color]\n"
+	for e in events:
+		if not (e is Dictionary):
+			continue
+		var typ := str(e.get("type", "?"))
+		var agent := str(e.get("agent_id", "—"))
+		var tprod := str(e.get("t_prod", "?"))
+		var ttrait := str(e.get("t_trait", "?"))
+		b += "\n[color=#7dd3fc]%s[/color]  [color=#93a2ba]agent %s · t_prod %s · t_trait %s[/color]\n" % [
+			_safe(typ), _safe(agent), tprod, ttrait
+		]
+		var cause := str(e.get("causation_id", ""))
+		if cause != "":
+			var parent: Variant = e.get("caused_by", null)
+			var ptyp := "?"
+			if parent is Dictionary:
+				ptyp = str(parent.get("type", "?"))
+			b += "[color=#fbbf24]↳ causé par %s (%s)[/color]\n" % [
+				_safe(cause.substr(0, 10)), _safe(ptyp)
+			]
+		var payload: Variant = e.get("data", {})
+		var raw := JSON.stringify(payload)
+		b += "[color=#5f6c82]%s[/color]\n" % _safe(_truncate(raw, 220))
+	if bool(data.get("truncated", false)):
+		b += "\n[color=#fbbf24]Fenêtre tronquée à 120 événements.[/color]\n"
+	_text.text = b
+	visible = true
+	queue_redraw()
+
+
 func _draw() -> void:
 	UI.panel(self, Rect2(Vector2.ZERO, size), Color(0.055, 0.078, 0.12, 0.98), UI.ACCENT, 14, 1)
-	UI.text(self, Vector2(16, 26), "INSPECTION", 11, UI.MUTED)
+	UI.text(self, Vector2(16, 26), _title, 11, UI.MUTED)
 	UI.text(
 		self, Vector2(16, 524),
 		"Données du moteur · Échap pour fermer", 9, UI.FAINT

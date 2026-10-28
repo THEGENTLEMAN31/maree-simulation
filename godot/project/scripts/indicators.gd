@@ -87,10 +87,14 @@ func _draw() -> void:
 			_draw_row(i)
 		_draw_i5()
 
-	# Pied : rappel de lecture.
+	# Pied : rappel de lecture + affordance F6.
 	UI.text(
-		self, Vector2(18, 320),
+		self, Vector2(18, 312),
 		"Chaque point = une mesure publiée (tous les 10 ticks).", 9, UI.FAINT
+	)
+	UI.text(
+		self, Vector2(18, 324),
+		"Clic sur une courbe → événements bruts et causation (F6/B4).", 9, UI.ACCENT
 	)
 
 
@@ -143,3 +147,25 @@ func _draw_i5() -> void:
 	var color := UI.OK if ok else UI.DANGER
 	var label := "0 · cohérent" if ok else "%d · à vérifier" % _i5
 	UI.text_right(self, 366, y, label, 12, color)
+
+
+func _gui_input(event: InputEvent) -> void:
+	"""F6 : un clic sur une courbe demande les événements sources au moteur.
+	Godot n'interprète rien : il transmet le tick et la ligne cliquée."""
+	if not (event is InputEventMouseButton):
+		return
+	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	var row := -1
+	for i in 4:
+		var top := 52.0 + float(i) * 56.0 + 12.0
+		if event.position.y >= top and event.position.y <= top + 38.0:
+			row = i
+	if row < 0:
+		return
+	var ratio := clampf((event.position.x - 18.0) / 348.0, 0.0, 1.0)
+	var tick := int(round(ratio * float(max(1, _horizon))))
+	var ws := get_tree().get_first_node_in_group("ws_client")
+	if ws != null and ws.has_method("request_indicator"):
+		ws.request_indicator(tick, row)
+	accept_event()
