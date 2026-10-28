@@ -193,3 +193,27 @@ def _save(retriever: FaissRetriever, directory: Path) -> Path:
     target = directory / "index_degraded"
     retriever.save(target)
     return target
+
+
+async def test_le_corpus_reel_se_construit_et_filtre() -> None:
+    """Le corpus de production passe par le vrai adaptateur, sans bge-m3.
+
+    Ce test ne dit rien de la qualité sémantique (l'encodeur est un sac de
+    mots) ; il vérifie que 215 fichiers réels se chargent, s'indexent,
+    se sauvegardent et respectent les filtres profil/tick.
+    """
+    root = Path(__file__).resolve().parents[1] / "world_corpus"
+    passages = load_corpus(root)
+    assert len(passages) >= 200
+    assert len({p.doc_id for p in passages}) == len(passages), "doc_id dupliqué"
+
+    retriever = await FaissRetriever.build(root, FakeEmbedder())
+    par_id = {p.doc_id: p for p in passages}
+    for profile in ("securite", "visiteur", "vendeur"):
+        for tick in (0, 90):
+            results = await retriever.retrieve(
+                "évacuation fumée sortie", profile=profile, tick=tick, k=5
+            )
+            assert results, f"aucun résultat pour {profile} à t{tick}"
+            for result in results:
+                assert par_id[result.doc_id].allowed_for(profile, tick)
