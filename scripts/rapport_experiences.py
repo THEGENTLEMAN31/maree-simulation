@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -142,7 +143,12 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
     add(f"- **{llm_ok} / {llm_calls}** appels LLM aboutis.")
     add("- Population de référence : 12 agents LLM + 48 à règles (X4 varie).")
     add("- Chaque bras : 5 graines (0–4). Médiane [Q1–Q3], test de")
-    add("  Mann-Whitney bilatéral entre le premier bras et chacun des autres.\n")
+    add("  Mann-Whitney bilatéral entre le premier bras et chacun des autres.")
+    add("- **Censure** : un run qui atteint `max_ticks` avant que tout le")
+    add("  monde soit sorti produit un I4 égal au plafond (720 s en scénario")
+    add("  `demo`, 900 s en `e2e`). Ce n'est pas une durée d'évacuation :")
+    add("  c'est un run interrompu. Dans ce cas, lire I3 (part sortie).")
+    add("  La table « runs non terminés » donne le compte par bras.\n")
 
     add("## Ce que mesure chaque indicateur\n")
     add("| indicateur | définition |")
@@ -159,7 +165,7 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
             add("_Protocole introuvable._\n")
             continue
         if pid not in rows:
-            add("**Non exécuté** — aucun `experiment_%s.json`.\n" % pid)
+            add(f"**Non exécuté** — aucun `experiment_{pid}.json`.\n")
             continue
 
         arms: list[str] = [a["name"] for a in spec.get("arms", [])]
@@ -183,6 +189,22 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
             add(f"| {arm} | {len(arm_rows)} | " + " | ".join(cells) + " |")
         add("")
 
+        # Censure : un run qui n'évacue pas tout le monde fausse I4.
+        add("### Runs non terminés (censure)")
+        add("")
+        add("| bras | runs non terminés | I3 médian | I4 des runs terminés |")
+        add("|---|---|---|---|")
+        for arm in arms:
+            arm_rows = [r for r in proto_rows if r["arm"] == arm]
+            unfinished = [r for r in arm_rows if float(r["I3"]) < 0.999]
+            done = [float(r["I4"]) for r in arm_rows if float(r["I3"]) >= 0.999]
+            med_done = fmt(statistics.median(done)) if done else "—"
+            add(
+                f"| {arm} | {len(unfinished)}/{len(arm_rows)} | "
+                f"{fmt(statistics.median([float(r['I3']) for r in arm_rows]))} | {med_done} |"
+            )
+        add("")
+
         # Tests : premier bras contre les autres, sur chaque indicateur.
         if len(arms) >= 2 and proto_rows:
             add("### Tests (Mann-Whitney, premier bras contre les autres)\n")
@@ -195,8 +217,13 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
                     a = [float(r[key]) for r in proto_rows if r["arm"] == ref]
                     b = [float(r[key]) for r in proto_rows if r["arm"] == other]
                     p = p_value(a, b)
-                    add(f"| {name} | {ref} vs {other} | "
-                        + ("—" if p is None else f"{p:.4f}") + " |")
+                    if p is None:
+                        cell = "—"
+                    elif math.isnan(p):
+                        cell = "constante"
+                    else:
+                        cell = f"{p:.4f}"
+                    add(f"| {name} | {ref} vs {other} | {cell} |")
             add("")
 
         # Qui sort en dernier : I4 mesure-t-il la cognition ?

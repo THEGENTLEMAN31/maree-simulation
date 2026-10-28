@@ -145,6 +145,18 @@ rejouable de bout en bout.
   **après avoir sauvegardé les 14 fichiers écrits à la main** (annonces,
   protocole, plans, fiches de profil), que le script ne produit pas.
 
+### Environnement de l'hôte
+
+- **LangSmith sature les logs.** `~/.bashrc` exporte
+  `LANGCHAIN_TRACING_V2=true` ; le quota mensuel de traces est épuisé,
+  donc chaque nœud LangGraph émet un `LangSmithRateLimitError` (429) dans
+  la sortie. **Aucun effet sur les runs** (les événements partent en
+  asynchrone), mais la sortie devient illisible : 85 runs ont produit
+  des milliers de lignes de bruit. Pour une campagne propre :
+  `LANGCHAIN_TRACING_V2=false uv run maree experiment …`. La variable est
+  dans le profil de l'utilisateur, pas dans le dépôt — ne pas la
+  « corriger » dans le code, il n'y a rien à y corriger.
+
 ### Docker
 
 - La publication de ports est cassée dans cet environnement. Seul le
@@ -201,7 +213,11 @@ rejouable de bout en bout.
 | Run 60 agents à règles, démo (v2) | 20 ticks, 1 023 événements, **0,8 s**, 60/60 sortis | `run_demo_02` |
 | Run 60 agents à règles, piège (v2) | 90 ticks, 1 204 événements, 1,1 s, **54/60** (6 visiteurs piégés) | `run_trap_07` |
 | Décisions, scénario piège | **259** (dont 22 `sortie_fermee`, 142 périodiques) | `run_trap_07` |
-| Protocole X1, 1 graine × 2 bras | clair **190 s** / ambigu **550 s** (I4) | `experiment_x1` |
+| Protocole X1, 5 graines × 4 bras | clair_tôt **200 s**, ambigu_tôt **720 s** (3/5 censurés), clair_tard 320 s, ambigu_tard 430 s | `experiment_x1` |
+| Protocole X3, 5 graines × 2 bras | I1 et I5 **identiques**, mural **35,5 → 23,1 s** (×1,54, p = 0,0079) | `experiment_x3` |
+| Protocole X4, 5 graines × 3 bras | `llm_60` **60/60 sortis**, hybride et règles **4/5 censurés à 900 s** ; tous les piégés sont des agents à règles | `experiment_x4` |
+| Campagne X1–X7 | **85 runs, 4 216 appels LLM / 4 216 succès**, 0 repli | `runs/experiment_x*.json` |
+| I5 par noyau de 2 m | 0,32 à 0,56 pers/m² (la grille de 1 m valait 2,0 partout) | campagne X1–X7 |
 | Preset 8192/4 (E2B) + bge-m3 | `n_slots = 4`, `n_ctx_slot = 2048`, **1 980 Mo / 4 096** | `nvidia-smi`, RTX 3050 |
 | Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
 | Run hybride 12 LLM + 48 règles, démo | 21 ticks, **44 appels / 44 succès**, 21,9 s, **60/60** | `run_hybrid_08` |
@@ -212,8 +228,9 @@ rejouable de bout en bout.
 **Le KV cache de 4 slots tient** : 1 980 Mo sur 4 096, 2,1 Go libres.
 Le repli `parallel=2` n'est pas nécessaire.
 
-**Non mesuré en v2** : aucun protocole X complet (≥ 5 graines), le bras
-E4B, et la reproductibilité exacte d'un run LLM (voir §6).
+**Non mesuré en v2** : le bras E4B, la reproductibilité exacte d'un run
+LLM (voir §6), et les effets de taille modeste (X5, X6, X7) qui
+demandent 10 graines pour être tranchés.
 
 ---
 
@@ -284,8 +301,16 @@ moteur.
   « connecté » juste après `end`, d'où « déconnecté » sur une diffusion
   pourtant terminée. Rappel : `Node2D` n'a **pas** de `size` (c'est
   `Control`) — utiliser `get_viewport_rect().size`.
-- **X1–X7** : `experiment` tourne (X1 vérifié sur 1 graine × 2 bras),
-  mais aucun protocole complet (≥ 5 graines) n'a été exécuté.
+- **X1–X7** : campagne complète exécutée le 2026-10-28 (85 runs, 5
+  graines par bras, 4 216 appels LLM sans échec). Résultats :
+  `docs/resultats/rapport-v2.md` (tables) et `conclusions-v2.md`
+  (lecture par hypothèse). **I4 est censuré à `max_ticks`** dès qu'une
+  partie de la foule ne sort pas (X1 ambigu, X2, X4) : lire I3 avec.
+  I4 mesure surtout l'heure du signal, pas la dynamique.
+- **Fuite de connaissance côté LLM** : une cible `go_exit` est validée
+  contre le plan, pas contre les sorties connues du profil. Un visiteur
+  LLM peut donc nommer B (12 fois dans X6). Les agents à règles, eux,
+  passent par `_known_open`. À corriger.
 - **Le suivi d'agent** vise la position du meneur au moment de la
   décision, pas en continu.
 - **La fermeture d'issue** redirige vers un point d'arrêt, ce n'est pas

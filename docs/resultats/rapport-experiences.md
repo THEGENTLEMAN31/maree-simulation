@@ -1,4 +1,12 @@
-# MARÉE — Rapport d'expérimentation
+# MARÉE — Rapport d'expérimentation (v1, obsolète)
+
+> **Document historique — ne pas citer.** Ce rapport décrit la v1 : 30
+> agents (5 LLM + 25 à règles), 60 ticks, `decision_period_sync = 5`,
+> définitions d'indicateurs qui ne sont plus celles du code (I5 sur une
+> grille de 1 m, moyenne incluant le tick dégénéré, I6 déclaré dans des
+> protocoles qui ne ferment aucune sortie). Les chiffres de la v2 sont
+> dans [`rapport-v2.md`](rapport-v2.md) et leur lecture dans
+> [`conclusions-v2.md`](conclusions-v2.md).
 
 Rapport généré automatiquement. Les tableaux de synthèse proviennent de
 `experiments_summary.json` ; les comptages d'événements sont obtenus par
