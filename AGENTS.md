@@ -139,8 +139,11 @@ rejouable de bout en bout.
   Le compose exportait `MAREE_LLM_BASE_URL`, que **personne** ne lisait :
   le run retombait silencieusement sur l'URL par défaut.
 - Ne pas ajouter de service Godot dans `docker-compose.yml` : le rendu
-  OpenGL en container exige X ou noVNC pour un gain nul. Godot tourne sur
-  l'hôte.
+  OpenGL en container exige X ou noVNC pour un gain nul. Godot tourne
+  nativement sur l'hôte (`make godot`), sur l'iGPU Intel. Les deux
+  conteneurs noVNC/headless ont été supprimés le 2026-10-28 : le VNC
+  brûlait **87 % de CPU** à rendre dans le vide, pour un client qu'on
+  ouvre de toute façon à la main.
 
 ---
 
