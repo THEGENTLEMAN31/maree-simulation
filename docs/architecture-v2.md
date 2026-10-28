@@ -38,7 +38,12 @@ Trois leviers, appliqués ensemble :
 
 1. **Décisions événementielles** — on ne décide que sur changement
    (fumée, message, sortie fermée, densité, filet périodique).
-   Résultat : **40 à 60 décisions par run** au lieu de 2 160.
+   Les signaux **persistants** (fumée visible, annonce, sortie fermée)
+   sont traités en **front**, une fois par agent : sinon la fumée, qui
+   reste visible jusqu'à la fin, redéclencherait 60 décisions par tick.
+   Mesuré sur le scénario du piège (90 ticks, 60 agents à règles) :
+   **271 décisions** au lieu de 2 160 — dont 132 par le filet
+   périodique, parce que 6 agents restent piégés jusqu'au bout.
 2. **Population hybride** — 12 agents LLM, 48 agents à règles. Les
    seconds ne coûtent rien et servent de référence (X4).
 3. **`parallel = 4`** dans llama.cpp — 1,43 décision/s, suffisant pour
@@ -47,6 +52,14 @@ Trois leviers, appliqués ensemble :
 > 60 agents × 90 ticks, 12 agents LLM qui décident ~5 fois chacun :
 > ~60 appels × 2,8 s / 4 en parallèle ≈ **45 s de calcul** pour 15 min
 > simulées. Contre 1 h 40 en v1.
+
+### La phase d'avant
+
+Une foule ne s'évacue pas parce qu'elle est arrivée. Sans fumée, sans
+annonce, sans message, les agents **restent** : c'est ce qui donne au
+scénario sa phase « avant » et ce qui rend la fumée de t10 causale.
+Sans cette règle, les 60 agents quittaient l'esplanade au tick 1 et la
+fumée ne commentait plus qu'une évacuation déjà finie.
 
 ## 3. Trois horloges
 

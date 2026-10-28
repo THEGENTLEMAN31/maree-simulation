@@ -1,3 +1,4 @@
+# @package _global_
 # ============================================================
 # X7 — le RAG change-t-il la croyance ? (H7)
 #
@@ -7,7 +8,7 @@
 # il peut retrouver une consigne de sécurité ou un souvenir d'édition.
 # C'est la seule expérience qui isole la contribution documentaire.
 # ============================================================
-# @package _global_
+
 experiment:
   id: X7
   hypothesis: H7

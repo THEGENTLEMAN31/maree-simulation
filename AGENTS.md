@@ -28,6 +28,8 @@ rejouable de bout en bout.
 - Le venv est en **Python 3.13** (`uv` l'a choisi), le lock est fait pour
   `--python 3.12`. Les deux fonctionnent ; ne pas « corriger » l'un pour
   l'autre sans raison.
+- Les dataclasses `slots=True` n'ont **pas** de `__dict__` :
+  `dataclasses.asdict()` pour sérialiser (`Passage` dans le RAG).
 
 ### llama.cpp
 
@@ -54,8 +56,32 @@ rejouable de bout en bout.
   arguments (le `stage_id` est obligatoire).
 - `Simulation(..., seed=…)` est accepté (via `**kwargs`).
 - Les agents sortis sont retirés : `removed_agents()` / `agents()`.
+  **Corollaire** : `switch_agent_journey` sur un agent sorti lève
+  `RuntimeError: Trying to access unknown Agent N`. `set_destination()`
+  doit vérifier `_alive_ids()` avant d'appeler — sinon fermer une issue
+  en cours de run plante.
 - Les obstacles sont passés en **trous** du polygone marchable. Sans eux,
   les agents traversent la scène.
+
+### Simulation (leçons de modèle)
+
+- **Un déclencheur de niveau est un piège.** `smoke_visible` reste vrai
+  jusqu'à la fin : sans `known_signals`, chaque agent redécide à chaque
+  tick (60 appels/tick, le coût de la v1 reconstruit). Fumée, annonce et
+  fermeture d'issue sont donc des **fronts**, mémorisés par agent
+  (`known_signals`).
+- **Sans signal de danger, les agents restent** (`rules_decide` →
+  `STAY`). La version qui faisait fuir tout le monde dès t0 rendait la
+  fumée de t10 décorative : l'évacuation était finie au tick 9.
+- `agent.decision` ≠ `agent.evacuated`. Le second est un fait physique
+  (l'agent a franchi l'issue), le premier une cognition. Les confondre
+  faisait compter 60 « décisions » fantômes par run.
+- **Le dernier tick d'indicateurs est dégénéré** : tout le monde est
+  sorti, donc I1/I2/I5/I6 valent 0. Utiliser `metrics.summarise()` (pic
+  pour I5/I6, moyenne pour I1/I2) et non `indicators[-1]`.
+- Les protocoles `configs/experiment/*.yaml` sont le **contenu** du
+  groupe Hydra : pas de `# @package _global_`, pas de clé `experiment:`
+  englobante, sinon `cfg.experiment.experiment.arms`.
 
 ### Docker
 
@@ -99,7 +125,10 @@ rejouable de bout en bout.
 | Déterminisme JuPedSim | identique à 1e-9 | idem |
 | Un appel LLM (E2B) | 2,8 s | v1 |
 | Débit `parallel=1` / `parallel=4` | 0,36 / **1,43** décision/s | v1 |
-| Run 60 agents à règles (v2) | 20 ticks, 924 événements, 4,6 s | `run_smoke_03` |
+| Run 60 agents à règles, démo (v2) | 20 ticks, 1 179 événements, **1,0 s**, 60/60 sortis | `run_demo_01` |
+| Run 60 agents à règles, piège (v2) | 90 ticks, 1 376 événements, 1,6 s, **54/60** (6 visiteurs piégés) | `run_trap_05` |
+| Décisions, scénario piège | **271** (dont 24 `sortie_fermee`, 132 périodiques) | `run_trap_05` |
+| Protocole X1, 1 graine × 2 bras | clair **190 s** / ambigu **550 s** (I4) | `experiment_x1` |
 
 **Non mesuré en v2** : le run hybride 12 LLM + 48 règles de bout en bout.
 Le chemin est câblé et testé unitairement, mais il faut un GPU pour le
@@ -111,7 +140,7 @@ confirmer.
 
 ```bash
 uv sync --all-extras          # venv + deps
-uv run pytest                 # 86 tests, sans GPU
+uv run pytest                 # 102 tests, sans GPU
 uv run maree run population=rules_only bus.backend=memory narrative.enabled=false
 uv run maree serve            # WebSocket sur 8765
 godot --path godot/project    # client
@@ -127,13 +156,19 @@ uv run maree experiment --name x1 --seeds 3
 
 - **Premier `make up`** : vérifier que le KV cache de 4 slots tient dans
   4 Go. Repli prévu : `parallel=2`.
-- **Index RAG** : `maree index` n'a jamais tourné (pas de GPU ici).
-  `FaissRetriever.build()` est écrit mais non exercé.
-- **Godot** : le client n'a pas été ouvert dans l'éditeur. Il compile
-  probablement, mais ce n'est pas vérifié.
-- **X1–X7** : la commande `experiment` existe, aucun protocole complet
-  n'a été exécuté (≥ 5 graines × 2 bras = long).
+- **Index RAG** : `maree index` n'a jamais tourné (pas de GPU ici). La
+  mécanique (build/save/load/retrieve, filtres, centrage, repli lexical)
+  est couverte par `tests/test_retrieval.py` avec un encodeur factice ;
+  la qualité sémantique de bge-m3, elle, n'est pas mesurée.
+- **Godot** : le client n'a pas été ouvert dans l'éditeur (`godot` absent
+  de l'hôte). Le protocole WebSocket, lui, est testé.
+- **X1–X7** : `experiment` tourne (X1 vérifié sur 1 graine × 2 bras),
+  mais aucun protocole complet (≥ 5 graines) n'a été exécuté.
 - **Le suivi d'agent** vise la position du meneur au moment de la
   décision, pas en continu.
 - **La fermeture d'issue** redirige vers un point d'arrêt, ce n'est pas
   une barrière physique.
+- **6 visiteurs restent piégés** dans le scénario `e2e` : c'est voulu
+  (ils ne connaissent que A), mais cela signifie que le run consomme
+  `max_ticks` et que le filet périodique les fait redécider jusqu'au
+  bout. À surveiller côté coût LLM.

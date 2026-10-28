@@ -89,3 +89,33 @@ def test_compute_sur_liste_vide_ne_divise_pas_par_zero(plan: Plan) -> None:
     ind = compute([], plan, open_exits={"A"}, tick=0, elapsed_s=0.0)
     assert ind.i3_evacuated == 0.0
     assert ind.i1_consensus == 0.0
+
+
+def test_summarise_ignore_le_dernier_tick_degenere() -> None:
+    """Quand tout le monde est sorti, I1/I2/I5/I6 valent 0 : ce n'est pas le résultat.
+
+    Le résumé doit prendre le pic de I6 et la moyenne de I1, pas le
+    dernier échantillon. Sinon toute expérience conclut « zéro ».
+    """
+    from maree.metrics.indicators import summarise
+
+    series = [
+        {"I1_consensus": 0.4, "I2_entropy": 0.9, "I3_evacuated": 0.0,
+         "I4_seconds": 0.0, "I5_max_density": 2.0, "I6_belief_gap": 0.0},
+        {"I1_consensus": 0.8, "I2_entropy": 0.4, "I3_evacuated": 0.5,
+         "I4_seconds": 240.0, "I5_max_density": 3.5, "I6_belief_gap": 0.62},
+        {"I1_consensus": 0.0, "I2_entropy": 0.0, "I3_evacuated": 1.0,
+         "I4_seconds": 480.0, "I5_max_density": 0.0, "I6_belief_gap": 0.0},
+    ]
+    summary = summarise(series)
+    assert summary["I6_belief_gap"] == pytest.approx(0.62)
+    assert summary["I5_max_density"] == pytest.approx(3.5)
+    assert summary["I1_consensus"] == pytest.approx((0.4 + 0.8 + 0.0) / 3)
+    assert summary["I3_evacuated"] == pytest.approx(1.0)
+    assert summary["I4_seconds"] == pytest.approx(480.0)
+
+
+def test_summarise_serie_vide() -> None:
+    from maree.metrics.indicators import summarise
+
+    assert summarise([])["I6_belief_gap"] == 0.0

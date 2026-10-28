@@ -38,6 +38,7 @@ class EventType(StrEnum):
     INJECTION = "control.injection"
     # agents
     DECISION = "agent.decision"
+    EVACUATED = "agent.evacuated"
     BELIEF_UPDATED = "agent.belief"
     MESSAGE_SENT = "agent.message.sent"
     MESSAGE_HEARD = "agent.message.heard"

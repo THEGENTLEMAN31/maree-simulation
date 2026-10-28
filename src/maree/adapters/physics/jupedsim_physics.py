@@ -202,17 +202,27 @@ class JuPedSimPhysics:
         jps_id = self._jps_id.get(agent_id)
         if jps_id is None:
             return
+        # L'agent a pu franchir une issue depuis la dernière décision :
+        # JuPedSim l'a alors retiré et `switch_agent_journey` lèverait
+        # « Trying to access unknown Agent ». Ce n'est pas une erreur,
+        # c'est la fin de son parcours.
+        if jps_id not in self._alive_ids():
+            return
         if destination.kind == "exit" and destination.exit_id in self._closed:
             destination = self._barrier(destination.exit_id)
         journey, stage = self._journey_for(destination)
         self._target[agent_id] = destination
         self._sim.switch_agent_journey(jps_id, journey, stage)
 
+    def _alive_ids(self) -> set[int]:
+        return {a.id for a in self._sim.agents()}
+
     def remove_agent(self, agent_id: AgentId) -> None:
         jps_id = self._jps_id.pop(agent_id, None)
         if jps_id is not None:
             self._sim.mark_agent_for_removal(jps_id)
             self._agent_of.pop(jps_id, None)
+        self._target.pop(agent_id, None)
 
     def step(self) -> None:
         self._sim.iterate()

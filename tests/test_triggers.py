@@ -34,6 +34,28 @@ def test_fumee_visible() -> None:
     assert trigger.reason == "fumee_visible"
 
 
+def test_la_fumee_ne_declenche_qu_une_fois() -> None:
+    """Signal de front, pas de niveau.
+
+    La fumée reste visible jusqu'à la fin du run. Si elle redéclenchait à
+    chaque tick, les 60 agents redécideraient 60 fois par tick : on
+    aurait reconstruit le coût de la v1.
+    """
+    trigger = _decide(
+        _percept(smoke_visible=True, smoke_intensity=0.6),
+        known_signals=frozenset({"smoke"}),
+    )
+    assert trigger.reason != "fumee_visible"
+
+
+def test_l_annonce_ne_declenche_qu_une_fois() -> None:
+    trigger = _decide(
+        _percept(announcement="Évacuation."),
+        known_signals=frozenset({"announcement"}),
+    )
+    assert trigger.reason != "annonce"
+
+
 def test_fumee_imperceptible_ne_declenche_pas() -> None:
     trigger = _decide(_percept(smoke_visible=True, smoke_intensity=0.01))
     assert trigger.reason != "fumee_visible"

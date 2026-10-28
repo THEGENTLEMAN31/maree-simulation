@@ -1,3 +1,4 @@
+# @package _global_
 # ============================================================
 # X5 — effet de la mémoire (H5)
 #
@@ -9,7 +10,7 @@
 # agent qui ne rappelle rien au moment de décider. La différence est
 # exactement ce que la mémoire apporte.
 # ============================================================
-# @package _global_
+
 experiment:
   id: X5
   hypothesis: H5

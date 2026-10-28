@@ -1,3 +1,4 @@
+# @package _global_
 # ============================================================
 # X2 — le piège de la sortie A (H2)
 #
@@ -8,7 +9,6 @@
 # Le levier « meneurs » est la présence d'agents de sécurité, qui
 # guident au lieu de fuir seuls (IntentionKind.GUIDE).
 # ============================================================
-# @package _global_
 defaults:
   - override /run: e2e
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -127,7 +127,7 @@ class FaissRetriever:
         np.save(directory / "vectors.npy", self._matrix)
         np.save(directory / "mean.npy", self._mean)
         (directory / "passages.json").write_text(
-            json.dumps([p.__dict__ for p in self._passages], ensure_ascii=False),
+            json.dumps([asdict(p) for p in self._passages], ensure_ascii=False),
             encoding="utf-8",
         )
 

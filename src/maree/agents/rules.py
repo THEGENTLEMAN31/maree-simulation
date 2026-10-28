@@ -48,12 +48,22 @@ def rules_decide(percept: Percept, plan: Plan, *, profile: str) -> Intention:
             confidence=0.9,
         )
 
-    # 2. Le vendeur ne part pas sur une simple rumeur.
-    if profile == "vendeur" and not percept.smoke_visible and not percept.announcement:
+    # 2. Sans signal de danger, on ne fuit pas. Une foule ne s'évacue pas
+    #    parce qu'elle est arrivée : il faut la fumée, une annonce, un
+    #    voisin qui parle, ou un proche manquant. C'est ce qui donne au
+    #    scénario sa phase « avant » — et ce qui rend la fumée de t10
+    #    causale au lieu d'être décorative.
+    danger = (
+        percept.smoke_visible
+        or bool(percept.announcement)
+        or bool(percept.messages)
+        or percept.missing_kin
+    )
+    if not danger:
         return Intention(
             IntentionKind.STAY,
             target=None,
-            reason="aucun danger confirmé, je garde mon stand",
+            reason="aucun signal de danger, je reste où je suis",
             tick=tick,
             confidence=0.6,
         )

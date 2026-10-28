@@ -78,23 +78,37 @@ def should_decide(
     last_decision_tick: Tick | None,
     current_exit: ExitId | None,
     known_messages: frozenset[str] = frozenset(),
+    known_signals: frozenset[str] = frozenset(),
     max_idle: int = DEFAULT_MAX_IDLE,
     cadence_ticks: int = 3,
 ) -> DecisionTrigger:
     """Décide s'il faut (re)consulter le LLM, et pourquoi.
 
     L'ordre des tests est l'ordre des priorités : le danger d'abord.
+
+    `known_signals` rend les signaux persistants **binaires** : la fumée
+    et l'annonce ne déclenchent qu'une fois. Sans cela, `smoke_visible`
+    restant vrai, chaque agent redéciderait à chaque tick — exactement le
+    coût de la v1 qu'on cherche à éviter.
     """
-    # 1. La sortie qu'il croyait sûre n'existe plus.
-    if current_exit is not None and current_exit not in percept.exits_open:
+    # 1. La sortie qu'il croyait sûre n'existe plus — une fois par sortie.
+    if (
+        current_exit is not None
+        and current_exit not in percept.exits_open
+        and f"closed:{current_exit}" not in known_signals
+    ):
         return DecisionTrigger(True, "sortie_fermee", 1.0)
 
-    # 2. Danger perçu directement.
-    if percept.smoke_visible and percept.smoke_intensity > 0.05:
+    # 2. Danger perçu directement (une seule fois).
+    if (
+        percept.smoke_visible
+        and percept.smoke_intensity > 0.05
+        and "smoke" not in known_signals
+    ):
         return DecisionTrigger(True, "fumee_visible", 0.9)
 
-    # 3. Annonce officielle.
-    if percept.announcement:
+    # 3. Annonce officielle (une seule fois).
+    if percept.announcement and "announcement" not in known_signals:
         return DecisionTrigger(True, "annonce", 0.85)
 
     # 4. Information nouvelle d'un voisin.

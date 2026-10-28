@@ -1,3 +1,4 @@
+# @package _global_
 # ============================================================
 # X6 — le profil change la décision (H6)
 #
@@ -9,7 +10,7 @@
 # forcer une position identique — c'est une évolution du protocole,
 # notée ici plutôt que masquée.
 # ============================================================
-# @package _global_
+
 experiment:
   id: X6
   hypothesis: H6

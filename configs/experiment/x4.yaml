@@ -1,3 +1,4 @@
+# @package _global_
 # ============================================================
 # X4 — LLM contre règles (H4)
 #
@@ -9,7 +10,7 @@
 # c'est le run qu'on ne peut pas se permettre — et c'est la mesure qui
 # justifie l'hybride 12/48.
 # ============================================================
-# @package _global_
+
 experiment:
   id: X4
   hypothesis: H4

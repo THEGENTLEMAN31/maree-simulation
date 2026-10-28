@@ -1,3 +1,4 @@
+# @package _global_
 # ============================================================
 # X3 — synchrone contre asynchrone (H3)
 #
@@ -12,7 +13,7 @@
 # réponses LLM ne contamine pas la dynamique. On mesure aussi le temps
 # mural, qui, lui, change du tout au tout.
 # ============================================================
-# @package _global_
+
 experiment:
   id: X3
   hypothesis: H3

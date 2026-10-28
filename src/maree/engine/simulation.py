@@ -127,6 +127,10 @@ class AgentRuntime:
     intention: Intention | None = None
     last_decision_tick: int | None = None
     known_messages: set[str] = field(default_factory=set)
+    #: Signaux d'environnement déjà traités (« smoke », « announcement »).
+    #: Sans cela, la fumée visible redéclencherait une décision à CHAQUE
+    #: tick — un déclencheur de niveau, pas de front, et 60 appels par tick.
+    known_signals: set[str] = field(default_factory=set)
     pending: list[Message] = field(default_factory=list)
     evacuated: bool = False
     missing_kin: bool = False
@@ -193,6 +197,7 @@ class Simulation:
         self._journal.append(event)
         topic = {
             EventType.DECISION: TOPIC_DECISIONS,
+            EventType.EVACUATED: TOPIC_DECISIONS,
             EventType.NARRATIVE: TOPIC_NARRATIVE,
             EventType.INDICATORS: TOPIC_METRICS,
         }.get(type_, TOPIC_WORLD)
@@ -284,7 +289,7 @@ class Simulation:
                         IntentionKind.GO_EXIT, None, "sorti", tick
                     )
                     await self._emit(
-                        tick, EventType.DECISION, {"agent_id": agent_id, "kind": "exit"}
+                        tick, EventType.EVACUATED, {"agent_id": agent_id, "kind": "exit"}
                     )
 
             # --- 2. événements du monde --------------------------
@@ -307,6 +312,7 @@ class Simulation:
                     last_decision_tick=runtime.last_decision_tick,
                     current_exit=runtime.best_exit(),
                     known_messages=frozenset(runtime.known_messages),
+                    known_signals=frozenset(runtime.known_signals),
                     cadence_ticks=runtime.profile.cadence_ticks,
                 )
                 if trigger:
@@ -499,6 +505,17 @@ class Simulation:
         runtime.last_decision_tick = percept.tick
         runtime.decisions += 1
         runtime.pending.clear()
+        # Un signal persistant n'est traité qu'une fois (front, pas niveau).
+        if trigger == "fumee_visible":
+            runtime.known_signals.add("smoke")
+        elif trigger == "annonce":
+            runtime.known_signals.add("announcement")
+        elif trigger == "sortie_fermee":
+            # `best_exit()` est encore la croyance d'avant la décision :
+            # c'est bien cette sortie-là qu'il faut marquer comme traitée.
+            previous = runtime.best_exit()
+            if previous is not None:
+                runtime.known_signals.add(f"closed:{previous}")
 
         # --- destination physique (décision 8) -------------------
         match intention.kind:

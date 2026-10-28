@@ -13,14 +13,41 @@ from maree.domain.intentions import IntentionKind
 
 
 def _percept(**kwargs) -> Percept:
+    # Par défaut : le danger est déjà là (fumée visible). Les tests qui
+    # portent sur le choix de sortie se placent après le signal ; ceux qui
+    # portent sur l'attente le désactivent explicitement.
     base = dict(
         tick=10,
         position=(10.0, 10.0),
         zone="Z3",
+        smoke_visible=True,
+        smoke_intensity=0.5,
         exits_open=frozenset({"A", "B", "C"}),
     )
     base.update(kwargs)
     return Percept(**base)
+
+
+def test_personne_ne_fuit_sans_signal(plan: Plan) -> None:
+    """Sans fumée, sans annonce, sans message : on reste.
+
+    C'est la phase « avant » du scénario. Sans elle, les 60 agents
+    quittaient l'esplanade au tick 1 et la fumée de t10 ne causait plus
+    rien — elle commentait une évacuation déjà finie.
+    """
+    calme = _percept(smoke_visible=False, smoke_intensity=0.0)
+    for profile in ("visiteur", "habitue", "securite", "famille"):
+        intention = rules_decide(calme, plan, profile=profile)
+        assert intention.kind is IntentionKind.STAY, profile
+
+
+def test_une_annonce_suffit_a_declencher(plan: Plan) -> None:
+    intention = rules_decide(
+        _percept(smoke_visible=False, smoke_intensity=0.0, announcement="Évacuation."),
+        plan,
+        profile="visiteur",
+    )
+    assert intention.kind is IntentionKind.GO_EXIT
 
 
 def test_visiteur_ne_connait_que_A(plan: Plan) -> None:
@@ -37,7 +64,9 @@ def test_habitué_peut_choisir_la_ruelle(plan: Plan) -> None:
 
 
 def test_vendeur_garde_son_stand_sans_danger(plan: Plan) -> None:
-    intention = rules_decide(_percept(), plan, profile="vendeur")
+    intention = rules_decide(
+        _percept(smoke_visible=False, smoke_intensity=0.0), plan, profile="vendeur"
+    )
     assert intention.kind is IntentionKind.STAY
 
 

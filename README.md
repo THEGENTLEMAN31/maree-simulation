@@ -16,7 +16,7 @@ se déforme, et parfois piège la foule qui l'a adoptée.
 |---|---|
 | Peut-on simuler 60 agents ? | Oui. JuPedSim fait 60 agents × 100 s simulées en **0,06 s** → **1 761× le temps réel**. |
 | Où est le coût ? | Uniquement dans l'appel LLM : **2,8 s** par décision. |
-| Combien d'appels par run ? | **40 à 60**, pas 2 160 — parce qu'on ne décide que sur changement. |
+| Combien d'appels par run ? | **Quelques centaines**, pas 2 160 — parce qu'on ne décide que sur changement, et qu'un signal persistant ne déclenche qu'une fois. |
 | Le run est-il rejouable ? | Oui, depuis le journal JSONL seul, sans LLM ni Kafka. |
 
 ---

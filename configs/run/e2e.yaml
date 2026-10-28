@@ -1,19 +1,24 @@
 # ============================================================
 # Run « e2e » — scénario du piège
 #
-# Identique à `demo`, mais la sortie A se ferme à t40. C'est le moment
-# où la croyance partagée (« A est la bonne sortie ») cesse d'être vraie.
-# Le levier est celui de l'expérience X2.
+# Identique à `demo`, mais la sortie A se ferme en cours d'évacuation.
+# C'est le moment où la croyance partagée (« A est la bonne sortie »)
+# cesse d'être vraie. Le levier est celui de l'expérience X2.
+#
+# Calibration mesurée : avec 60 agents à règles, l'évacuation est
+# terminée au tick 20 (run_trap_01). Fermer à t40 ne déclenchait donc
+# jamais rien. On ferme à t14 — après la fumée (t6) et après que les
+# premières croyances se sont formées, avant que la salle soit vide.
 # ============================================================
 name: e2e
 max_ticks: 90
 
-smoke_tick: 10
+smoke_tick: 6
 smoke_position: [44.0, 15.0]
 smoke_radius: 15.0
 
 close_exit: A
-close_tick: 40
+close_tick: 14
 
 announcement_tick: 18
 announcement: "Évacuation. Rejoignez la sortie nord."

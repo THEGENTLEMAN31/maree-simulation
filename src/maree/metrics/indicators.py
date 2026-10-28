@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from maree.domain.geometry import Plan
 from maree.domain.ids import AgentId, ExitId, Point
@@ -133,3 +134,40 @@ def compute(
             "remaining": len(active),
         },
     )
+
+
+def summarise(series: Sequence[Mapping[str, Any]]) -> dict[str, float]:
+    """Résume une série d'indicateurs pour comparer deux bras.
+
+    Le dernier tick est **dégénéré** : quand tout le monde est sorti, I1,
+    I2, I5 et I6 valent 0 par construction (il n'y a plus d'agent actif).
+    Prendre `series[-1]` comme résultat d'expérience ne mesurerait donc
+    rien. On garde :
+
+        I3, I4   au dernier tick (évacuation finale, durée)
+        I5, I6   au pic (le pire moment — c'est le piège qu'on étudie)
+        I1, I2   en moyenne temporelle (état moyen de la croyance)
+    """
+    if not series:
+        return {
+            "I1_consensus": 0.0,
+            "I2_entropy": 0.0,
+            "I3_evacuated": 0.0,
+            "I4_seconds": 0.0,
+            "I5_max_density": 0.0,
+            "I6_belief_gap": 0.0,
+        }
+
+    def values(key: str) -> list[float]:
+        return [float(sample.get(key, 0.0) or 0.0) for sample in series]
+
+    last = series[-1]
+    i1, i2 = values("I1_consensus"), values("I2_entropy")
+    return {
+        "I1_consensus": sum(i1) / len(i1),
+        "I2_entropy": sum(i2) / len(i2),
+        "I3_evacuated": float(last.get("I3_evacuated", 0.0) or 0.0),
+        "I4_seconds": float(last.get("I4_seconds", 0.0) or 0.0),
+        "I5_max_density": max(values("I5_max_density")),
+        "I6_belief_gap": max(values("I6_belief_gap")),
+    }

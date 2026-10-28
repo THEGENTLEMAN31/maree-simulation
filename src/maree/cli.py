@@ -157,6 +157,8 @@ def run(
     overrides: list[str] = typer.Argument(None, help="surcharges Hydra"),
 ) -> None:
     """Lance un run complet."""
+    from maree.metrics.indicators import summarise
+
     cfg = _compose(list(overrides or []))
     run_id = str(cfg.run_id or _new_run_id(int(cfg.seed)))
     simulation, llm, bus = _build(cfg, run_id)
@@ -168,6 +170,7 @@ def run(
             await llm.close()
             await bus.close()
         last = result.indicators[-1] if result.indicators else None
+        summary = summarise([i.to_dict() for i in result.indicators])
         typer.echo(
             json.dumps(
                 {
@@ -179,8 +182,10 @@ def run(
                     "duration_s": round(result.duration_s, 1),
                     "evacuated": last.counts.get("evacuated") if last else 0,
                     "total": last.counts.get("agents") if last else 0,
-                    "I1_consensus": last.i1_consensus if last else 0.0,
-                    "I5_max_density": last.i5_max_density if last else 0.0,
+                    "I1_consensus": round(summary["I1_consensus"], 3),
+                    "I4_seconds": round(summary["I4_seconds"], 0),
+                    "I5_max_density": round(summary["I5_max_density"], 2),
+                    "I6_belief_gap_peak": round(summary["I6_belief_gap"], 3),
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -262,6 +267,8 @@ def experiment(
     overrides: list[str] = typer.Argument(None, help="surcharges Hydra"),
 ) -> None:
     """Exécute un protocole X1–X7 : chaque bras × chaque graine."""
+    from maree.metrics.indicators import summarise
+
     cfg = _compose([f"+experiment={name}", *(overrides or [])])
     spec = cfg.experiment
     rows: list[dict[str, Any]] = []
@@ -289,25 +296,25 @@ def experiment(
                     await bus.close()
 
             result = asyncio.run(_go())
-            last = result.indicators[-1] if result.indicators else None
+            summary = summarise([i.to_dict() for i in result.indicators])
             rows.append(
                 {
                     "arm": arm.name,
                     "seed": seed,
                     "run_id": run_id,
-                    "I1": last.i1_consensus if last else 0.0,
-                    "I2": last.i2_entropy if last else 0.0,
-                    "I3": last.i3_evacuated if last else 0.0,
-                    "I4": last.i4_seconds if last else 0.0,
-                    "I5": last.i5_max_density if last else 0.0,
-                    "I6": last.i6_belief_gap if last else 0.0,
+                    "I1": summary["I1_consensus"],
+                    "I2": summary["I2_entropy"],
+                    "I3": summary["I3_evacuated"],
+                    "I4": summary["I4_seconds"],
+                    "I5": summary["I5_max_density"],
+                    "I6": summary["I6_belief_gap"],
                     "llm_calls": result.llm_calls,
                     "wall_s": round(result.duration_s, 1),
                 }
             )
             typer.echo(
                 f"  {arm.name:<18} graine {seed}  "
-                f"I6={rows[-1]['I6']:.3f}  I4={rows[-1]['I4']:.0f}s  "
+                f"I6pic={rows[-1]['I6']:.3f}  I4={rows[-1]['I4']:.0f}s  "
                 f"LLM={result.llm_calls}  {result.duration_s:.0f}s"
             )
 
@@ -361,36 +368,37 @@ def report(runs: str = typer.Option("runs")) -> None:
     """Agrège les runs mesurés (I1..I6) en un tableau."""
     from maree.adapters.journal.jsonl import JsonlJournal
     from maree.domain.events import EventType
+    from maree.metrics.indicators import summarise
 
     journal = JsonlJournal(runs)
     rows: list[dict[str, Any]] = []
+    incomplete: list[str] = []
     for run_id in journal.runs():
         events = journal.read(run_id)
+        if not any(e.type is EventType.RUN_ENDED for e in events):
+            # Run interrompu (plantage, Ctrl-C) : ses indicateurs partiels
+            # ne sont pas un résultat. On le signale, on ne l'agrège pas.
+            incomplete.append(run_id)
+            continue
         series = [e.data for e in events if e.type is EventType.INDICATORS]
         if not series:
             continue
-        last = series[-1]
-        rows.append(
-            {
-                "run_id": run_id,
-                "I1": last.get("I1_consensus"),
-                "I2": last.get("I2_entropy"),
-                "I3": last.get("I3_evacuated"),
-                "I5": last.get("I5_max_density"),
-                "I6": last.get("I6_belief_gap"),
-            }
-        )
+        summary = summarise(series)
+        rows.append({"run_id": run_id, **summary})
+    if incomplete:
+        typer.echo(f"ignorés (sans run.ended) : {', '.join(incomplete)}")
     if not rows:
         typer.echo("aucun run mesuré")
         return
-    header = f"{'run_id':<34}{'I1':>8}{'I2':>8}{'I3':>8}{'I5':>8}{'I6':>8}"
+    header = f"{'run_id':<34}{'I1':>8}{'I2':>8}{'I3':>8}{'I4':>8}{'I5':>8}{'I6pic':>8}"
     typer.echo(header)
     typer.echo("-" * len(header))
     for row in rows:
         typer.echo(
             f"{row['run_id']:<34}"
-            f"{row['I1'] or 0:>8.3f}{row['I2'] or 0:>8.3f}{row['I3'] or 0:>8.3f}"
-            f"{row['I5'] or 0:>8.2f}{row['I6'] or 0:>8.3f}"
+            f"{row['I1_consensus']:>8.3f}{row['I2_entropy']:>8.3f}"
+            f"{row['I3_evacuated']:>8.3f}{row['I4_seconds']:>8.0f}"
+            f"{row['I5_max_density']:>8.2f}{row['I6_belief_gap']:>8.3f}"
         )
 
 
