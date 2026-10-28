@@ -89,3 +89,72 @@ async def test_un_appel_reussi_ne_marque_pas_de_repli(plan: Plan) -> None:
     assert intention.target == "B"
     assert not state.get("fallback")
     assert state["llm"]["ok"] is True
+
+
+class LabelLLM:
+    """Répond une étiquette de plan au lieu d'un identifiant de sortie."""
+
+    async def chat(self, messages: list[ChatMessage], *, seed: int, **kwargs) -> LLMResult:
+        return LLMResult(
+            text='{"action": "guide", "target": "Signalétique — la scène principale",'
+            ' "confidence": 0.9}',
+            prompt="…",
+            seed=seed,
+            model="factice",
+            ok=True,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_un_guide_avec_une_etiquette_replie_sur_les_regles(plan: Plan) -> None:
+    """`guide` mène à une sortie : sa cible doit être un identifiant réel.
+
+    Constaté en hybride : la cible « Signalétique — la scène principale »
+    était enregistrée comme croyance de sortie ; au tick suivant, l'agent
+    croyait que cette sortie avait fermé et évacuait sur un événement
+    inexistant.
+    """
+    intention, state = await _graph(LabelLLM(), plan).decide(
+        agent_id="A01",
+        profile=get_profile("securite"),
+        percept=_percept(),
+        trigger="premiere_decision",
+    )
+    assert intention.target in plan.exits
+    assert state["fallback"] is True
+
+
+class FollowExitLLM:
+    """Répond « suivre la foule vers C » : une sortie dans le champ agent."""
+
+    async def chat(self, messages: list[ChatMessage], *, seed: int, **kwargs) -> LLMResult:
+        return LLMResult(
+            text='{"action": "follow", "target": "C", "confidence": 0.8}',
+            prompt="…",
+            seed=seed,
+            model="factice",
+            ok=True,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_suivre_une_sortie_devient_y_aller(plan: Plan) -> None:
+    """`follow C` se lit « suivre la foule vers C », donc aller à C.
+
+    Sans cette conversion, le moteur cherchait un agent nommé « C », ne le
+    trouvait pas, et figeait l'agent sur place : 8 agents LLM sur 12 ne
+    sortaient jamais.
+    """
+    intention, state = await _graph(FollowExitLLM(), plan).decide(
+        agent_id="A01",
+        profile=get_profile("visiteur"),
+        percept=_percept(),
+        trigger="annonce",
+    )
+    assert intention.kind is IntentionKind.GO_EXIT
+    assert intention.target == "C"
+    assert not state.get("fallback")

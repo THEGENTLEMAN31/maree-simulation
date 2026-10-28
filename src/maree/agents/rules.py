@@ -27,6 +27,11 @@ from maree.domain.intentions import Intention, IntentionKind
 #: Au-delà, on considère la sortie saturée.
 SATURATION = 2.5
 
+#: Au-delà de N ticks sans retrouver un proche, on renonce à chercher et
+#: on évacue. Sans cette borne, un agent cherche indéfiniment et ne sort
+#: jamais — 5 agents sur 60 dans un run hybride réel.
+SEARCH_TICKS = 5
+
 
 def _known_open(plan: Plan, profile_id: str, percept: Percept) -> list[ExitId]:
     profile = get_profile(profile_id)
@@ -38,8 +43,13 @@ def _known_open(plan: Plan, profile_id: str, percept: Percept) -> list[ExitId]:
 def rules_decide(percept: Percept, plan: Plan, *, profile: str) -> Intention:
     tick = percept.tick
 
-    # 1. Un proche a disparu : on le cherche avant de fuir.
-    if percept.missing_kin and profile in {"famille"}:
+    # 1. Un proche a disparu : on le cherche avant de fuir, mais pas
+    #    indéfiniment. Passé SEARCH_TICKS, on renonce et on évacue.
+    if (
+        percept.missing_kin
+        and profile in {"famille"}
+        and percept.missing_kin_ticks <= SEARCH_TICKS
+    ):
         return Intention(
             IntentionKind.SEARCH,
             target=None,

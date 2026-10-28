@@ -87,6 +87,31 @@ rejouable de bout en bout.
 - Les protocoles `configs/experiment/*.yaml` sont le **contenu** du
   groupe Hydra : pas de `# @package _global_`, pas de clé `experiment:`
   englobante, sinon `cfg.experiment.experiment.arms`.
+- **Une cible rendue par le LLM est du texte libre.** Il a répondu
+  `guide → "Signalétique — la scène principale"` et `follow → "C"`.
+  Le premier devenait une croyance de sortie : au tick suivant l'agent
+  croyait qu'elle avait fermé (`sortie_fermee`) et évacuait sur un
+  événement inexistant. Le second ne correspondait à aucun agent : le
+  moteur le figeait sur place. Toute cible est désormais validée contre
+  le plan (`exits`, `zones`, motif `A\d{2}`), et `follow <sortie>` est
+  lu comme `go_exit <sortie>`.
+- **`missing_kin` était un déclencheur de niveau.** Un proche resté hors
+  de vue faisait redécider l'agent à chaque tick : 142 des 202 appels
+  LLM d'un run. Il est maintenant mémorisé comme la fumée, et réarmé si
+  le proche réapparaît.
+- **`SEARCH` visait `walkable[0]`**, un sommet posé sur la limite du
+  domaine, souvent dans une issue : les agents « cherchaient » en
+  sortant. On cherche dans la zone où l'on est, et la recherche est
+  bornée (`SEARCH_TICKS`) — sinon un agent cherche indéfiniment.
+- **Les proches étaient appariés après le placement**, par ordre de
+  liste : deux tirages indépendants dans une zone, souvent à plus de
+  10 m. 14 des 16 agents « famille » cherchaient un proche dès le tick 1
+  et sortaient avant la fumée. Les paires sont maintenant placées
+  ensemble, dans la même zone, à moins de 2 m.
+- **Un guide qui n'a rien vu ne prévient personne.** `_diffuse`
+  transformait un `GUIDE` de tick 1 en « il faut sortir par… » ; tout
+  message reçu valant danger, la foule sortait avant la fumée. On ne
+  parle que si l'on a perçu quelque chose.
 
 ### Corpus RAG
 
@@ -150,14 +175,14 @@ rejouable de bout en bout.
 | Déterminisme JuPedSim | identique à 1e-9 | idem |
 | Un appel LLM (E2B) | 2,8 s | v1 |
 | Débit `parallel=1` / `parallel=4` | 0,36 / **1,43** décision/s | v1 |
-| Run 60 agents à règles, démo (v2) | 20 ticks, 1 179 événements, **1,0 s**, 60/60 sortis | `run_demo_01` |
-| Run 60 agents à règles, piège (v2) | 90 ticks, 1 376 événements, 1,6 s, **54/60** (6 visiteurs piégés) | `run_trap_05` |
-| Décisions, scénario piège | **271** (dont 24 `sortie_fermee`, 132 périodiques) | `run_trap_05` |
+| Run 60 agents à règles, démo (v2) | 20 ticks, 1 023 événements, **0,8 s**, 60/60 sortis | `run_demo_02` |
+| Run 60 agents à règles, piège (v2) | 90 ticks, 1 204 événements, 1,1 s, **54/60** (6 visiteurs piégés) | `run_trap_07` |
+| Décisions, scénario piège | **259** (dont 22 `sortie_fermee`, 142 périodiques) | `run_trap_07` |
 | Protocole X1, 1 graine × 2 bras | clair **190 s** / ambigu **550 s** (I4) | `experiment_x1` |
 | Preset 8192/4 (E2B) + bge-m3 | `n_slots = 4`, `n_ctx_slot = 2048`, **1 980 Mo / 4 096** | `nvidia-smi`, RTX 3050 |
 | Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
-| Run hybride 12 LLM + 48 règles, démo | 72 ticks, **101 appels / 101 succès**, 66 s, 57/60 | `run_hybrid_03` |
-| Récits du chroniqueur | 14, **0 repli**, chiffres conformes au digest | `run_hybrid_03` |
+| Run hybride 12 LLM + 48 règles, démo | 21 ticks, **44 appels / 44 succès**, 21,9 s, **60/60** | `run_hybrid_08` |
+| Récits du chroniqueur | 4, **0 repli**, chiffres conformes au digest | `run_hybrid_08` |
 | `maree index` sur le corpus réel | 215 passages en **7 s** | bge-m3, `data/rag` |
 
 **Le KV cache de 4 slots tient** : 1 980 Mo sur 4 096, 2,1 Go libres.
@@ -195,20 +220,13 @@ uv run maree experiment --name x1 --seeds 3
   sémantique de bge-m3 est bonne sur trois requêtes témoins (fumée →
   annonce + souvenir ; sortie A fermée → souvenir de fermeture + plan),
   mais elle n'est pas mesurée par un jeu de questions annotées.
-- **Reproductibilité LLM** : deux runs de même configuration ne donnent
-  pas le même nombre d'appels (99 puis 90) ni les mêmes sorties, malgré
-  les graines SHA-256. Le batching concurrent change l'ordre et les
-  flottants. Le journal reste rejouable (on rejoue les décisions), mais
-  une ré-exécution n'est pas identique : les expériences doivent agréger
+- **Reproductibilité LLM** : deux runs de même configuration donnent les
+  mêmes nombres (46 appels, 211 décisions, 20 ticks, 60/60) mais **pas
+  les mêmes décisions** : A01 reste au tick 1 dans l'un, cherche dans
+  l'autre. Le batching concurrent change l'ordre et les flottants. Le
+  journal reste rejouable (on rejoue les décisions), mais une
+  ré-exécution n'est pas identique : les expériences doivent agréger
   plusieurs graines, pas comparer deux runs appariés.
-- **Intention `follow`** : quatre agents LLM restent figés dessus jusqu'à
-  `max_ticks` (57/60 sortis). Elle ne se résout jamais en sortie quand le
-  meneur est lui-même immobile. À borner (déchéance vers `go_exit`).
-- **Sorties prématurées** : en hybride, 6 à 12 agents franchissent une
-  issue **avant** la fumée (t9), parce que `search`/`go_zone`/`follow`
-  les font traverser le polygone de sortie. En règles seules, aucune
-  sortie avant t12. Cela contamine la phase « avant » et la courbe
-  d'évacuation.
 - **Godot** : le client n'a pas été ouvert dans l'éditeur (`godot` absent
   de l'hôte). Le protocole WebSocket, lui, est testé. Relu à la main :
   `Node2D` n'a **pas** de `size` (c'est `Control`) — utiliser

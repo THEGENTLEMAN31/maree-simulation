@@ -138,6 +138,8 @@ class AgentRuntime:
     evacuated: bool = False
     missing_kin: bool = False
     kin: AgentId | None = None
+    #: Tick où le proche a disparu, pour borner la recherche.
+    missing_kin_since: int | None = None
     decisions: int = 0
     spoke: bool = False
 
@@ -211,6 +213,10 @@ class Simulation:
     # ---- population -------------------------------------------
     def _spawn(self) -> None:
         index = 0
+        #: Proche déjà placé, en attente de son pair (profil famille).
+        attente: AgentRuntime | None = None
+        attente_pos: Point | None = None
+        attente_zone: Zone | None = None
         for entry in self._cfg.population:
             profile = get_profile(entry.profile)
             # Le profil nommé décrit un SAVOIR ; `kind` décide du MOTEUR.
@@ -222,8 +228,17 @@ class Simulation:
             for _ in range(entry.count):
                 index += 1
                 agent_id = f"A{index:02d}"
-                zone = self._spawn_zone(entry.profile)
-                position = self._sample_in_zone(zone)
+                # Une famille arrive ensemble : le second proche est placé à
+                # moins de 2 m du premier, **dans la même zone**. Apparier
+                # après coup deux tirages indépendants les séparait de plus
+                # de 10 m, et 14 des 16 agents « famille » cherchaient un
+                # proche dès le tick 1.
+                if entry.profile == "famille" and attente is not None:
+                    zone = attente_zone or self._spawn_zone(entry.profile)
+                    position = self._near_point(attente_pos, zone)
+                else:
+                    zone = self._spawn_zone(entry.profile)
+                    position = self._sample_in_zone(zone)
                 runtime = AgentRuntime(agent_id=agent_id, profile=profile)
                 # Croyances initiales : ce que le profil sait en arrivant.
                 for exit_id in self._plan.exits:
@@ -233,11 +248,28 @@ class Simulation:
                 self._physics.add_agent(
                     agent_id, position, Destination.to_point(position)
                 )
-        # Appariement des proches (profil famille).
-        family = [a for a in self._agents.values() if a.profile.id == "famille"]
-        for i in range(0, len(family) - 1, 2):
-            family[i].kin = family[i + 1].agent_id
-            family[i + 1].kin = family[i].agent_id
+                if entry.profile == "famille":
+                    if attente is None:
+                        attente, attente_pos, attente_zone = runtime, position, zone
+                    else:
+                        runtime.kin = attente.agent_id
+                        attente.kin = runtime.agent_id
+                        attente, attente_pos, attente_zone = None, None, None
+
+    def _near_point(self, origin: Point | None, zone: Zone) -> Point:
+        """Un point de la zone à moins de 2 m de `origin`."""
+        if origin is None:
+            return self._sample_in_zone(zone)
+        for _ in range(200):
+            angle = self._rng.uniform(0.0, 2.0 * math.pi)
+            radius = self._rng.uniform(0.8, 1.8)
+            point = (
+                origin[0] + radius * math.cos(angle),
+                origin[1] + radius * math.sin(angle),
+            )
+            if zone.contains(point):
+                return point
+        return self._sample_in_zone(zone)
 
     def _spawn_zone(self, profile_id: str) -> Zone:
         preference = {
@@ -426,6 +458,16 @@ class Simulation:
                     missing = True
             elif kin and kin.evacuated:
                 missing = False
+        # `missing_kin` est un signal persistant : on le mémorise pour qu'il
+        # ne redéclenche pas à chaque tick, et on le réarme si le proche
+        # réapparaît. Sans cela, 142 des 202 appels LLM d'un run venaient
+        # de ce seul déclencheur — le piège de la v1, sous une autre forme.
+        runtime.missing_kin = missing
+        if not missing:
+            runtime.known_signals.discard("missing_kin")
+            runtime.missing_kin_since = None
+        elif runtime.missing_kin_since is None:
+            runtime.missing_kin_since = tick
         return Percept(
             tick=tick,
             position=position,
@@ -444,6 +486,11 @@ class Simulation:
             nearby=tuple(near),
             announcement=self._announcement if tick >= (cfg.announcement_tick or 10**9) else None,
             missing_kin=missing,
+            missing_kin_ticks=(
+                tick - runtime.missing_kin_since
+                if missing and runtime.missing_kin_since is not None
+                else 0
+            ),
         )
 
     def _density_near(
@@ -526,6 +573,8 @@ class Simulation:
             previous = runtime.best_exit()
             if previous is not None:
                 runtime.known_signals.add(f"closed:{previous}")
+        elif trigger == "proche_disparu":
+            runtime.known_signals.add("missing_kin")
 
         # --- destination physique (décision 8) -------------------
         match intention.kind:
@@ -535,17 +584,35 @@ class Simulation:
                 self._physics.set_destination(
                     agent_id, Destination.to_exit(intention.target)  # type: ignore[arg-type]
                 )
-            case IntentionKind.FOLLOW if intention.target in positions:
-                self._physics.set_destination(
-                    agent_id, Destination.follow(intention.target)  # type: ignore[arg-type]
-                )
+            case IntentionKind.FOLLOW:
+                if intention.target in positions:
+                    self._physics.set_destination(
+                        agent_id, Destination.follow(intention.target)  # type: ignore[arg-type]
+                    )
+                else:
+                    # Le meneur n'est pas un agent (ou a déjà disparu) :
+                    # rester sur place n'est pas une option. On rejoint sa
+                    # propre sortie — sinon l'agent se fige jusqu'à la fin.
+                    best = runtime.best_exit()
+                    self._physics.set_destination(
+                        agent_id,
+                        Destination.to_exit(best)
+                        if best
+                        else Destination.to_point(percept.position),
+                    )
             case IntentionKind.GO_ZONE if intention.target in self._plan.zones:
                 self._physics.set_destination(
                     agent_id, Destination.to_point(self._plan.zones[intention.target].centroid)
                 )
             case IntentionKind.SEARCH:
+                # Chercher un proche ne veut pas dire marcher vers
+                # `walkable[0]`, un sommet du domaine posé sur la limite —
+                # souvent dans une issue. Les agents « cherchaient » en
+                # sortant. On cherche dans la zone où l'on est.
+                zone = self._plan.zones.get(percept.zone) if percept.zone else None
                 self._physics.set_destination(
-                    agent_id, Destination.to_point(self._plan.walkable[0])
+                    agent_id,
+                    Destination.to_point(zone.centroid if zone else percept.position),
                 )
             case _:
                 self._physics.set_destination(
@@ -553,7 +620,10 @@ class Simulation:
                 )
 
         # --- croyance -------------------------------------------
-        if intention.kind in {IntentionKind.GO_EXIT, IntentionKind.GUIDE} and intention.target:
+        if (
+            intention.kind in {IntentionKind.GO_EXIT, IntentionKind.GUIDE}
+            and intention.target in self._plan.exits
+        ):
             runtime.beliefs.decay(0.92)
             runtime.beliefs.set(
                 intention.target,
@@ -626,6 +696,15 @@ class Simulation:
                 IntentionKind.GO_EXIT,
                 IntentionKind.GUIDE,
             }:
+                continue
+            # Un guide qui n'a rien perçu ne lance pas une évacuation. Sans
+            # ce garde-fou, deux agents de sécurité qui « guident » au tick 1
+            # (leur métier, sans danger) envoyaient « il faut sortir par… » ;
+            # tout message reçu valant signal de danger, la foule sortait
+            # avant la fumée de t10. Mesuré : 6 à 12 sorties à t9.
+            if not (
+                runtime.known_signals or runtime.known_messages or runtime.missing_kin
+            ):
                 continue
             best = runtime.best_exit()
             if not best or runtime.beliefs.confidence(best) < 0.6:

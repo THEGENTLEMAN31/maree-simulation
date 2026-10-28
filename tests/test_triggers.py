@@ -83,6 +83,18 @@ def test_proche_disparu() -> None:
     assert _decide(_percept(missing_kin=True)).reason == "proche_disparu"
 
 
+def test_un_proche_disparu_ne_declenche_qu_une_fois() -> None:
+    """Comme la fumée : un proche hors de vue reste hors de vue.
+
+    Sans ce front, l'agent redécidait à chaque tick (142 appels sur 202
+    dans un run hybride réel).
+    """
+    trigger = _decide(
+        _percept(missing_kin=True), known_signals=frozenset({"missing_kin"})
+    )
+    assert not trigger.needed
+
+
 def test_densite_critique() -> None:
     assert _decide(_percept(density=3.4)).reason == "densite_critique"
 

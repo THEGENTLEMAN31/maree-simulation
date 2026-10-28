@@ -267,6 +267,10 @@ class DecisionGraph:
             lines.append("Tes croyances : aucune.")
         if percept.get("announcement"):
             lines.append(f"Annonce officielle : {percept['announcement']}")
+        if percept.get("missing_kin"):
+            lines.append(
+                f"Un proche manque depuis {percept.get('missing_kin_ticks', 0)} ticks."
+            )
         for m in percept.get("messages", []):
             lines.append(f"Message de {m.get('sender')} : {m.get('content')}")
         if state.get("memories"):
@@ -285,12 +289,24 @@ class DecisionGraph:
         except ValueError:
             return None
         target = parsed.get("target")
-        if kind is IntentionKind.GO_EXIT and target not in self._plan.exits:
-            return None
-        if kind in {IntentionKind.GO_ZONE, IntentionKind.FOLLOW, IntentionKind.SEARCH} and (
-            not isinstance(target, str) or not target
-        ):
-            return None
+        # Une intention qui mène physiquement à une sortie doit porter un
+        # identifiant de sortie réel. `guide` et `follow` acceptaient une
+        # étiquette ou une sortie dans le champ agent : l'agent croyait
+        # alors à une fermeture inexistante, ou se figeait sur place.
+        if kind in {IntentionKind.GO_EXIT, IntentionKind.GUIDE}:
+            if target not in self._plan.exits:
+                return None
+        elif kind is IntentionKind.GO_ZONE:
+            if target not in self._plan.zones:
+                return None
+        elif kind is IntentionKind.FOLLOW:
+            if target in self._plan.exits:
+                # « suivre la foule vers C » : c'est une sortie, pas un agent.
+                kind = IntentionKind.GO_EXIT
+            elif not (isinstance(target, str) and target.startswith("A")):
+                return None
+        elif kind is IntentionKind.SEARCH:
+            target = None  # chercher un proche ne vise personne de précis
         try:
             confidence = float(parsed.get("confidence", 0.0))
         except (TypeError, ValueError):
@@ -324,6 +340,7 @@ def _percept_to_dict(p: Percept) -> dict[str, Any]:
         "nearby": list(p.nearby),
         "announcement": p.announcement,
         "missing_kin": p.missing_kin,
+        "missing_kin_ticks": p.missing_kin_ticks,
     }
 
 
@@ -348,6 +365,7 @@ def _percept_from_state(state: AgentState) -> Percept:
         nearby=tuple(d.get("nearby", [])),
         announcement=d.get("announcement"),
         missing_kin=bool(d.get("missing_kin")),
+        missing_kin_ticks=int(d.get("missing_kin_ticks", 0)),
     )
 
 

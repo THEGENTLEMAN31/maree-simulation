@@ -25,7 +25,7 @@ from maree.domain.ids import AgentId, Point
 from maree.engine.replay import indicators_hash
 from maree.engine.simulation import PopulationEntry, RunConfig, Simulation
 from maree.memory.store import EventSourcedMemory
-from maree.ports import Destination
+from maree.ports import Destination, LLMResult
 
 
 class FakePhysics:
@@ -198,3 +198,73 @@ async def test_la_fumee_puis_lannonce_declenchent_des_decisions(tmp_path: Path) 
     assert len(decisions) >= 4  # au moins une par agent
     reasons = {e.data.get("trigger") for e in decisions}
     assert "fumee_visible" in reasons or "annonce" in reasons
+
+
+class GuideLLM:
+    """Un agent de sécurité qui « guide » : son métier, sans danger."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def chat(self, messages, *, seed: int, **kwargs) -> LLMResult:
+        self.calls += 1
+        return LLMResult(
+            text='{"action": "guide", "target": "A", "confidence": 0.9}',
+            prompt="…",
+            seed=seed,
+            model="factice",
+            ok=True,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_un_guide_sans_danger_ne_diffuse_pas_d_alerte(tmp_path: Path) -> None:
+    """Un guide qui n'a rien vu ne doit pas faire évacuer ses voisins.
+
+    Constaté en hybride : au tick 1, deux agents de sécurité choisissaient
+    `guide` (leur rôle), `_diffuse` transformait cela en « il faut sortir
+    par… », et comme tout message reçu vaut signal de danger, la foule
+    sortait avant la fumée de t10 (6 à 12 sorties à t9).
+    """
+    plan = Plan.from_dict(
+        __import__("yaml").safe_load(
+            Path("configs/world/port_aubel.yaml").read_text("utf-8")
+        )
+    )
+    config = RunConfig(
+        run_id="run_guide",
+        seed=0,
+        max_ticks=10,
+        smoke_tick=10,
+        smoke_position=(44.0, 15.0),
+        smoke_radius=15.0,
+        close_exit=None,
+        announcement_tick=None,
+        announcement=None,
+        population=(PopulationEntry("securite", 2, "llm"),),
+        narrative_every=5,
+    )
+    journal = JsonlJournal(tmp_path)
+    simulation = Simulation(
+        config=config,
+        plan=plan,
+        physics=FakePhysics(plan),
+        llm=GuideLLM(),
+        retriever=None,
+        memory=EventSourcedMemory(n_exits=len(plan.exits)),
+        journal=journal,
+        bus=InMemoryBus(),
+        narrator=None,
+    )
+    result = await simulation.run()
+    assert result.llm_ok > 0, "les agents LLM n'ont pas décidé"
+
+    events = journal.read("run_guide")
+    avant = [
+        e for e in events if str(e.type) == "agent.message.sent" and e.t_prod < 10
+    ]
+    assert not avant, "un guide a diffusé une alerte avant la fumée"
+    sorties = [e for e in events if str(e.type) == "agent.evacuated" and e.t_prod < 10]
+    assert not sorties, "des agents sont sortis avant la fumée"

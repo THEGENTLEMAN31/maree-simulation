@@ -54,6 +54,9 @@ class Percept:
     nearby: tuple[AgentId, ...] = ()
     announcement: str | None = None
     missing_kin: bool = False
+    #: Depuis combien de ticks le proche est hors de vue. Une recherche
+    #: sans limite ne se termine jamais : l'agent ne sort pas.
+    missing_kin_ticks: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,8 +120,10 @@ def should_decide(
         if key not in known_messages:
             return DecisionTrigger(True, f"message:{msg.sender}", 0.7)
 
-    # 5. Proche disparu (profil famille).
-    if percept.missing_kin:
+    # 5. Proche disparu (profil famille) — une fois, comme la fumée.
+    #    Sans ce garde, un proche resté hors de vue faisait redécider
+    #    l'agent à chaque tick : 142 appels sur 202 dans un run réel.
+    if percept.missing_kin and "missing_kin" not in known_signals:
         return DecisionTrigger(True, "proche_disparu", 0.75)
 
     # 6. Embouteillage.
