@@ -227,10 +227,16 @@ uv run maree experiment --name x1 --seeds 3
   journal reste rejouable (on rejoue les décisions), mais une
   ré-exécution n'est pas identique : les expériences doivent agréger
   plusieurs graines, pas comparer deux runs appariés.
-- **Godot** : le client n'a pas été ouvert dans l'éditeur (`godot` absent
-  de l'hôte). Le protocole WebSocket, lui, est testé. Relu à la main :
-  `Node2D` n'a **pas** de `size` (c'est `Control`) — utiliser
-  `get_viewport_rect().size`.
+- **Godot** : le client a été ouvert nativement. `godot` 4.4.1 est
+  installé dans `~/.local/bin` ; le rendu `gl_compatibility` passe sur
+  l'**iGPU Intel** (le pilote NVIDIA n'est pas chargé pour GL), ce qui
+  évite de disputer la VRAM à llama.cpp. Lancement : `maree serve` puis
+  `godot --path godot/project`. Deux défauts corrigés le 2026-10-28 :
+  le serveur fermait la socket dans la même passe que la trame `end`
+  (perdue : 48 trames sur 49) et le client remettait le statut à
+  « connecté » juste après `end`, d'où « déconnecté » sur une diffusion
+  pourtant terminée. Rappel : `Node2D` n'a **pas** de `size` (c'est
+  `Control`) — utiliser `get_viewport_rect().size`.
 - **X1–X7** : `experiment` tourne (X1 vérifié sur 1 graine × 2 bras),
   mais aucun protocole complet (≥ 5 graines) n'a été exécuté.
 - **Le suivi d'agent** vise la position du meneur au moment de la

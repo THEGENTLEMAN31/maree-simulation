@@ -92,6 +92,12 @@ class JournalStreamer:
                 await websocket.send(json.dumps(frame, ensure_ascii=False))
         except Exception:
             return
+        # Godot abandonne les paquets encore en attente quand `poll()` voit
+        # la socket fermée : sans ce délai, la dernière trame (`end`) était
+        # perdue et le client affichait « déconnecté » sur une diffusion
+        # pourtant terminée.
+        await asyncio.sleep(0.3)
+        await websocket.close()
 
     async def serve_forever(self) -> None:
         from websockets.asyncio.server import serve

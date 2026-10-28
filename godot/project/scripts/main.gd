@@ -48,12 +48,19 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_ws.poll()
+	# Les trames déjà reçues doivent être lues même si la connexion vient de
+	# se fermer : le serveur envoie « end » puis ferme. En ne lisant qu'en
+	# STATE_OPEN, le client perdait ce dernier message et affichait
+	# « déconnecté » sur une diffusion pourtant terminée.
+	while _ws.get_available_packet_count() > 0:
+		_handle(_ws.get_packet().get_string_from_utf8())
 	match _ws.get_ready_state():
 		WebSocketPeer.STATE_OPEN:
-			if _status != "connecté":
+			# Ne pas écraser « terminé » : la socket reste ouverte quelques
+			# instants après la trame `end`, et cette branche remettait le
+			# statut à « connecté », puis « déconnecté » à la fermeture.
+			if _status != "connecté" and _status != "terminé":
 				_status = "connecté"
-			while _ws.get_available_packet_count() > 0:
-				_handle(_ws.get_packet().get_string_from_utf8())
 		WebSocketPeer.STATE_CLOSED:
 			if _status != "terminé":
 				_status = "déconnecté"
