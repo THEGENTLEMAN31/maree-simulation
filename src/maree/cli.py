@@ -354,6 +354,11 @@ def serve(
     port: int = typer.Option(8765, help="port WebSocket"),
     speed: float = typer.Option(5.0, help="ticks par seconde (0 = au plus vite)"),
     runs: str = typer.Option("runs", help="répertoire des runs"),
+    prompts: bool = typer.Option(
+        False,
+        "--prompts",
+        help="inclure le prompt LLM dans les décisions (~3 Ko chacune)",
+    ),
 ) -> None:
     """Diffuse un run sur WebSocket, pour le client Godot.
 
@@ -374,6 +379,7 @@ def serve(
         plan=OmegaConf.to_container(cfg.world, resolve=True),
         port=port,
         speed=speed,
+        include_prompts=prompts,
     )
     try:
         asyncio.run(streamer.serve_forever())

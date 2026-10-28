@@ -46,9 +46,9 @@ class Indicators:
     i4_seconds: float
     i5_max_density: float
     i6_belief_gap: float
-    counts: dict[str, int] = field(default_factory=dict)
+    counts: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, float | int | dict[str, int]]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tick": self.tick,
             "I1_consensus": round(self.i1_consensus, 4),
@@ -83,20 +83,33 @@ def mean_entropy(entropies: Iterable[float], n_exits: int) -> float:
     return min(1.0, (sum(values) / len(values)) / ceiling)
 
 
+def density_cells(points: Iterable[Point], cell: float = 1.0) -> list[dict[str, float]]:
+    """Grille de densité, telle que le client la dessine.
+
+    Chaque cellule occupée est donnée par son **origine** en mètres et son
+    effectif. Le client n'a donc aucune grille à recalculer : il divise par
+    `cell²` s'il veut des personnes au mètre carré, ou colore directement
+    selon `n`. Les cellules vides ne sont pas transmises.
+    """
+    grid: Counter[tuple[int, int]] = Counter()
+    for p in points:
+        grid[(int(p[0] // cell), int(p[1] // cell))] += 1
+    return [
+        {"x": gx * cell, "y": gy * cell, "n": n}
+        for (gx, gy), n in sorted(grid.items())
+    ]
+
+
 def max_density(agents: Iterable[AgentState], cell: float = 1.0) -> float:
     """I5 — densité locale max sur une grille de `cell` mètres.
 
     C'est la mesure du goulot : elle ne dit pas « il y a du monde », elle
     dit « à cet endroit précis, on est à 4,2 personnes au mètre carré ».
     """
-    grid: Counter[tuple[int, int]] = Counter()
-    for a in agents:
-        if a.evacuated:
-            continue
-        grid[(int(a.position[0] // cell), int(a.position[1] // cell))] += 1
-    if not grid:
+    cells = density_cells((a.position for a in agents if not a.evacuated), cell)
+    if not cells:
         return 0.0
-    return max(grid.values()) / (cell * cell)
+    return max(c["n"] for c in cells) / (cell * cell)
 
 
 def belief_gap(agents: Iterable[AgentState], open_exits: set[ExitId]) -> float:
@@ -120,6 +133,14 @@ def compute(
 ) -> Indicators:
     n_exits = len(plan.exits)
     active = [a for a in agents if not a.evacuated]
+    # Répartition des croyances : ce que le client dessine en barres
+    # empilées. « aucune » est explicite — un agent qui ne sait rien n'est
+    # pas un agent qui croit à une sortie de plus.
+    by_belief: dict[str, int] = {str(e): 0 for e in plan.exits}
+    by_belief["aucune"] = 0
+    for a in active:
+        key = str(a.belief_best) if a.belief_best is not None else "aucune"
+        by_belief[key] = by_belief.get(key, 0) + 1
     return Indicators(
         tick=tick,
         i1_consensus=consensus(a.belief_best for a in active),
@@ -132,6 +153,7 @@ def compute(
             "agents": len(agents),
             "evacuated": len(agents) - len(active),
             "remaining": len(active),
+            "by_belief": by_belief,
         },
     )
 

@@ -785,21 +785,44 @@ class Simulation:
 
     def _snapshot(self, tick: int) -> dict[str, Any]:
         positions = self._physics.positions()
+        n_exits = len(self._plan.exits)
+        active = [
+            positions.get(aid, (0.0, 0.0))
+            for aid, rt in sorted(self._agents.items())
+            if not rt.evacuated
+        ]
         return {
             "tick": tick,
             "sim_time": SimClock(tick, self._cfg.clocks).fmt(),
             "exits_open": sorted(self._exits_open),
+            # La fumée est un événement ponctuel : un client qui se connecte
+            # après t10 ne la verrait jamais sans cet état.
+            "smoke_active": self._smoke_active,
+            # Grille de densité prête à dessiner (cellules occupées seules).
+            "density_grid": metrics.density_cells(active),
             "agents": [
                 {
                     "id": aid,
                     "profile": rt.profile.id,
+                    "label": rt.profile.label,
+                    "kind": rt.profile.kind,
                     "pos": list(positions.get(aid, (0.0, 0.0))),
                     "belief": rt.best_exit(),
                     "confidence": round(
                         rt.beliefs.confidence(rt.best_exit()) if rt.best_exit() else 0.0, 3
                     ),
+                    # Croyance complète : le client n'a pas à la reconstruire
+                    # depuis les décisions, et peut colorer un dégradé.
+                    "beliefs": rt.beliefs.snapshot(),
+                    "entropy": round(rt.beliefs.entropy(n_exits), 3),
                     "intention": rt.intention.kind if rt.intention else None,
+                    "intention_target": rt.intention.target if rt.intention else None,
                     "evacuated": rt.evacuated,
+                    "kin": rt.kin,
+                    "decided_at": rt.last_decision_tick,
+                    # Ce que l'agent a perçu : « smoke », « announcement »,
+                    # « closed:A », « missing_kin ».
+                    "perceived": sorted(rt.known_signals),
                 }
                 for aid, rt in sorted(self._agents.items())
             ],

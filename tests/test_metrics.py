@@ -12,6 +12,7 @@ from maree.metrics.indicators import (
     belief_gap,
     compute,
     consensus,
+    density_cells,
     max_density,
     mean_entropy,
 )
@@ -64,6 +65,13 @@ def test_densite_ignore_les_evacues() -> None:
     assert max_density(agents) == 0.0
 
 
+def test_density_cells_donne_lorigine_de_chaque_cellule() -> None:
+    """Le client dessine à partir de (x, y) en mètres, pas d'un index."""
+    cells = density_cells([(1.1, 1.1), (1.4, 1.4), (8.0, 8.0)], cell=1.0)
+    assert cells == [{"x": 1.0, "y": 1.0, "n": 2}, {"x": 8.0, "y": 8.0, "n": 1}]
+    assert density_cells([], cell=1.0) == []
+
+
 def test_ecart_de_croyance_le_piege() -> None:
     """Trois agents croient en A, une seule en B : A vient de fermer."""
     agents = [_agent("1", best="A"), _agent("2", best="A"), _agent("3", best="A"), _agent("4", best="B")]
@@ -80,9 +88,22 @@ def test_compute_produit_les_six_indicateurs(plan: Plan) -> None:
     assert ind.tick == 12
     assert ind.i3_evacuated == pytest.approx(1 / 3)
     assert ind.i1_consensus == pytest.approx(1.0)
-    assert ind.counts == {"agents": 3, "evacuated": 1, "remaining": 2}
+    assert ind.counts == {
+        "agents": 3,
+        "evacuated": 1,
+        "remaining": 2,
+        "by_belief": {"A": 2, "B": 0, "C": 0, "aucune": 0},
+    }
     payload = ind.to_dict()
     assert payload["I4_seconds"] == 120.0
+    assert payload["counts"]["by_belief"]["A"] == 2
+
+
+def test_by_belief_compte_les_ignorants_a_part(plan: Plan) -> None:
+    """Un agent sans croyance n'est pas un agent de plus sur une sortie."""
+    agents = [_agent("1", best="A"), _agent("2"), _agent("3")]
+    ind = compute(agents, plan, open_exits={"A", "B", "C"}, tick=1, elapsed_s=10.0)
+    assert ind.counts["by_belief"] == {"A": 1, "B": 0, "C": 0, "aucune": 2}
 
 
 def test_compute_sur_liste_vide_ne_divise_pas_par_zero(plan: Plan) -> None:

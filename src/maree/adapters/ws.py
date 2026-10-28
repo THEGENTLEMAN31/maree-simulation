@@ -12,10 +12,21 @@ C'est la même source de vérité que le rejeu E3, vue par un autre bout.
 Protocole (JSON, un objet par trame) :
 
     {"type": "hello",      "run_id": …, "plan": {…}}
+    {"type": "world",      "kind": "smoke"|"announcement"|"exit_closed", …}
+    {"type": "decision",   "tick": …, "agent_id": …, "kind": "llm"|"rules", …}
+    {"type": "message",    "tick": …, "from": …, "to": […], "content": …}
+    {"type": "evacuated",  "tick": …, "agent_id": …, …}
     {"type": "snapshot",   "tick": …, "sim_time": …, "agents": […], …}
     {"type": "indicators", "I1_consensus": …, …}
     {"type": "narrative",  "text": …, "tick": …}
     {"type": "end",        "ticks": …}
+
+L'ordre est celui du journal : pour un tick donné, les décisions et les
+messages précèdent l'instantané, qui précède les indicateurs. Un client
+peut donc animer « X décide » puis « voilà le nouvel état ».
+
+Les trames `decision` portent le prompt LLM **seulement** si le serveur a
+été lancé avec `--prompts` : ~3 Ko par décision, inutile pour dessiner.
 """
 
 from __future__ import annotations
@@ -25,8 +36,15 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from maree.domain.events import EventType
+from maree.domain.events import Event, EventType
 from maree.ports import JournalPort
+
+#: Événements de monde qui deviennent des trames `world` typées.
+_WORLD_KINDS = {
+    EventType.WORLD_SMOKE: "smoke",
+    EventType.ANNOUNCEMENT: "announcement",
+    EventType.EXIT_CLOSED: "exit_closed",
+}
 
 
 class JournalStreamer:
@@ -39,6 +57,7 @@ class JournalStreamer:
         host: str = "0.0.0.0",
         port: int = 8765,
         speed: float = 5.0,
+        include_prompts: bool = False,
     ) -> None:
         self._journal = journal
         self._run_id = run_id
@@ -47,6 +66,16 @@ class JournalStreamer:
         self._port = port
         #: ticks par seconde ; 0 = aussi vite que possible.
         self._speed = speed
+        #: Inclure le prompt LLM dans les trames `decision` (~3 Ko chacune).
+        self._include_prompts = include_prompts
+
+    def _decision_frame(self, event: Event) -> dict[str, Any]:
+        data = dict(event.data)
+        if not self._include_prompts:
+            llm = data.get("llm")
+            if isinstance(llm, dict):
+                data["llm"] = {k: v for k, v in llm.items() if k != "prompt"}
+        return {"type": "decision", "tick": event.t_prod, **data}
 
     async def _frames(self) -> AsyncIterator[dict[str, Any]]:
         """Rejoue le journal, puis attend les événements suivants.
@@ -70,6 +99,19 @@ class JournalStreamer:
                         await asyncio.sleep(delay)
                 elif event.type is EventType.INDICATORS:
                     yield {"type": "indicators", **event.data}
+                elif event.type is EventType.DECISION:
+                    yield self._decision_frame(event)
+                elif event.type is EventType.MESSAGE_SENT:
+                    yield {"type": "message", "tick": event.t_prod, **event.data}
+                elif event.type is EventType.EVACUATED:
+                    yield {"type": "evacuated", "tick": event.t_prod, **event.data}
+                elif event.type in _WORLD_KINDS:
+                    yield {
+                        "type": "world",
+                        "tick": event.t_prod,
+                        "kind": _WORLD_KINDS[event.type],
+                        **event.data,
+                    }
                 elif event.type is EventType.NARRATIVE:
                     yield {
                         "type": "narrative",

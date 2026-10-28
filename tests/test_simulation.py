@@ -172,6 +172,60 @@ async def test_tous_les_agents_finissent_par_sortir(tmp_path: Path) -> None:
     assert last.counts["remaining"] == 0
 
 
+async def test_l_instantane_porte_la_cognition_pour_l_interface(tmp_path: Path) -> None:
+    """Le client 2D doit dessiner la croyance, pas seulement des positions."""
+    _, journal, _, _ = await _run(tmp_path, "run_snap")
+    snaps = [e for e in journal.read("run_snap") if str(e.type) == "world.snapshot"]
+    assert snaps
+    first = snaps[0].data
+    assert set(first) >= {
+        "tick",
+        "sim_time",
+        "exits_open",
+        "smoke_active",
+        "density_grid",
+        "agents",
+    }
+    assert first["smoke_active"] is False
+
+    agent = first["agents"][0]
+    assert set(agent) >= {
+        "id",
+        "profile",
+        "label",
+        "kind",
+        "pos",
+        "belief",
+        "confidence",
+        "beliefs",
+        "entropy",
+        "intention",
+        "intention_target",
+        "evacuated",
+        "kin",
+        "decided_at",
+        "perceived",
+    }
+    assert agent["kind"] == "rules"
+    assert agent["beliefs"], "la table complète, pas seulement l'argmax"
+    assert isinstance(agent["perceived"], list)
+
+    # Grille de densité prête à dessiner : origine en mètres + effectif.
+    cells = first["density_grid"]
+    assert cells and all({"x", "y", "n"} <= set(c) for c in cells)
+    assert sum(c["n"] for c in cells) == len(first["agents"])
+
+
+async def test_la_fumee_reste_visible_dans_les_instantanes(tmp_path: Path) -> None:
+    """Un client qui se connecte après la fumée doit encore la voir."""
+    _, journal, _, _ = await _run(tmp_path, "run_smoke")
+    snaps = [
+        e.data for e in journal.read("run_smoke") if str(e.type) == "world.snapshot"
+    ]
+    assert snaps[0]["smoke_active"] is False
+    assert any(s["smoke_active"] for s in snaps[1:])
+
+
 async def test_deux_runs_de_meme_graine_sont_identiques(tmp_path: Path) -> None:
     first, journal_a, _, _ = await _run(tmp_path, "run_c1", seed=7)
     second, journal_b, _, _ = await _run(tmp_path, "run_c2", seed=7)

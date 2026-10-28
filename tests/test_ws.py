@@ -66,3 +66,92 @@ async def test_run_sans_fin_ne_bloque_pas_le_generateur(tmp_path: Path) -> None:
     first = await anext(frames)
     assert first["type"] == "snapshot"
     await frames.aclose()
+
+
+def _journal_cognition(tmp_path: Path) -> JsonlJournal:
+    """Un run qui contient de la cognition, pas seulement des positions."""
+    journal = JsonlJournal(tmp_path)
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _event(2, EventType.WORLD_SMOKE, {"position": [44.0, 15.0], "radius": 15.0}, tick=1),
+        _event(3, EventType.EXIT_CLOSED, {"exit": "A"}, tick=2),
+        _event(4, EventType.ANNOUNCEMENT, {"text": "Évacuation."}, tick=3),
+        _event(
+            5,
+            EventType.DECISION,
+            {
+                "agent_id": "A01",
+                "kind": "llm",
+                "trigger": "fumee",
+                "reason": "je sors par B",
+                "intention": {"kind": "go_exit", "target": "B"},
+                "beliefs": {"B": {"confidence": 0.8}},
+                "density": 1.2,
+                "llm": {"prompt": "un prompt de trois kilo-octets", "response": "go_exit B"},
+            },
+            tick=1,
+        ),
+        _event(
+            6,
+            EventType.MESSAGE_SENT,
+            {"from": "A01", "to": ["A02"], "content": "il faut sortir"},
+            tick=1,
+        ),
+        _event(7, EventType.EVACUATED, {"agent_id": "A02", "kind": "exit"}, tick=2),
+        _event(8, EventType.SNAPSHOT, {"tick": 2, "agents": []}, tick=2),
+        _event(9, EventType.RUN_ENDED, {"ticks": 2}, tick=2),
+    ]
+    for event in events:
+        journal.append(event)
+    return journal
+
+
+async def _frames_of(streamer: JournalStreamer) -> list[dict]:
+    frames = []
+    async for frame in streamer._frames():
+        frames.append(frame)
+        if len(frames) > 50:  # garde-fou : ne doit jamais boucler
+            break
+    return frames
+
+
+async def test_les_evenements_de_cognition_sont_diffuses(tmp_path: Path) -> None:
+    """Sans ces trames, le client ne peut montrer que des points qui bougent."""
+    streamer = JournalStreamer(_journal_cognition(tmp_path), RUN, plan={}, speed=0)
+    frames = await _frames_of(streamer)
+    assert [f["type"] for f in frames] == [
+        "world",      # fumée
+        "world",      # sortie A fermée
+        "world",      # annonce
+        "decision",
+        "message",
+        "evacuated",
+        "snapshot",
+        "end",
+    ]
+    kinds = [f.get("kind") for f in frames if f["type"] == "world"]
+    assert kinds == ["smoke", "exit_closed", "announcement"]
+
+    decision = next(f for f in frames if f["type"] == "decision")
+    assert decision["agent_id"] == "A01"
+    assert decision["tick"] == 1
+    assert decision["intention"]["target"] == "B"
+
+    message = next(f for f in frames if f["type"] == "message")
+    assert message["to"] == ["A02"]
+
+
+async def test_le_prompt_nest_pas_diffuse_par_defaut(tmp_path: Path) -> None:
+    """~3 Ko par décision : inutile pour dessiner, donc hors du flux."""
+    streamer = JournalStreamer(_journal_cognition(tmp_path), RUN, plan={}, speed=0)
+    decision = next(f for f in await _frames_of(streamer) if f["type"] == "decision")
+    assert "prompt" not in decision["llm"]
+    assert decision["llm"]["response"] == "go_exit B"
+
+
+async def test_le_prompt_est_diffuse_si_demande(tmp_path: Path) -> None:
+    streamer = JournalStreamer(
+        _journal_cognition(tmp_path), RUN, plan={}, speed=0, include_prompts=True
+    )
+    decision = next(f for f in await _frames_of(streamer) if f["type"] == "decision")
+    assert decision["llm"]["prompt"] == "un prompt de trois kilo-octets"
