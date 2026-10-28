@@ -105,6 +105,14 @@ rejouable de bout en bout.
 - La publication de ports est cassée dans cet environnement. Seul le
   relais sur **16080** fonctionne (`~/.local/share/maree-relay/`).
 - `apt-get` n'a **pas** de réseau pendant les builds. PyPI fonctionne.
+- Le conteneur `maree-llama-cpp` tourne ici sur **8080** avec le preset
+  du dépôt (8192/4), lancé à la main. `docker compose up` reconstruirait
+  l'image (apt sans réseau) et la publication de ports est cassée. Le
+  8080 de l'hôte appartient à `llama-stack.service` : depuis l'hôte, on
+  joint le conteneur par son IP (`172.19.0.3:8080`), pas par `localhost`.
+- `MAREE_LLM_URL` est la variable lue par `configs/llm/llamacpp.yaml`.
+  Le compose exportait `MAREE_LLM_BASE_URL`, que **personne** ne lisait :
+  le run retombait silencieusement sur l'URL par défaut.
 - Ne pas ajouter de service Godot dans `docker-compose.yml` : le rendu
   OpenGL en container exige X ou noVNC pour un gain nul. Godot tourne sur
   l'hôte.
@@ -146,10 +154,17 @@ rejouable de bout en bout.
 | Run 60 agents à règles, piège (v2) | 90 ticks, 1 376 événements, 1,6 s, **54/60** (6 visiteurs piégés) | `run_trap_05` |
 | Décisions, scénario piège | **271** (dont 24 `sortie_fermee`, 132 périodiques) | `run_trap_05` |
 | Protocole X1, 1 graine × 2 bras | clair **190 s** / ambigu **550 s** (I4) | `experiment_x1` |
+| Preset 8192/4 (E2B) + bge-m3 | `n_slots = 4`, `n_ctx_slot = 2048`, **1 980 Mo / 4 096** | `nvidia-smi`, RTX 3050 |
+| Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
+| Run hybride 12 LLM + 48 règles, démo | 72 ticks, **101 appels / 101 succès**, 66 s, 57/60 | `run_hybrid_03` |
+| Récits du chroniqueur | 14, **0 repli**, chiffres conformes au digest | `run_hybrid_03` |
+| `maree index` sur le corpus réel | 215 passages en **7 s** | bge-m3, `data/rag` |
 
-**Non mesuré en v2** : le run hybride 12 LLM + 48 règles de bout en bout.
-Le chemin est câblé et testé unitairement, mais il faut un GPU pour le
-confirmer.
+**Le KV cache de 4 slots tient** : 1 980 Mo sur 4 096, 2,1 Go libres.
+Le repli `parallel=2` n'est pas nécessaire.
+
+**Non mesuré en v2** : aucun protocole X complet (≥ 5 graines), le bras
+E4B, et la reproductibilité exacte d'un run LLM (voir §6).
 
 ---
 
@@ -171,12 +186,29 @@ uv run maree experiment --name x1 --seeds 3
 
 ## 6. Ce qui reste ouvert
 
-- **Premier `make up`** : vérifier que le KV cache de 4 slots tient dans
-  4 Go. Repli prévu : `parallel=2`.
-- **Index RAG** : `maree index` n'a jamais tourné (pas de GPU ici). La
-  mécanique (build/save/load/retrieve, filtres, centrage, repli lexical)
-  est couverte par `tests/test_retrieval.py` avec un encodeur factice ;
-  la qualité sémantique de bge-m3, elle, n'est pas mesurée.
+- **`make up`** : le KV cache de 4 slots tient (1 980 Mo / 4 096), le
+  repli `parallel=2` est inutile. Mais `docker compose up` n'est pas
+  utilisable tel quel ici : l'image `maree/llama-cpp:b11609` devrait être
+  reconstruite (apt sans réseau) et la publication de ports est cassée.
+  Le conteneur a été relancé à la main sur 8080 avec le preset du dépôt.
+- **Index RAG** : `maree index` tourne (215 passages, 7 s). La qualité
+  sémantique de bge-m3 est bonne sur trois requêtes témoins (fumée →
+  annonce + souvenir ; sortie A fermée → souvenir de fermeture + plan),
+  mais elle n'est pas mesurée par un jeu de questions annotées.
+- **Reproductibilité LLM** : deux runs de même configuration ne donnent
+  pas le même nombre d'appels (99 puis 90) ni les mêmes sorties, malgré
+  les graines SHA-256. Le batching concurrent change l'ordre et les
+  flottants. Le journal reste rejouable (on rejoue les décisions), mais
+  une ré-exécution n'est pas identique : les expériences doivent agréger
+  plusieurs graines, pas comparer deux runs appariés.
+- **Intention `follow`** : quatre agents LLM restent figés dessus jusqu'à
+  `max_ticks` (57/60 sortis). Elle ne se résout jamais en sortie quand le
+  meneur est lui-même immobile. À borner (déchéance vers `go_exit`).
+- **Sorties prématurées** : en hybride, 6 à 12 agents franchissent une
+  issue **avant** la fumée (t9), parce que `search`/`go_zone`/`follow`
+  les font traverser le polygone de sortie. En règles seules, aucune
+  sortie avant t12. Cela contamine la phase « avant » et la courbe
+  d'évacuation.
 - **Godot** : le client n'a pas été ouvert dans l'éditeur (`godot` absent
   de l'hôte). Le protocole WebSocket, lui, est testé. Relu à la main :
   `Node2D` n'a **pas** de `size` (c'est `Control`) — utiliser

@@ -113,7 +113,7 @@ services:
     environment:
       MAREE_KAFKA_BOOTSTRAP: redpanda:29092
       MAREE_SCHEMA_REGISTRY: http://redpanda:8081
-      MAREE_LLM_BASE_URL: http://llama-cpp:8080/v1
+      MAREE_LLM_URL: http://llama-cpp:8080/v1
       MAREE_RUNS_DIR: /runs
     volumes:
       - ./runs:/runs
