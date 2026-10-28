@@ -69,7 +69,7 @@ topics:  ## crée les topics Redpanda
 run:  ## un run de démonstration
 	uv run maree run run=demo
 
-run-e2e:  ## le scénario du piège (A se ferme à t40)
+run-e2e:  ## le scénario du piège (A se ferme à t14)
 	uv run maree run run=e2e
 
 smoke:  ## run complet sans LLM ni GPU (60 agents à règles)

@@ -161,7 +161,9 @@ uv run maree experiment --name x1 --seeds 3
   est couverte par `tests/test_retrieval.py` avec un encodeur factice ;
   la qualité sémantique de bge-m3, elle, n'est pas mesurée.
 - **Godot** : le client n'a pas été ouvert dans l'éditeur (`godot` absent
-  de l'hôte). Le protocole WebSocket, lui, est testé.
+  de l'hôte). Le protocole WebSocket, lui, est testé. Relu à la main :
+  `Node2D` n'a **pas** de `size` (c'est `Control`) — utiliser
+  `get_viewport_rect().size`.
 - **X1–X7** : `experiment` tourne (X1 vérifié sur 1 graine × 2 bras),
   mais aucun protocole complet (≥ 5 graines) n'a été exécuté.
 - **Le suivi d'agent** vise la position du meneur au moment de la

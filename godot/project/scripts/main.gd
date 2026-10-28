@@ -13,7 +13,7 @@ extends Node2D
 ##   * un contour blanc signale l'agent sélectionné ;
 ##   * le panneau de droite montre ses croyances chiffrées.
 
-const PX_PER_M := 14.0
+const PX_PER_M := 11.0
 const MARGIN := 16.0
 const PANEL_W := 300.0
 
@@ -84,7 +84,8 @@ func _handle(text: String) -> void:
 # Dessin
 # ------------------------------------------------------------------
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.06, 0.08))
+	var view := _viewport()
+	draw_rect(Rect2(Vector2.ZERO, view), Color(0.05, 0.06, 0.08))
 	if _plan.is_empty():
 		_text(Vector2(MARGIN, 40), "En attente du plan… (%s)" % _status, 16)
 		return
@@ -128,6 +129,7 @@ func _draw_agents() -> void:
 
 
 func _draw_hud() -> void:
+	var view := _viewport()
 	var tick := int(_snap.get("tick", 0))
 	var sim_time := str(_snap.get("sim_time", "0:00"))
 	var agents: Array = _snap.get("agents", [])
@@ -151,18 +153,19 @@ func _draw_hud() -> void:
 		13,
 		DIM,
 	)
-	_text(Vector2(size.x - PANEL_W - 210, 26), _status, 13, DIM)
+	_text(Vector2(view.x - PANEL_W - 210, 26), _status, 13, DIM)
 
-	var y := size.y - 16.0 - float(max(_narratives.size() - 1, 0)) * 18.0
+	var y := view.y - 16.0 - float(max(_narratives.size() - 1, 0)) * 18.0
 	for line in _narratives:
 		_text(Vector2(MARGIN, y), line, 13, Color(0.72, 0.76, 0.80))
 		y += 18.0
 
 
 func _draw_inspector() -> void:
-	var x := size.x - PANEL_W
-	draw_rect(Rect2(Vector2(x, 0), Vector2(PANEL_W, size.y)), Color(0.08, 0.09, 0.11))
-	draw_line(Vector2(x, 0), Vector2(x, size.y), Color(0.18, 0.20, 0.24), 1.0)
+	var view := _viewport()
+	var x := view.x - PANEL_W
+	draw_rect(Rect2(Vector2(x, 0), Vector2(PANEL_W, view.y)), Color(0.08, 0.09, 0.11))
+	draw_line(Vector2(x, 0), Vector2(x, view.y), Color(0.18, 0.20, 0.24), 1.0)
 
 	var agent := _agent_by_id(_selected)
 	if agent.is_empty():
@@ -189,6 +192,11 @@ func _draw_inspector() -> void:
 # ------------------------------------------------------------------
 # Utilitaires
 # ------------------------------------------------------------------
+func _viewport() -> Vector2:
+	# Node2D n'a pas de `size` : c'est une propriété de Control.
+	return get_viewport_rect().size
+
+
 func _to_screen(point: Variant) -> Vector2:
 	var height := float(_plan.get("height", 40.0))
 	return Vector2(float(point[0]) * PX_PER_M, (height - float(point[1])) * PX_PER_M)
