@@ -157,7 +157,7 @@ confirmer.
 
 ```bash
 uv sync --all-extras          # venv + deps
-uv run pytest                 # 102 tests, sans GPU
+uv run pytest                 # 114 tests, sans GPU
 uv run maree run population=rules_only bus.backend=memory narrative.enabled=false
 uv run maree serve            # WebSocket sur 8765
 godot --path godot/project    # client
