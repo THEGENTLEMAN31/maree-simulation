@@ -179,6 +179,20 @@ rejouable de bout en bout.
   `LANGCHAIN_TRACING_V2=false uv run maree experiment …`. La variable est
   dans le profil de l'utilisateur, pas dans le dépôt — ne pas la
   « corriger » dans le code, il n'y a rien à y corriger.
+- **Le port 22 sortant est bloqué** (constaté après le reboot du
+  2026-10-29 : `ssh: connect to host github.com port 22: Connection
+  timed out`). GitHub répond sur `ssh.github.com:443`, mais
+  `~/.ssh/config` ne déclare que `Host github.com` — la clé n'est donc
+  pas choisie pour `ssh.github.com` (`Permission denied (publickey)`).
+  Pour pousser sans toucher au profil de l'utilisateur :
+
+  ```bash
+  GIT_SSH_COMMAND="ssh -i ~/.ssh/id_github -o IdentitiesOnly=yes" \
+    git -c url."ssh://git@ssh.github.com:443/".insteadOf="git@github.com:" push
+  ```
+
+  `-i` est obligatoire : sans lui, ssh essaie `id_ed25519` et `id_rsa`,
+  qui ne sont pas autorisées sur ce dépôt.
 
 ### Docker
 
