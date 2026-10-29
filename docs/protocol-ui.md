@@ -302,7 +302,7 @@ C'est un **fait physique**, pas une décision. Un agent peut décider
 `pos` est un point par tick. Pour une animation fluide, **interpoler**
 entre deux instantanés ; ne pas sauter.
 
-### `indicators` — les six mesures
+### `indicators` — les sept mesures
 
 ```json
 {
@@ -314,6 +314,7 @@ entre deux instantanés ; ne pas sauter.
   "I4_seconds": 100.0,
   "I5_max_density": 2.0,
   "I6_belief_gap": 0.0,
+  "I7_delay_seconds": 0.0,
   "counts": {
     "agents": 60,
     "evacuated": 0,
@@ -331,9 +332,16 @@ entre deux instantanés ; ne pas sauter.
 | `I4_seconds` | temps simulé écoulé | durée |
 | `I5_max_density` | densité locale max, noyau de 2 m (pers/m²) | le goulot |
 | `I6_belief_gap` | part des agents croyant à une sortie **fermée** | le piège |
+| `I7_delay_seconds` | temps écoulé entre le **premier signal de danger** (fumée, annonce, fermeture) et le dernier sorti | la réactivité ; 0 tant qu'il n'y a pas eu de signal ou de sortie |
 
 `by_belief` compte les agents **actifs** par sortie crue ; `aucune` est
 explicite (un agent qui ne sait rien n'est pas un agent de plus sur A).
+
+`I4_seconds` est une horloge : c'est le temps simulé depuis t0, donc il
+mesure surtout **l'heure du signal**. `I7_delay_seconds` enlève cette
+heure de l'équation et reste défini quand un run est interrompu à
+`max_ticks`. Afficher les deux : I4 dit « quand », I7 dit « combien de
+temps ».
 
 ### `narrative` — le récit du chroniqueur
 
@@ -374,7 +382,7 @@ pourtant terminée.
 | `world kind=smoke` + `smoke_active` | disque de fumée |
 | `message` | arc émetteur → `to`, qui s'efface |
 | `decision` | panneau « pourquoi » : `trigger`, `reason`, `kind` |
-| `indicators` | 6 jauges + barres empilées `by_belief` |
+| `indicators` | 7 jauges + barres empilées `by_belief` |
 | `I6_belief_gap` | alerte : des agents croient en une sortie fermée |
 | `narrative` | bandeau de récit |
 

@@ -19,7 +19,7 @@
 experiment:
   id: X5
   hypothesis: H5
-  indicators: [I1_consensus, I2_entropy, I4_seconds]
+  indicators: [I1_consensus, I2_entropy, I3_evacuated, I7_delay]
   arms:
     - name: avec_memoire
       description: rappel de 5 épisodes

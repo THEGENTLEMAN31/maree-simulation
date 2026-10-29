@@ -16,7 +16,7 @@
 experiment:
   id: X7
   hypothesis: H7
-  indicators: [I2_entropy, I1_consensus, I4_seconds]
+  indicators: [I2_entropy, I1_consensus, I3_evacuated, I7_delay]
   arms:
     - name: avec_rag
       description: bge-m3 + FAISS, filtré par profil et par tick

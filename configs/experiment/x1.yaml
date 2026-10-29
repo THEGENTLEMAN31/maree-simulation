@@ -24,7 +24,7 @@
 experiment:
   id: X1
   hypothesis: H1
-  indicators: [I4_seconds, I1_consensus, I2_entropy]
+  indicators: [I3_evacuated, I7_delay, I1_consensus, I2_entropy]
   arms:
     - name: clair_tot
       description: annonce explicite à T+2 min

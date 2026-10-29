@@ -172,6 +172,22 @@ async def test_tous_les_agents_finissent_par_sortir(tmp_path: Path) -> None:
     assert last.counts["remaining"] == 0
 
 
+async def test_i7_relie_le_premier_signal_au_dernier_sorti(tmp_path: Path) -> None:
+    """I7 est câblé dans la boucle, pas seulement dans `compute`.
+
+    Le signal est la fumée de t3 ; le dernier sorti est le dernier
+    `agent.evacuated`. Sans ce test, un câblage oublié laisserait I7 à 0
+    dans tous les runs — ce qui ressemble à « personne n'est sorti ».
+    """
+    result, journal, _, _ = await _run(tmp_path, "run_i7")
+    events = journal.read("run_i7")
+    signal = min(e.t_prod for e in events if str(e.type) == "world.smoke")
+    last = max(e.t_prod for e in events if str(e.type) == "agent.evacuated")
+    final = result.indicators[-1].to_dict()
+    assert final["I7_delay_seconds"] == pytest.approx((last - signal) * 10.0)
+    assert final["I7_delay_seconds"] > 0
+
+
 async def test_l_instantane_porte_la_cognition_pour_l_interface(tmp_path: Path) -> None:
     """Le client 2D doit dessiner la croyance, pas seulement des positions."""
     _, journal, _, _ = await _run(tmp_path, "run_snap")

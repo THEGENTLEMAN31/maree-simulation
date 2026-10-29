@@ -1,4 +1,4 @@
-"""Indicateurs I1..I6.
+"""Indicateurs I1..I7.
 
 Chaque indicateur est une fonction pure d'un état d'agents + du plan.
 Aucun ne lit le journal : c'est le rôle de `engine/replay.py` de fournir
@@ -7,9 +7,22 @@ l'état. Ainsi, le même code sert au direct et au rejeu (décision 16).
     I1  consensus        part des agents qui partagent la croyance majoritaire
     I2  entropie         incertitude moyenne des croyances (normalisée 0..1)
     I3  évacués          part des agents sortis
-    I4  temps            durée d'évacuation observée (s)
+    I4  temps            temps simulé écoulé depuis t0 (s)
     I5  densité max      densité locale maximale (pers/m²) — le goulot
     I6  écart            part des agents croyant en une sortie fermée
+    I7  délai            premier signal de danger → dernier sorti (s)
+
+I4 et I7 ne mesurent pas la même chose. I4 est une horloge : le temps
+simulé depuis t0, qui inclut l'attente avant le premier signal et se
+fige au plafond `max_ticks` dès qu'une partie de la foule ne sort pas
+(X1 ambigu : I4 = 720 s pour un dernier sorti à t31). I7 part du premier
+signal de danger et s'arrête au dernier sorti : il reste défini sous
+censure. Il ne retire pas l'heure de l'annonce du délai — dans X1 la
+fumée de t5 est le premier signal pour tous les bras, donc I7 = I4 − 50 s
+— il retire le temps d'avant-signal et le plancher de censure. Le signal
+est le premier événement de danger du monde (fumée, annonce, fermeture
+d'issue), pas le premier agent qui bouge : un guide ou un proche cherché
+peut partir avant tout danger.
 """
 
 from __future__ import annotations
@@ -47,6 +60,7 @@ class Indicators:
     i5_max_density: float
     i6_belief_gap: float
     counts: dict[str, Any] = field(default_factory=dict)
+    i7_delay_seconds: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +71,7 @@ class Indicators:
             "I4_seconds": round(self.i4_seconds, 1),
             "I5_max_density": round(self.i5_max_density, 3),
             "I6_belief_gap": round(self.i6_belief_gap, 4),
+            "I7_delay_seconds": round(self.i7_delay_seconds, 1),
             "counts": self.counts,
         }
 
@@ -147,6 +162,8 @@ def compute(
     open_exits: set[ExitId],
     tick: int,
     elapsed_s: float,
+    signal_s: float | None = None,
+    last_exit_s: float | None = None,
 ) -> Indicators:
     n_exits = len(plan.exits)
     active = [a for a in agents if not a.evacuated]
@@ -158,6 +175,13 @@ def compute(
     for a in active:
         key = str(a.belief_best) if a.belief_best is not None else "aucune"
         by_belief[key] = by_belief.get(key, 0) + 1
+    # I7 — de combien de temps la foule met à sortir **à partir du premier
+    # signal de danger**. L'heure du signal est retirée : sinon X1 compare
+    # deux heures d'annonce (t17 → 200 s, t30 → 320 s) et appelle ça une
+    # dynamique.
+    delay = 0.0
+    if signal_s is not None and last_exit_s is not None:
+        delay = max(0.0, last_exit_s - signal_s)
     return Indicators(
         tick=tick,
         i1_consensus=consensus(a.belief_best for a in active),
@@ -166,6 +190,7 @@ def compute(
         i4_seconds=elapsed_s,
         i5_max_density=max_density(active),
         i6_belief_gap=belief_gap(agents, open_exits),
+        i7_delay_seconds=delay,
         counts={
             "agents": len(agents),
             "evacuated": len(agents) - len(active),
@@ -183,9 +208,10 @@ def summarise(series: Sequence[Mapping[str, Any]]) -> dict[str, float]:
     Prendre `series[-1]` comme résultat d'expérience ne mesurerait donc
     rien. On garde :
 
-        I3, I4   au dernier tick (évacuation finale, durée)
+        I3, I4   au dernier tick (évacuation finale, temps écoulé)
         I5, I6   au pic (le pire moment — c'est le piège qu'on étudie)
         I1, I2   en moyenne temporelle sur la partie **active** du run
+        I7       au dernier tick (délai signal de danger → dernier sorti)
 
     Le tick dégénéré est exclu de la moyenne : sinon un run de 19 ticks
     compte un zéro sur 19 et un run de 55 ticks un zéro sur 55 — les runs
@@ -200,6 +226,7 @@ def summarise(series: Sequence[Mapping[str, Any]]) -> dict[str, float]:
             "I4_seconds": 0.0,
             "I5_max_density": 0.0,
             "I6_belief_gap": 0.0,
+            "I7_delay_seconds": 0.0,
         }
 
     def values(key: str) -> list[float]:
@@ -223,4 +250,5 @@ def summarise(series: Sequence[Mapping[str, Any]]) -> dict[str, float]:
         "I4_seconds": float(last.get("I4_seconds", 0.0) or 0.0),
         "I5_max_density": max(values("I5_max_density")),
         "I6_belief_gap": max(values("I6_belief_gap")),
+        "I7_delay_seconds": float(last.get("I7_delay_seconds", 0.0) or 0.0),
     }

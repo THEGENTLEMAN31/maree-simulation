@@ -15,7 +15,7 @@ defaults:
 experiment:
   id: X2
   hypothesis: H2
-  indicators: [I6_belief_gap, I3_evacuated, I5_max_density]
+  indicators: [I6_belief_gap, I3_evacuated, I7_delay, I5_max_density]
   arms:
     - name: avec_meneurs
       description: 4 agents de sécurité guident

@@ -100,6 +100,29 @@ rejouable de bout en bout.
   (config `demo`, celle de X1, X3–X7), elle ne peut pas bouger. Seul X2
   passe `run: e2e` (fermeture de A à t14). Ne pas déclarer I6 dans un
   protocole qui ne ferme rien.
+- **I4 n'est pas une durée, c'est une horloge.** I4 = tick × 10 s : le
+  temps depuis t0, qui inclut l'attente avant le premier signal et se
+  fige au plafond `max_ticks` dès qu'une partie de la foule ne sort pas
+  (X1 ambigu : I4 = 720 s pour un dernier sorti à t31). **I7** (premier
+  signal de danger → dernier sorti) reste défini sous censure et ne
+  dépend plus de l'instant où l'on a commencé à compter. Il **ne retire
+  pas** l'heure de l'annonce du délai : dans X1 la fumée de t5 est le
+  premier signal pour tous les bras, donc I7 = I4 − 50 s ; il retire le
+  temps d'avant-signal et le plancher de censure. Le signal est le
+  premier **événement du monde** (fumée, annonce, fermeture), pas le
+  premier agent qui bouge : un guide ou un proche cherché part avant
+  tout danger. I4 est gardé : il dit « quand », I7 dit « combien de
+  temps ».
+- **Une cible validée contre le plan n'est pas une cible connue.** La
+  garde de `_to_intention` ne vérifiait que `target in plan.exits`. Un
+  visiteur, qui ne connaît que A, pouvait donc nommer B — et y aller.
+  Incidence mesurée sur la campagne pré-correctif : 108 décisions dans
+  X1, 349 dans X4, 12 dans X6. Toute cible `go_exit`/`guide` est
+  maintenant validée contre `Profile.knows()` ; si elle échoue, le
+  graphe replie sur les règles, qui ne choisissent que parmi
+  `_known_open`. **Corollaire** : deux tests de `test_graph.py`
+  passaient par la fuite (profil `visiteur` + cible B ou C) ; ils
+  utilisent désormais `habitue`.
 - **I5 sature à 2.0 avec 60 agents.** Grille de 1 m et séparation
   minimale de 0,4 m : au plus 2 agents par cellule. Le pic vaut 2 dans
   tous les runs, donc l'indicateur n'a aucune variance. À 60 agents, I5
@@ -166,7 +189,14 @@ rejouable de bout en bout.
   du dépôt (8192/4), lancé à la main. `docker compose up` reconstruirait
   l'image (apt sans réseau) et la publication de ports est cassée. Le
   8080 de l'hôte appartient à `llama-stack.service` : depuis l'hôte, on
-  joint le conteneur par son IP (`172.19.0.3:8080`), pas par `localhost`.
+  joint le conteneur par son IP, pas par `localhost`.
+- **L'IP du conteneur change au redémarrage de la machine.** Après un
+  reboot, `docker start maree-llama-cpp` (le conteneur est en
+  `Exited (255)`, pas de politique de redémarrage) puis relire l'IP :
+  `docker inspect maree-llama-cpp --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`.
+  Le 2026-10-29 elle est passée de `172.19.0.3` à `172.19.0.2` : un
+  `MAREE_LLM_URL` figé dans un script pointait dans le vide, et les runs
+  redevenaient des replis règles sans le dire.
 - `MAREE_LLM_URL` est la variable lue par `configs/llm/llamacpp.yaml`.
   Le compose exportait `MAREE_LLM_BASE_URL`, que **personne** ne lisait :
   le run retombait silencieusement sur l'URL par défaut.
@@ -213,10 +243,10 @@ rejouable de bout en bout.
 | Run 60 agents à règles, démo (v2) | 20 ticks, 1 023 événements, **0,8 s**, 60/60 sortis | `run_demo_02` |
 | Run 60 agents à règles, piège (v2) | 90 ticks, 1 204 événements, 1,1 s, **54/60** (6 visiteurs piégés) | `run_trap_07` |
 | Décisions, scénario piège | **259** (dont 22 `sortie_fermee`, 142 périodiques) | `run_trap_07` |
-| Protocole X1, 5 graines × 4 bras | clair_tôt **200 s**, ambigu_tôt **720 s** (3/5 censurés), clair_tard 320 s, ambigu_tard 430 s | `experiment_x1` |
-| Protocole X3, 5 graines × 2 bras | I1 et I5 **identiques**, mural **35,5 → 23,1 s** (×1,54, p = 0,0079) | `experiment_x3` |
-| Protocole X4, 5 graines × 3 bras | `llm_60` **60/60 sortis**, hybride et règles **4/5 censurés à 900 s** ; tous les piégés sont des agents à règles | `experiment_x4` |
-| Campagne X1–X7 | **85 runs, 4 216 appels LLM / 4 216 succès**, 0 repli | `runs/experiment_x*.json` |
+| Protocole X1, 5 graines × 4 bras | I7 clair_tôt **160 s**, ambigu_tôt **260 s** (4/5 censurés), clair_tard 280 s, ambigu_tard 270 s (3/5) ; I3 1,00 / 0,98 / 1,00 / 0,98 | `experiment_x1` |
+| Protocole X3, 5 graines × 2 bras | I1 et I5 **identiques**, I7 100 s des deux côtés, mural **34,0 → 20,9 s** (×1,63, p = 0,0117) | `experiment_x3` |
+| Protocole X4, 5 graines × 3 bras | `llm_60` **40/60 sortis** (5/5 censurés, 520 appels, 234,8 s), hybride 55/60 (5/5), règles 55/60 (4/5, 9,6 s) ; **tous les piégés sont des visiteurs** (17 à 23 sur 24 en tout-LLM) | `experiment_x4` |
+| Campagne X1–X7 | **115 runs, 6 906 appels LLM / 6 906 succès**, 0 repli, **0 cible hors savoir** sur 2 022 | `runs/experiment_x*.json` |
 | I5 par noyau de 2 m | 0,32 à 0,56 pers/m² (la grille de 1 m valait 2,0 partout) | campagne X1–X7 |
 | Preset 8192/4 (E2B) + bge-m3 | `n_slots = 4`, `n_ctx_slot = 2048`, **1 980 Mo / 4 096** | `nvidia-smi`, RTX 3050 |
 | Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
@@ -229,8 +259,8 @@ rejouable de bout en bout.
 Le repli `parallel=2` n'est pas nécessaire.
 
 **Non mesuré en v2** : le bras E4B, la reproductibilité exacte d'un run
-LLM (voir §6), et les effets de taille modeste (X5, X6, X7) qui
-demandent 10 graines pour être tranchés.
+LLM (voir §6), et X2 à 10 graines (l'écart I7 de 220 contre 150 s,
+p = 0,083, n'est pas tranché).
 
 ---
 
@@ -254,12 +284,14 @@ Depuis l'hôte, `experiment` exige deux choses, sinon il échoue ou ment :
 - `bus.backend=memory` — le bus Kafka pointe sur `redpanda:9092`, qui ne
   résout pas hors compose (`KafkaConnectionError: No connection to node
   with id 0`, au premier `run.started`) ;
-- `MAREE_LLM_URL=http://172.19.0.3:8080/v1` — sans lui, le client vise
-  `llama-cpp:8080`, tous les appels échouent et les 10 runs sont des
-  replis règles qui *ressemblent* à des résultats.
+- `MAREE_LLM_URL=http://<ip-du-conteneur>:8080/v1` — sans lui, le client
+  vise `llama-cpp:8080`, tous les appels échouent et les 10 runs sont des
+  replis règles qui *ressemblent* à des résultats. L'IP change au reboot
+  (voir §2) : la relire, ne pas la recopier.
 
 ```bash
-MAREE_LLM_URL=http://172.19.0.3:8080/v1 \
+MAREE_LLM_URL=http://$(docker inspect maree-llama-cpp \
+  --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):8080/v1 \
   uv run maree experiment --name x1 --seeds 5 bus.backend=memory
 ```
 
@@ -301,21 +333,30 @@ moteur.
   « connecté » juste après `end`, d'où « déconnecté » sur une diffusion
   pourtant terminée. Rappel : `Node2D` n'a **pas** de `size` (c'est
   `Control`) — utiliser `get_viewport_rect().size`.
-- **X1–X7** : campagne complète exécutée le 2026-10-28 (85 runs, 5
-  graines par bras, 4 216 appels LLM sans échec). Résultats :
-  `docs/resultats/rapport-v2.md` (tables) et `conclusions-v2.md`
-  (lecture par hypothèse). **I4 est censuré à `max_ticks`** dès qu'une
-  partie de la foule ne sort pas (X1 ambigu, X2, X4) : lire I3 avec.
-  I4 mesure surtout l'heure du signal, pas la dynamique.
-- **Fuite de connaissance côté LLM** : une cible `go_exit` est validée
-  contre le plan, pas contre les sorties connues du profil. Un visiteur
-  LLM peut donc nommer B (12 fois dans X6). Les agents à règles, eux,
-  passent par `_known_open`. À corriger.
+- **X1–X7** : campagne complète rejouée le 2026-10-29 (115 runs,
+  5 graines pour X1–X4 et 10 pour X5–X7, 6 906 appels LLM sans échec,
+  **0 cible hors savoir**). Résultats : `docs/resultats/rapport-v2.md`
+  (tables) et `conclusions-v2.md` (lecture par hypothèse). **I4 est
+  censuré à `max_ticks`** dès qu'une partie de la foule ne sort pas
+  (X1 ambigu, X2, X4) : lire I3 et I7 avec. La campagne du 2026-10-28
+  est conservée dans `runs/experiment_x*_avant_correctif.json` — elle
+  mesurait un modèle où un visiteur LLM pouvait nommer B.
+- **Le LLM n'aide pas les visiteurs** : en X4 `llm_60`, 17 à 23
+  visiteurs sur 24 restent piégés, contre 0 à 8 en tout-règles. Le
+  « 60/60 » de la campagne précédente était l'artefact de la fuite de
+  connaissance. À expliquer (déclencheurs, `search`, messages reçus) :
+  c'est la question ouverte la plus intéressante du modèle.
+- **La connaissance est statique** : la garde s'appuie sur
+  `Profile.knows`, comme `_known_open` pour les règles. Un message qui
+  dit « B est libre » n'ajoute pas B au savoir d'un visiteur. À trancher
+  si l'on veut un modèle où l'on apprend la géographie par ouï-dire.
 - **Le suivi d'agent** vise la position du meneur au moment de la
   décision, pas en continu.
 - **La fermeture d'issue** redirige vers un point d'arrêt, ce n'est pas
   une barrière physique.
-- **6 visiteurs restent piégés** dans le scénario `e2e` : c'est voulu
-  (ils ne connaissent que A), mais cela signifie que le run consomme
-  `max_ticks` et que le filet périodique les fait redécider jusqu'au
-  bout. À surveiller côté coût LLM.
+- **Les visiteurs restent piégés** dans le scénario `e2e` : c'est voulu
+  (ils ne connaissent que A, et A ferme à t14), mais le nombre dépend
+  fortement du bras — 0 à 8 en tout-règles, jusqu'à 23 en tout-LLM. Le
+  run consomme alors `max_ticks` et le filet périodique les fait
+  redécider jusqu'au bout : c'est là que passe le coût LLM (520 appels
+  pour `llm_60`).

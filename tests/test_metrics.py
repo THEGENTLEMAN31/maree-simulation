@@ -128,6 +128,46 @@ def test_compute_sur_liste_vide_ne_divise_pas_par_zero(plan: Plan) -> None:
     assert ind.i1_consensus == 0.0
 
 
+def test_i7_mesure_le_delai_pas_l_heure_du_signal(plan: Plan) -> None:
+    """I7 = dernier sorti − premier signal. L'heure du signal s'annule.
+
+    Deux runs identiques décalés de 500 s ont le même I7 : c'est ce que
+    I4 ne savait pas faire (X1 : annonce t17 → 200 s, t30 → 320 s, pour
+    un écoulement de 2 à 3 ticks dans les deux cas).
+    """
+    agents = [_agent("1", best="A", evacuated=True)]
+    tot = compute(
+        agents, plan, {"A"}, tick=20, elapsed_s=200.0, signal_s=170.0, last_exit_s=200.0
+    )
+    tard = compute(
+        agents, plan, {"A"}, tick=70, elapsed_s=700.0, signal_s=670.0, last_exit_s=700.0
+    )
+    assert tot.i7_delay_seconds == pytest.approx(30.0)
+    assert tard.i7_delay_seconds == pytest.approx(30.0)
+    assert tard.i4_seconds == pytest.approx(700.0)
+    assert tard.to_dict()["I7_delay_seconds"] == 30.0
+
+
+def test_i7_reste_defini_sur_un_run_censure(plan: Plan) -> None:
+    """Un run interrompu à `max_ticks` a quand même un délai d'écoulement.
+
+    I4 vaut alors le plafond (900 s) et ne veut plus rien dire ; I7 garde
+    la durée réelle entre le premier signal et le dernier sorti.
+    """
+    agents = [_agent("1", best="A")]
+    ind = compute(
+        agents, plan, {"B"}, tick=90, elapsed_s=900.0, signal_s=100.0, last_exit_s=280.0
+    )
+    assert ind.i4_seconds == pytest.approx(900.0)
+    assert ind.i7_delay_seconds == pytest.approx(180.0)
+
+
+def test_i7_vaut_zero_sans_signal(plan: Plan) -> None:
+    """Aucun signal de danger : pas de délai, pas un zéro trompeur."""
+    ind = compute([_agent("1")], plan, {"A", "B", "C"}, tick=5, elapsed_s=50.0)
+    assert ind.i7_delay_seconds == 0.0
+
+
 def test_summarise_ignore_le_dernier_tick_degenere() -> None:
     """Quand tout le monde est sorti, I1/I2/I5/I6 valent 0 : ce n'est pas le résultat.
 
@@ -142,7 +182,8 @@ def test_summarise_ignore_le_dernier_tick_degenere() -> None:
         {"I1_consensus": 0.8, "I2_entropy": 0.4, "I3_evacuated": 0.5,
          "I4_seconds": 240.0, "I5_max_density": 3.5, "I6_belief_gap": 0.62},
         {"I1_consensus": 0.0, "I2_entropy": 0.0, "I3_evacuated": 1.0,
-         "I4_seconds": 480.0, "I5_max_density": 0.0, "I6_belief_gap": 0.0},
+         "I4_seconds": 480.0, "I5_max_density": 0.0, "I6_belief_gap": 0.0,
+         "I7_delay_seconds": 300.0},
     ]
     summary = summarise(series)
     assert summary["I6_belief_gap"] == pytest.approx(0.62)
@@ -150,6 +191,7 @@ def test_summarise_ignore_le_dernier_tick_degenere() -> None:
     assert summary["I1_consensus"] == pytest.approx((0.4 + 0.8) / 2)
     assert summary["I3_evacuated"] == pytest.approx(1.0)
     assert summary["I4_seconds"] == pytest.approx(480.0)
+    assert summary["I7_delay_seconds"] == pytest.approx(300.0)
 
 
 def test_summarise_ne_penalise_pas_les_runs_courts() -> None:

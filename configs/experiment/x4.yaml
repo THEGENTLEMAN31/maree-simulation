@@ -22,7 +22,7 @@ defaults:
 experiment:
   id: X4
   hypothesis: H4
-  indicators: [I6_belief_gap, I4_seconds, llm_calls, wall_s]
+  indicators: [I6_belief_gap, I3_evacuated, I7_delay, llm_calls, wall_s]
   arms:
     - name: hybride_12
       description: 12 agents LLM, 48 à règles (configuration de référence)

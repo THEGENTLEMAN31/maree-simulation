@@ -79,9 +79,12 @@ async def test_un_appel_llm_rate_replie_sur_les_regles_et_le_dit(plan: Plan) -> 
 
 
 async def test_un_appel_reussi_ne_marque_pas_de_repli(plan: Plan) -> None:
+    # Profil « habitué » : il connaît B, donc la cible du LLM est valide.
+    # Un visiteur ne connaît que A — sa cible serait refusée, ce qui est
+    # le sujet de `test_une_sortie_inconnue_du_profil_replie_sur_les_regles`.
     intention, state = await _graph(WorkingLLM(), plan).decide(
         agent_id="A01",
-        profile=get_profile("visiteur"),
+        profile=get_profile("habitue"),
         percept=_percept(),
         trigger="fumee_visible",
     )
@@ -142,6 +145,52 @@ class FollowExitLLM:
         return []
 
 
+class UnknownExitLLM:
+    """Répond « aller à B » alors que le profil ne connaît que A."""
+
+    async def chat(self, messages: list[ChatMessage], *, seed: int, **kwargs) -> LLMResult:
+        return LLMResult(
+            text='{"action": "go_exit", "target": "B", "confidence": 0.9}',
+            prompt="…",
+            seed=seed,
+            model="factice",
+            ok=True,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_une_sortie_inconnue_du_profil_replie_sur_les_regles(plan: Plan) -> None:
+    """Un visiteur ne connaît que A : s'il nomme B, l'intention est refusée.
+
+    La cible était validée contre le plan, pas contre le savoir du profil.
+    Constaté en X6 : les agents LLM visiteurs ont choisi B 12 fois, alors
+    que les agents à règles visiteurs ne sortaient que par A (80
+    décisions). Le repli règles ne choisit que parmi `_known_open`.
+    """
+    intention, state = await _graph(UnknownExitLLM(), plan).decide(
+        agent_id="A01",
+        profile=get_profile("visiteur"),
+        percept=_percept(),
+        trigger="premiere_decision",
+    )
+    assert intention.target == "A"
+    assert state["fallback"] is True
+
+
+async def test_une_sortie_connue_du_profil_est_acceptee(plan: Plan) -> None:
+    """Le même « aller à B » est valide pour un habitué, qui connaît A, B et C."""
+    intention, state = await _graph(UnknownExitLLM(), plan).decide(
+        agent_id="A01",
+        profile=get_profile("habitue"),
+        percept=_percept(),
+        trigger="premiere_decision",
+    )
+    assert intention.target == "B"
+    assert not state.get("fallback")
+
+
 async def test_suivre_une_sortie_devient_y_aller(plan: Plan) -> None:
     """`follow C` se lit « suivre la foule vers C », donc aller à C.
 
@@ -151,7 +200,9 @@ async def test_suivre_une_sortie_devient_y_aller(plan: Plan) -> None:
     """
     intention, state = await _graph(FollowExitLLM(), plan).decide(
         agent_id="A01",
-        profile=get_profile("visiteur"),
+        # Habitué : C fait partie de ses sorties connues. Un visiteur ne
+        # connaît que A, et `follow C` y serait refusé (à juste titre).
+        profile=get_profile("habitue"),
         percept=_percept(),
         trigger="annonce",
     )

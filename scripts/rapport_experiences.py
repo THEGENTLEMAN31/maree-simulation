@@ -6,7 +6,10 @@ Lit `runs/experiment_x*.json` (une ligne par run) et les journaux
 pas :
 
     - qui sort en dernier (un agent LLM ou un agent à règles) — c'est ce
-      qui dit si I4 mesure la cognition ou la baseline ;
+      qui dit si la durée mesure la cognition ou la baseline ;
+    - le délai réel entre le premier signal de danger et le dernier
+      sorti (I7), qui ne dépend pas de l'heure de ce signal et reste
+      défini sous censure, publié à côté de I3 ;
     - quelles sorties les agents choisissent (par type d'agent) ;
     - combien d'annonces ont été réellement délivrées (un bras dont
       l'annonce tombe après la sortie ne mesure rien).
@@ -42,6 +45,7 @@ INDICATORS: dict[str, tuple[str, str, str]] = {
     "I4_seconds": ("I4", "I4 durée", "durée d'évacuation observée (s)"),
     "I5_max_density": ("I5", "I5 densité max", "densité locale max, noyau de 2 m (pers/m²)"),
     "I6_belief_gap": ("I6", "I6 écart", "part des agents croyant en une sortie fermée"),
+    "I7_delay": ("I7", "I7 délai", "premier signal de danger → dernier sorti (s)"),
     "llm_calls": ("llm_calls", "appels LLM", "tentatives d'appel"),
     "wall_s": ("wall_s", "temps mural", "durée réelle du run (s)"),
 }
@@ -74,28 +78,54 @@ def analyse_run(run_dir: Path) -> dict[str, Any]:
     exits: dict[str, Counter[str]] = {"llm": Counter(), "rules": Counter()}
     triggers: Counter[str] = Counter()
     decisions: Counter[str] = Counter()
+    intentions: Counter[str] = Counter()
+    signal: int | None = None
+    tick_seconds = 10.0
     for event in journal(run_dir):
         etype, data = event["type"], event["data"]
         if etype == "world.snapshot" and not kinds:
             kinds = {a["id"]: a.get("kind", "rules") for a in data["agents"]}
         elif etype == "agent.evacuated":
             last_evac[data["agent_id"]] = event["t_prod"]
+        elif etype in ("world.smoke", "world.announcement", "world.exit_closed"):
+            # Le premier indice que la situation a changé — pas le premier
+            # agent qui bouge : un guide ou un proche cherché part avant.
+            tick = event["t_prod"]
+            signal = tick if signal is None else min(signal, tick)
         elif etype == "agent.decision":
             kind = data.get("kind", "rules")
             decisions[kind] += 1
             triggers[data.get("trigger") or "?"] += 1
             intention = data.get("intention") or {}
+            intentions[intention.get("kind") or "?"] += 1
             if intention.get("kind") == "go_exit" and intention.get("target"):
                 exits.setdefault(kind, Counter())[intention["target"]] += 1
+        elif etype == "metrics.indicators":
+            # Le pas de temps du monde vient du journal lui-même : I4 est
+            # le tick × le pas, donc pas = I4 / tick. Pas de constante
+            # recopiée ici.
+            tick = data.get("tick")
+            elapsed = data.get("I4_seconds")
+            if tick and elapsed:
+                tick_seconds = float(elapsed) / float(tick)
     last_tick = max(last_evac.values()) if last_evac else None
     last_ids = [a for a, t in last_evac.items() if t == last_tick]
+    # I7 — même définition que `metrics.indicators.compute`, recalculée
+    # depuis le journal : les lignes JSON de X1–X4 sont antérieures à I7,
+    # et le journal est la source de vérité (convention 1).
+    delay = None
+    if signal is not None and last_tick is not None:
+        delay = max(0.0, (last_tick - signal) * tick_seconds)
     return {
         "kinds": kinds,
         "last_tick": last_tick,
         "last_kind": kinds.get(last_ids[0]) if last_ids else None,
+        "signal": signal,
+        "i7": delay,
         "exits": exits,
         "triggers": triggers,
         "decisions": decisions,
+        "intentions": intentions,
         "announcements": triggers.get("annonce", 0),
     }
 
@@ -125,6 +155,37 @@ def fmt(x: float, digits: int = 2) -> str:
     return f"{x:.{digits}f}"
 
 
+def row_value(row: dict[str, Any], key: str, info: dict[str, Any]) -> float | None:
+    """La valeur d'un indicateur : la ligne JSON si elle le porte, sinon le journal.
+
+    X1–X4 ont tourné avant l'ajout de I7 : leur JSON ne le contient pas,
+    leur journal oui. On ne réécrit pas les vieilles lignes — le journal
+    est la source de vérité, la ligne n'en est qu'un cache.
+    """
+    if row.get(key) is not None:
+        return float(row[key])
+    if key == "I7":
+        return info.get("i7")
+    return None
+
+
+def column(
+    rows: list[dict[str, Any]],
+    key: str,
+    infos: dict[str, dict[str, Any]],
+    arm: str | None = None,
+) -> list[float]:
+    """Les valeurs disponibles d'un indicateur, éventuellement pour un bras."""
+    out: list[float] = []
+    for r in rows:
+        if arm is not None and r["arm"] != arm:
+            continue
+        value = row_value(r, key, infos[r["run_id"]])
+        if value is not None:
+            out.append(value)
+    return out
+
+
 # ------------------------------------------------------------
 # Rendu
 # ------------------------------------------------------------
@@ -142,13 +203,27 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
     add(f"- **{total} runs** mesurés, {len(rows)} protocoles.")
     add(f"- **{llm_ok} / {llm_calls}** appels LLM aboutis.")
     add("- Population de référence : 12 agents LLM + 48 à règles (X4 varie).")
-    add("- Chaque bras : 5 graines (0–4). Médiane [Q1–Q3], test de")
-    add("  Mann-Whitney bilatéral entre le premier bras et chacun des autres.")
+    seeds = {pid: sorted({r["seed"] for r in rs}) for pid, rs in rows.items()}
+    add("- Graines par protocole : " + ", ".join(
+        f"{pid.upper()} {len(s)}" for pid, s in seeds.items()
+    ) + ".")
+    add("- Médiane [Q1–Q3], test de Mann-Whitney bilatéral entre le premier")
+    add("  bras et chacun des autres.")
     add("- **Censure** : un run qui atteint `max_ticks` avant que tout le")
     add("  monde soit sorti produit un I4 égal au plafond (720 s en scénario")
     add("  `demo`, 900 s en `e2e`). Ce n'est pas une durée d'évacuation :")
     add("  c'est un run interrompu. Dans ce cas, lire I3 (part sortie).")
-    add("  La table « runs non terminés » donne le compte par bras.\n")
+    add("  La table « runs non terminés » donne le compte par bras.")
+    add("- **I4 et I7** : I4 est une horloge — le temps écoulé depuis t0 —")
+    add("  donc il inclut l'attente avant le premier signal et se fige au")
+    add("  plafond `max_ticks` dès qu'une partie de la foule ne sort pas")
+    add("  (X1 ambigu : I4 = 720 s pour un dernier sorti à t31). I7 part du")
+    add("  premier signal de danger et s'arrête au dernier sorti : il reste")
+    add("  défini sous censure. Il ne retire pas l'heure de l'annonce (X1 :")
+    add("  fumée à t5 dans tous les bras, donc I7 = I4 − 50 s), il retire")
+    add("  le temps d'avant-signal et le plancher de censure. Il est publié")
+    add("  avec I3 à côté : un délai court sur une foule à moitié sortie ne")
+    add("  dit pas la même chose.\n")
 
     add("## Ce que mesure chaque indicateur\n")
     add("| indicateur | définition |")
@@ -170,6 +245,7 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
 
         arms: list[str] = [a["name"] for a in spec.get("arms", [])]
         proto_rows = rows[pid]
+        infos = {r["run_id"]: analyse_run(runs / r["run_id"]) for r in proto_rows}
         add(f"Indicateurs déclarés : {', '.join(spec.get('indicators', []))}\n")
         add("### Par bras\n")
         add("| bras | n | " + " | ".join(
@@ -184,7 +260,11 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
             cells = []
             for name in spec.get("indicators", []):
                 key = INDICATORS.get(name, (name, name, ""))[0]
-                med, q1, q3 = med_iqr([float(r[key]) for r in arm_rows])
+                values = column(arm_rows, key, infos)
+                if not values:
+                    cells.append("—")
+                    continue
+                med, q1, q3 = med_iqr(values)
                 cells.append(f"{fmt(med)} [{fmt(q1)}–{fmt(q3)}]")
             add(f"| {arm} | {len(arm_rows)} | " + " | ".join(cells) + " |")
         add("")
@@ -214,8 +294,8 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
             for other in arms[1:]:
                 for name in spec.get("indicators", []):
                     key = INDICATORS.get(name, (name, name, ""))[0]
-                    a = [float(r[key]) for r in proto_rows if r["arm"] == ref]
-                    b = [float(r[key]) for r in proto_rows if r["arm"] == other]
+                    a = column(proto_rows, key, infos, ref)
+                    b = column(proto_rows, key, infos, other)
                     p = p_value(a, b)
                     if p is None:
                         cell = "—"
@@ -226,20 +306,33 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
                     add(f"| {name} | {ref} vs {other} | {cell} |")
             add("")
 
-        # Qui sort en dernier : I4 mesure-t-il la cognition ?
-        add("### Qui sort en dernier (I4)\n")
-        add("| bras | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |")
-        add("|---|---|---|---|")
+        # Le délai, avec I3 à côté : un délai court sur une foule à moitié
+        # sortie ne veut pas dire la même chose qu'un délai court sur une
+        # foule complète.
+        add("### Délai premier signal → dernier sorti (I7)\n")
+        add("| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) "
+            "| type du dernier | runs où c'est un LLM |")
+        add("|---|---|---|---|---|---|")
         for arm in arms:
             arm_rows = [r for r in proto_rows if r["arm"] == arm]
+            delays = column(arm_rows, "I7", infos)
+            if delays:
+                med, q1, q3 = med_iqr(delays)
+                delay_cell = f"{fmt(med)} [{fmt(q1)}–{fmt(q3)}]"
+            else:
+                delay_cell = "—"
+            i3 = column(arm_rows, "I3", infos)
             ticks: list[str] = []
             kinds: list[str] = []
             for r in arm_rows:
-                info = analyse_run(runs / r["run_id"])
+                info = infos[r["run_id"]]
                 ticks.append(str(info["last_tick"]) if info["last_tick"] is not None else "—")
                 kinds.append(info["last_kind"] or "—")
             n_llm = sum(1 for k in kinds if k == "llm")
-            add(f"| {arm} | {', '.join(ticks)} | {', '.join(kinds)} | {n_llm}/{len(arm_rows)} |")
+            add(
+                f"| {arm} | {delay_cell} | {fmt(statistics.median(i3)) if i3 else '—'} "
+                f"| {', '.join(ticks)} | {', '.join(kinds)} | {n_llm}/{len(arm_rows)} |"
+            )
         add("")
 
         # Annonces réellement délivrées : un bras sans annonce ne mesure rien.
@@ -250,7 +343,7 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
             for arm in arms:
                 arm_rows = [r for r in proto_rows if r["arm"] == arm]
                 delivered = sum(
-                    1 for r in arm_rows if analyse_run(runs / r["run_id"])["announcements"] > 0
+                    1 for r in arm_rows if infos[r["run_id"]]["announcements"] > 0
                 )
                 add(f"| {arm} | {delivered}/{len(arm_rows)} |")
             add("")
@@ -265,7 +358,7 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
             for r in proto_rows:
                 if r["arm"] != arm:
                     continue
-                info = analyse_run(runs / r["run_id"])
+                info = infos[r["run_id"]]
                 llm.update(info["exits"].get("llm", Counter()))
                 rules.update(info["exits"].get("rules", Counter()))
             add(f"| {arm} | {_fmt_counter(llm)} | {_fmt_counter(rules)} |")

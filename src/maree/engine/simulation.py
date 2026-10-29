@@ -187,6 +187,12 @@ class Simulation:
         self._llm_calls = 0
         self._llm_ok = 0
         self._t0 = time.monotonic()
+        #: Instant (s simulées) du premier signal de danger et du dernier
+        #: sorti — les deux bornes de I7. `None` tant qu'ils n'ont pas eu
+        #: lieu : un run sans signal n'a pas de délai, il n'en a pas un de
+        #: zéro.
+        self._first_signal_s: float | None = None
+        self._last_exit_s: float | None = None
 
     # ---- journal ----------------------------------------------
     async def _emit(self, tick: int, type_: EventType, data: dict[str, Any]) -> Event:
@@ -321,6 +327,7 @@ class Simulation:
             for agent_id, runtime in self._agents.items():
                 if agent_id in evacuated and not runtime.evacuated:
                     runtime.evacuated = True
+                    self._last_exit_s = cfg.clocks.tick_to_seconds(tick)
                     runtime.intention = Intention(
                         IntentionKind.GO_EXIT, None, "sorti", tick
                     )
@@ -373,6 +380,8 @@ class Simulation:
                 self._exits_open,
                 tick,
                 cfg.clocks.tick_to_seconds(tick),
+                signal_s=self._first_signal_s,
+                last_exit_s=self._last_exit_s,
             )
             self._events.append(ind)
             await self._emit(tick, EventType.INDICATORS, ind.to_dict())
@@ -409,10 +418,21 @@ class Simulation:
         )
 
     # ---- étapes ------------------------------------------------
+    def _signal(self, tick: int) -> None:
+        """Retient l'heure du **premier** signal de danger (borne basse de I7).
+
+        Fumée, annonce et fermeture d'issue comptent toutes : ce qui
+        compte pour I7, c'est le premier indice que la situation a changé,
+        pas celui qui a fait bouger le plus de monde.
+        """
+        if self._first_signal_s is None:
+            self._first_signal_s = self._cfg.clocks.tick_to_seconds(tick)
+
     async def _world_events(self, tick: int) -> None:
         cfg = self._cfg
         if tick == cfg.smoke_tick and not self._smoke_active:
             self._smoke_active = True
+            self._signal(tick)
             self._recent.append(f"t{tick} fumée près de la scène")
             await self._emit(
                 tick,
@@ -422,10 +442,12 @@ class Simulation:
         if cfg.close_exit and tick == cfg.close_tick and cfg.close_exit in self._exits_open:
             self._exits_open.discard(cfg.close_exit)
             self._physics.close_exit(cfg.close_exit)
+            self._signal(tick)
             self._recent.append(f"t{tick} sortie {cfg.close_exit} fermée")
             await self._emit(tick, EventType.EXIT_CLOSED, {"exit": cfg.close_exit})
         if cfg.announcement_tick and tick == cfg.announcement_tick:
             self._announcement = cfg.announcement
+            self._signal(tick)
             self._recent.append(f"t{tick} annonce officielle")
             await self._emit(
                 tick, EventType.ANNOUNCEMENT, {"text": cfg.announcement}

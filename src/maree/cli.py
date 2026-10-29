@@ -34,6 +34,7 @@ _INDICATOR_KEYS = {
     "I4_seconds": "I4",
     "I5_max_density": "I5",
     "I6_belief_gap": "I6",
+    "I7_delay": "I7",
     "llm_calls": "llm_calls",
     "wall_s": "wall_s",
 }
@@ -330,6 +331,7 @@ def experiment(
                     "I4": summary["I4_seconds"],
                     "I5": summary["I5_max_density"],
                     "I6": summary["I6_belief_gap"],
+                    "I7": summary["I7_delay_seconds"],
                     "llm_calls": result.llm_calls,
                     "llm_ok": result.llm_ok,
                     "wall_s": round(result.duration_s, 1),
@@ -436,7 +438,9 @@ def report(runs: str = typer.Option("runs")) -> None:
     if not rows:
         typer.echo("aucun run mesuré")
         return
-    header = f"{'run_id':<34}{'I1':>8}{'I2':>8}{'I3':>8}{'I4':>8}{'I5':>8}{'I6pic':>8}"
+    header = (
+        f"{'run_id':<34}{'I1':>8}{'I2':>8}{'I3':>8}{'I4':>8}{'I5':>8}{'I6pic':>8}{'I7':>8}"
+    )
     typer.echo(header)
     typer.echo("-" * len(header))
     for row in rows:
@@ -445,6 +449,7 @@ def report(runs: str = typer.Option("runs")) -> None:
             f"{row['I1_consensus']:>8.3f}{row['I2_entropy']:>8.3f}"
             f"{row['I3_evacuated']:>8.3f}{row['I4_seconds']:>8.0f}"
             f"{row['I5_max_density']:>8.2f}{row['I6_belief_gap']:>8.3f}"
+            f"{row['I7_delay_seconds']:>8.0f}"
         )
 
 

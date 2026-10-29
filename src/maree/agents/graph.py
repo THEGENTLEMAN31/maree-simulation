@@ -322,6 +322,17 @@ class DecisionGraph:
             # Rester ne vise rien : `_apply` ignore la cible de toute façon,
             # mais le journal et le client, eux, la liraient.
             target = None
+        # Une cible de sortie doit être une sortie que le profil
+        # **connaît**, pas seulement une sortie du plan. Sans ce garde, un
+        # visiteur (qui ne connaît que A) pouvait nommer B : la cible
+        # passait la validation, et l'agent allait vers une issue qu'il
+        # ignorait. Mesuré sur la campagne pré-correctif : 108 décisions
+        # dans X1, 349 dans X4, 12 dans X6.
+        if kind in {IntentionKind.GO_EXIT, IntentionKind.GUIDE}:
+            from maree.agents.profiles import get_profile
+
+            if not get_profile(state["profile"]).knows(str(target)):
+                return None
         try:
             confidence = float(parsed.get("confidence", 0.0))
         except (TypeError, ValueError):
