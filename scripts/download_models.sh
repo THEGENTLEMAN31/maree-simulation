@@ -5,6 +5,7 @@
 # Sources vérifiées (HuggingFace, oct. 2026) :
 #   - unsloth/gemma-4-E2B-it-GGUF  : Q4_K_M (2 962 979 904 o)
 #   - unsloth/gemma-4-E4B-it-GGUF  : Q4_K_M (4 746 247 872 o)
+#   - unsloth/Qwen3-0.6B-GGUF      : Q4_K_M (396 705 472 o)  ← A5, tier « small »
 # ============================================================
 set -euo pipefail
 
@@ -19,10 +20,13 @@ E2B_REPO="unsloth/gemma-4-E2B-it-GGUF"
 E4B_REPO="unsloth/gemma-4-E4B-it-GGUF"
 E2B_SIZE="3106738272"
 E4B_SIZE="4977171584"
+Q06B_REPO="unsloth/Qwen3-0.6B-GGUF"
+Q06B_SIZE="396705472"
 
 L_FILES=(
   "gemma-4-E2B-it-Q4_K_M.gguf|$BASE/$E2B_REPO/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf|$E2B_SIZE"
   "gemma-4-E4B-it-Q4_K_M.gguf|$BASE/$E4B_REPO/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf|$E4B_SIZE"
+  "Qwen3-0.6B-Q4_K_M.gguf|$BASE/$Q06B_REPO/resolve/main/Qwen3-0.6B-Q4_K_M.gguf|$Q06B_SIZE"
 )
 
 echo "==> Modèles → $MODELS_DIR"

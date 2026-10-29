@@ -1,8 +1,543 @@
 {
-  "passages": 214,
-  "n_queries": 30,
-  "precision_at_1": 0.733,
-  "precision_at_3": 0.867,
-  "mrr": 0.794,
-  "degraded": false
+  "mode": "semantic",
+  "degraded": false,
+  "index": "data/rag",
+  "queries": "/home/jose/school/mondes_vivants/maree-simulation/eval/rag_queries.yaml",
+  "n": 24,
+  "p@1": 0.4167,
+  "p@3": 0.75,
+  "mrr": 0.5694,
+  "rows": [
+    {
+      "id": "q01",
+      "query": "odeur de fumée côté sud des stands, faut-il s'inquiéter",
+      "profile": "visiteur",
+      "tick": 12,
+      "expected_any": [
+        "souvenirs_editions/odeur-fumee-sud"
+      ],
+      "ranked": [
+        "souvenirs_editions/odeur-fumee-sud",
+        "annonces/annonce-claire",
+        "plan_signalétique/plan-zone-sud_est"
+      ],
+      "scores": [
+        0.5169,
+        0.4105,
+        0.3029
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q02",
+      "query": "la sortie A a fermé l'an dernier, que s'est-il passé",
+      "profile": "habitue",
+      "tick": 20,
+      "expected_any": [
+        "souvenirs_editions/fermeture-a-dernier"
+      ],
+      "ranked": [
+        "souvenirs_editions/fermeture-a-dernier",
+        "souvenirs_editions/2024-agents",
+        "souvenirs_editions/sortie-c-habitues"
+      ],
+      "scores": [
+        0.4934,
+        0.2841,
+        0.2405
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q03",
+      "query": "un raccourci discret par la ruelle à l'est pour éviter la foule",
+      "profile": "habitue",
+      "tick": 0,
+      "expected_any": [
+        "savoir_profils/habitue-raccourci"
+      ],
+      "ranked": [
+        "souvenirs_editions/sortie-c-habitues",
+        "plan_signalétique/cheminement-B-08",
+        "souvenirs_editions/fermeture-a-dernier"
+      ],
+      "scores": [
+        0.2544,
+        0.2046,
+        0.1934
+      ],
+      "hit@1": false,
+      "hit@3": false,
+      "rr": 0.0
+    },
+    {
+      "id": "q04",
+      "query": "consigne de zone pour la scène principale, effectif et points de conflit",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "consignes_securite/consigne-zone-01"
+      ],
+      "ranked": [
+        "consignes_securite/consigne-zone-01",
+        "consignes_securite/consigne-zone-04",
+        "consignes_securite/consigne-zone-03"
+      ],
+      "scores": [
+        0.4995,
+        0.3915,
+        0.3501
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q05",
+      "query": "que faire en cas d'incendie sur l'esplanade",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "consignes_securite/fiche-incident-02"
+      ],
+      "ranked": [
+        "consignes_securite/fiche-incident-08",
+        "consignes_securite/fiche-incident-01",
+        "consignes_securite/fiche-incident-02"
+      ],
+      "scores": [
+        0.3757,
+        0.3286,
+        0.3166
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.3333
+    },
+    {
+      "id": "q06",
+      "query": "protocole d'évacuation de la fête, étapes et responsables",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "consignes_securite/protocole"
+      ],
+      "ranked": [
+        "consignes_securite/protocole",
+        "consignes_securite/protocole-etape-07",
+        "consignes_securite/fiche-incident-03"
+      ],
+      "scores": [
+        0.3609,
+        0.2323,
+        0.2049
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q07",
+      "query": "plan général de l'esplanade et emplacement des sorties",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "plan_signalétique/plan-esplanade"
+      ],
+      "ranked": [
+        "plan_signalétique/plan-zone-scene",
+        "plan_signalétique/plan-esplanade",
+        "plan_signalétique/signaletique-01"
+      ],
+      "scores": [
+        0.3843,
+        0.3134,
+        0.2954
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.5
+    },
+    {
+      "id": "q08",
+      "query": "comment rejoindre la sortie B depuis la partie nord",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "plan_signalétique/cheminement-B-02",
+        "plan_signalétique/cheminement-B-05",
+        "plan_signalétique/cheminement-B-08",
+        "plan_signalétique/cheminement-B-11"
+      ],
+      "ranked": [
+        "plan_signalétique/plan-zone-sortie_b",
+        "plan_signalétique/plan-esplanade",
+        "plan_signalétique/cheminement-B-02"
+      ],
+      "scores": [
+        0.3749,
+        0.364,
+        0.2893
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.3333
+    },
+    {
+      "id": "q09",
+      "query": "annonce claire du haut-parleur, consignes d'évacuation",
+      "profile": "securite",
+      "tick": 12,
+      "expected_any": [
+        "annonces/annonce-claire"
+      ],
+      "ranked": [
+        "consignes_securite/protocole",
+        "annonces/annonce-claire",
+        "annonces/claire-03"
+      ],
+      "scores": [
+        0.286,
+        0.2763,
+        0.2458
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.5
+    },
+    {
+      "id": "q10",
+      "query": "rumeur : la sortie B serait fermée",
+      "profile": "habitue",
+      "tick": 20,
+      "expected_any": [
+        "annonces/rumeur-fermeture-b"
+      ],
+      "ranked": [
+        "souvenirs_editions/fermeture-a-dernier",
+        "annonces/rumeur-fermeture-b",
+        "souvenirs_editions/2024-agents"
+      ],
+      "scores": [
+        0.3166,
+        0.2571,
+        0.2388
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.5
+    },
+    {
+      "id": "q11",
+      "query": "annonce du haut-parleur à peine audible, message ambigu",
+      "profile": "visiteur",
+      "tick": 24,
+      "expected_any": [
+        "annonces/annonce-ambigue"
+      ],
+      "ranked": [
+        "annonces/rumeur-02",
+        "annonces/rumeur-03",
+        "annonces/rumeur-04"
+      ],
+      "scores": [
+        0.2402,
+        0.2273,
+        0.2111
+      ],
+      "hit@1": false,
+      "hit@3": false,
+      "rr": 0.0
+    },
+    {
+      "id": "q12",
+      "query": "par où suis-je arrivé, l'entrée principale au nord",
+      "profile": "visiteur",
+      "tick": 0,
+      "expected_any": [
+        "savoir_profils/visiteur-entree"
+      ],
+      "ranked": [
+        "plan_signalétique/plan-esplanade",
+        "savoir_profils/visiteur-entree",
+        "savoir_profils/profil-visiteur"
+      ],
+      "scores": [
+        0.2523,
+        0.1809,
+        0.1458
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.5
+    },
+    {
+      "id": "q13",
+      "query": "je cherche mon enfant perdu dans la foule",
+      "profile": "famille",
+      "tick": 0,
+      "expected_any": [
+        "savoir_profils/famille-enfant"
+      ],
+      "ranked": [
+        "savoir_profils/profil-famille",
+        "savoir_profils/famille-enfant",
+        "savoir_profils/famille-telephone"
+      ],
+      "scores": [
+        0.2458,
+        0.1914,
+        0.1377
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.5
+    },
+    {
+      "id": "q14",
+      "query": "le stand doit-il rester ouvert malgré la fumée",
+      "profile": "vendeur",
+      "tick": 12,
+      "expected_any": [
+        "savoir_profils/vendeur-fumee"
+      ],
+      "ranked": [
+        "annonces/annonce-claire",
+        "savoir_profils/profil-vendeur",
+        "souvenirs_editions/odeur-fumee-sud"
+      ],
+      "scores": [
+        0.3486,
+        0.284,
+        0.2328
+      ],
+      "hit@1": false,
+      "hit@3": false,
+      "rr": 0.0
+    },
+    {
+      "id": "q15",
+      "query": "la sortie C que les habitués connaissent",
+      "profile": "habitue",
+      "tick": 0,
+      "expected_any": [
+        "souvenirs_editions/sortie-c-habitues"
+      ],
+      "ranked": [
+        "souvenirs_editions/sortie-c-habitues",
+        "savoir_profils/profil-habitue",
+        "savoir_profils/habitue-sortie-c"
+      ],
+      "scores": [
+        0.4429,
+        0.322,
+        0.314
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q16",
+      "query": "densité de foule et largeur devant la sortie A",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "plan_signalétique/plan-zone-sortie_a"
+      ],
+      "ranked": [
+        "consignes_securite/fiche-sortie-A-07",
+        "consignes_securite/fiche-sortie-A-01",
+        "consignes_securite/fiche-sortie-A-10"
+      ],
+      "scores": [
+        0.3534,
+        0.3088,
+        0.2657
+      ],
+      "hit@1": false,
+      "hit@3": false,
+      "rr": 0.0
+    },
+    {
+      "id": "q17",
+      "query": "procédure radio des agents de sécurité",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "savoir_profils/securite-radio"
+      ],
+      "ranked": [
+        "consignes_securite/protocole-etape-01",
+        "savoir_profils/securite-radio",
+        "consignes_securite/protocole"
+      ],
+      "scores": [
+        0.3225,
+        0.2944,
+        0.2145
+      ],
+      "hit@1": false,
+      "hit@3": true,
+      "rr": 0.5
+    },
+    {
+      "id": "q18",
+      "query": "consigne pour la passerelle, points de vigilance",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "consignes_securite/consigne-zone-06"
+      ],
+      "ranked": [
+        "consignes_securite/consigne-zone-06",
+        "plan_signalétique/signaletique-17",
+        "consignes_securite/protocole-etape-04"
+      ],
+      "scores": [
+        0.2616,
+        0.2572,
+        0.2315
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q19",
+      "query": "signalétique de la sortie C la nuit",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "plan_signalétique/signaletique-11"
+      ],
+      "ranked": [
+        "plan_signalétique/signaletique-11",
+        "souvenirs_editions/2024-annonce",
+        "plan_signalétique/cheminement-C-06"
+      ],
+      "scores": [
+        0.2998,
+        0.2511,
+        0.2472
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q20",
+      "query": "fumée vue par un visiteur qui ne connaît rien",
+      "profile": "visiteur",
+      "tick": 12,
+      "expected_any": [
+        "savoir_profils/visiteur-fumee"
+      ],
+      "ranked": [
+        "savoir_profils/visiteur-fumee",
+        "souvenirs_editions/odeur-fumee-sud",
+        "savoir_profils/profil-visiteur"
+      ],
+      "scores": [
+        0.3531,
+        0.3072,
+        0.1545
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q21",
+      "query": "souvenir de la foule de l'édition 2023",
+      "profile": "habitue",
+      "tick": 0,
+      "expected_any": [
+        "souvenirs_editions/2023-foule"
+      ],
+      "ranked": [
+        "souvenirs_editions/2025-annonce",
+        "souvenirs_editions/2020-annonce",
+        "souvenirs_editions/2017-foule"
+      ],
+      "scores": [
+        0.313,
+        0.2896,
+        0.2761
+      ],
+      "hit@1": false,
+      "hit@3": false,
+      "rr": 0.0
+    },
+    {
+      "id": "q22",
+      "query": "gérer une bousculade dans la foule",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "consignes_securite/fiche-incident-03"
+      ],
+      "ranked": [
+        "consignes_securite/fiche-incident-03",
+        "consignes_securite/fiche-incident-09",
+        "consignes_securite/fiche-incident-10"
+      ],
+      "scores": [
+        0.4147,
+        0.3819,
+        0.168
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q23",
+      "query": "où se garer quand on est un habitué",
+      "profile": "habitue",
+      "tick": 0,
+      "expected_any": [
+        "savoir_profils/habitue-parking"
+      ],
+      "ranked": [
+        "savoir_profils/habitue-parking",
+        "savoir_profils/profil-habitue",
+        "souvenirs_editions/sortie-c-habitues"
+      ],
+      "scores": [
+        0.2976,
+        0.2733,
+        0.2266
+      ],
+      "hit@1": true,
+      "hit@3": true,
+      "rr": 1.0
+    },
+    {
+      "id": "q24",
+      "query": "consignes pour la partie ouest de l'esplanade",
+      "profile": "securite",
+      "tick": 0,
+      "expected_any": [
+        "consignes_securite/consigne-zone-03"
+      ],
+      "ranked": [
+        "plan_signalétique/plan-zone-scene",
+        "plan_signalétique/signaletique-03",
+        "plan_signalétique/plan-zone-stand2"
+      ],
+      "scores": [
+        0.2501,
+        0.2157,
+        0.2051
+      ],
+      "hit@1": false,
+      "hit@3": false,
+      "rr": 0.0
+    }
+  ]
 }

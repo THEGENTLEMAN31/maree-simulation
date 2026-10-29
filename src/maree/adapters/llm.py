@@ -27,6 +27,18 @@ from openai import AsyncOpenAI
 from maree.ports import ChatMessage, LLMResult
 
 
+def _model_unavailable(exc: Exception) -> bool:
+    """Vrai si le serveur a refusé le **nom** de modèle, pas la requête.
+
+    llama.cpp répond 404 « model not found » quand l'alias n'est pas
+    déclaré dans le preset. C'est le seul cas où retomber sur le modèle
+    par défaut a un sens : une erreur de prompt ou un timeout ne se
+    répare pas en changeant de modèle.
+    """
+    text = str(exc).lower()
+    return ("model" in text and "not found" in text) or "unknown model" in text
+
+
 class LlamaCppLLM:
     def __init__(
         self,
@@ -58,41 +70,76 @@ class LlamaCppLLM:
     ) -> LLMResult:
         prompt = "\n".join(f"[{m.role}] {m.content}" for m in messages)
         started = time.perf_counter()
+        used = model or self._model
         try:
-            response = await self._client.chat.completions.create(
-                model=model or self._model,
-                messages=[{"role": m.role, "content": m.content} for m in messages],
-                max_tokens=max_tokens,
-                temperature=temperature,
-                seed=seed,
-                # Gemma 4 : sans cela, ~460 tokens de raisonnement par décision.
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-            )
-            text = (response.choices[0].message.content or "").strip()
-            usage = response.usage
-            self.calls += 1
-            self.tokens_in += getattr(usage, "prompt_tokens", 0) or 0
-            self.tokens_out += getattr(usage, "completion_tokens", 0) or 0
-            return LLMResult(
-                text=text,
-                prompt=prompt,
-                seed=seed,
-                model=model or self._model,
-                tokens_in=getattr(usage, "prompt_tokens", 0) or 0,
-                tokens_out=getattr(usage, "completion_tokens", 0) or 0,
-                duration_s=time.perf_counter() - started,
-                ok=True,
+            response = await self._request(
+                messages, used, seed=seed, max_tokens=max_tokens, temperature=temperature
             )
         except Exception as exc:
-            return LLMResult(
-                text="",
-                prompt=prompt,
-                seed=seed,
-                model=model or self._model,
-                duration_s=time.perf_counter() - started,
-                ok=False,
-                error=f"{type(exc).__name__}: {exc}"[:300],
-            )
+            # A5 : un second GGUF peut manquer sur une machine donnée.
+            # On ne casse pas le run pour autant — on retombe sur le modèle
+            # par défaut et la trace le dit (`requested_model` ≠ `model`).
+            if used != self._model and _model_unavailable(exc):
+                try:
+                    response = await self._request(
+                        messages,
+                        self._model,
+                        seed=seed,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                    )
+                    used = self._model
+                except Exception as exc2:
+                    return self._failure(prompt, seed, used, started, exc2)
+            else:
+                return self._failure(prompt, seed, used, started, exc)
+        text = (response.choices[0].message.content or "").strip()
+        usage = response.usage
+        self.calls += 1
+        self.tokens_in += getattr(usage, "prompt_tokens", 0) or 0
+        self.tokens_out += getattr(usage, "completion_tokens", 0) or 0
+        return LLMResult(
+            text=text,
+            prompt=prompt,
+            seed=seed,
+            model=used,
+            tokens_in=getattr(usage, "prompt_tokens", 0) or 0,
+            tokens_out=getattr(usage, "completion_tokens", 0) or 0,
+            duration_s=time.perf_counter() - started,
+            ok=True,
+        )
+
+    async def _request(
+        self,
+        messages: Sequence[ChatMessage],
+        model: str,
+        *,
+        seed: int,
+        max_tokens: int,
+        temperature: float,
+    ):
+        return await self._client.chat.completions.create(
+            model=model,
+            messages=[{"role": m.role, "content": m.content} for m in messages],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            seed=seed,
+            # Gemma 4 : sans cela, ~460 tokens de raisonnement par décision.
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+        )
+
+    def _failure(
+        self, prompt: str, seed: int, model: str, started: float, exc: Exception
+    ) -> LLMResult:
+        return LLMResult(
+            text="",
+            prompt=prompt,
+            seed=seed,
+            model=model,
+            duration_s=time.perf_counter() - started,
+            ok=False,
+            error=f"{type(exc).__name__}: {exc}"[:300],
+        )
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:

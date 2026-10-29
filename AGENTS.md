@@ -42,6 +42,16 @@ rejouable de bout en bout.
 - Budget VRAM (RTX 3050, 4 Go) : E2B 2,9 Go + bge-m3 0,42 Go = 3,3 Go.
   **E4B (4,7 Go) évince un modèle.** Si OOM au premier `make up` :
   `parallel = 2`, `ctx-size = 4096`.
+- **A5 exige un troisième modèle** : `qwen3-0.6b` Q4_K_M (378 Mo,
+  `unsloth/Qwen3-0.6B-GGUF`). Le preset le déclare (`[qwen3-0-6b]`), mais
+  le conteneur tourne encore avec `--models-max 2` : tant qu'il n'est pas
+  relancé avec `--models-max 3`, les appels au petit modèle répondent
+  « model not found » et l'adaptateur **retombe sur le grand** en le
+  journalisant (`requested_model` ≠ `model`). Un run « two_tier » n'est
+  donc pas forcément un run à deux modèles : vérifier la trace.
+- Le routeur llama.cpp **n'annonce pas** un modèle absent : `GET /v1/models`
+  liste les alias déclarés, chargés ou non (`status.value`). Un alias
+  manquant du preset renvoie 404 au premier appel, pas à l'indexation.
 - bge-m3 est un BERT : **pooling CLS**, pas mean pooling.
 
 ### JuPedSim 1.4
@@ -89,6 +99,17 @@ rejouable de bout en bout.
   en 11 s et un résultat d'apparence normale. `RunResult.llm_ok` compte
   les succès, le journal marque `llm.fallback=true`, et la CLI crie
   quand `llm_ok == 0`. Un run à 0 succès n'est **pas** un run hybride.
+- **Le rejeu confondait normalisation et divergence.** `graph._to_intention`
+  efface la cible de `stay`/`search` et lit `follow <sortie>` comme
+  `go_exit` : 20 des 49 décisions du run `demo_replay` étaient comptées
+  « divergentes » alors qu'elles étaient seulement normalisées. Le rejeu
+  journalise désormais `parsed` (sortie du parseur) et vérifie deux choses
+  séparément : `parse(raw) == parsed`, puis `parsed → intention` par les
+  seules normalisations connues. Un repli règles (`fallback: true`) est
+  compté à part (`replis_regles`), pas comme une divergence.
+- **Un `run_id` explicite déjà journalisé était accepté** : le journal étant
+  en append, deux runs se retrouvaient dans le même `events.jsonl` avec un
+  `seq` continu. `maree run` refuse maintenant un `run_id` déjà présent.
 - **Le dernier tick d'indicateurs est dégénéré** : tout le monde est
   sorti, donc I1/I2/I5/I6 valent 0. Utiliser `metrics.summarise()` (pic
   pour I5/I6, moyenne sur la partie **active** pour I1/I2) et non
@@ -268,6 +289,9 @@ rejouable de bout en bout.
 | Récits du chroniqueur | 4, **0 repli**, chiffres conformes au digest | `run_hybrid_08` |
 | Trames diffusées, démo à règles | **1 024** (212 décisions, 212 croyances, 60 messages, 434 écoutes, 60 évacuations, 21 instantanés) | `maree serve` |
 | `maree index` sur le corpus réel | 215 passages en **7 s** | bge-m3, `data/rag` |
+| Chaîne causale (B4) | **820 / 1 023** événements avec `causation_id`, 160 chaînes | run `demo_replay` |
+| Récupération (F2) | P@1 **0,417**, P@3 **0,750**, MRR **0,569** sur 24 requêtes annotées | `eval/rag_queries.yaml` |
+| Rejeu E3 | `ok: true`, 49/49 décisions concordantes, 3 replis annoncés | `maree replay --run-id demo_replay` |
 
 **Le KV cache de 4 slots tient** : 1 980 Mo sur 4 096, 2,1 Go libres.
 Le repli `parallel=2` n'est pas nécessaire.
@@ -288,6 +312,8 @@ uv run maree serve            # WebSocket sur 8765
 uv run maree serve --prompts  # + le prompt LLM dans les décisions
 godot --path godot/project    # client
 uv run maree replay           # rejeu du dernier run
+uv run maree replay --run-id demo_replay   # le run versionné (E3)
+uv run maree trace --run-id demo_replay --indicator I1_consensus  # B4
 uv run maree experiment --name x1 --seeds 3
 ```
 

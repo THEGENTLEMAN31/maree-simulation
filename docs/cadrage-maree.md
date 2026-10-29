@@ -2,13 +2,29 @@
 
 Oct 13, 2026 · @Jose
 
+> **Ce document est un cadrage daté, pas un état des lieux.** Il a été écrit
+> avant la première ligne de code et plusieurs choix y ont été invalidés par
+> la mesure. Les sections corrigées le 2026-10-29 portent la mention
+> *« corrigé »* ; l'état réel, exigence par exigence, est dans
+> `docs/plan-socle.md`, et les résultats mesurés dans
+> `docs/resultats/rapport-v2.md`.
+>
+> Les cinq affirmations qui étaient fausses : (1) le journal **Kafka** n'est
+> pas la source de vérité, c'est le JSONL append-only — Kafka est un bus de
+> diffusion ; (2) le RAG n'est pas sur **Chroma** mais sur FAISS exact ;
+> (3) l'historique n'est pas en **Parquet** mais en JSONL lu par DuckDB ;
+> (4) la population n'est pas 15 LLM / 45 règles avec un profil « amis » et
+> un modèle OpenRouter, mais 12 LLM / 48 règles sur cinq profils et des
+> modèles locaux ; (5) les indicateurs I4/I5 ne sont pas « suivi de meneur »
+> et « cohérence temporelle » mais horloge et densité (voir le tableau).
+
 ## Résumé et décision
 
 MARÉE sera construit en trois niveaux emboîtés, avec une architecture à deux vitesses : le corps bouge vite, le LLM pense lentement, et l'écart entre les deux est l'objet d'étude du projet.
 
 - **Le monde :** la Fête des Lanternes de Port-Aubel, une esplanade avec trois sorties inégales. Vers 22 h, une fumée apparaît côté sud et personne ne sait vraiment quoi faire.
 - **La question :** une foule qui ne sait rien construit-elle une croyance partagée sur la sortie sûre, et cette croyance la sauve-t-elle ou la piège-t-elle ?
-- **La promesse technique :** un journal d'événements Kafka comme source de vérité, un rejeu à l'identique sans appel LLM, un Godot qui ne fait que lire le flux.
+- **La promesse technique :** un journal d'événements **append-only (JSONL)** comme source de vérité, Kafka en bus de diffusion best-effort, un rejeu à l'identique sans appel LLM, un Godot qui ne fait que lire le flux.
 - **L'ambition portfolio :** montrer que tu sais découpler deux échelles de temps, mesurer une émergence et défendre un résultat négatif.
 
 **Angle business.** Le monde est fictif, donc rien n'est prédictif. L'usage crédible est un banc d'essai pour comparer des stratégies d'annonce et des dispositifs de sécurité, au service d'organisateurs, d'assureurs ou de gestionnaires de lieux. Ce n'est pas une prévision de foule réelle. Pour un portfolio c'est solide ; pour une startup, il faudrait ensuite des données réelles ou un partenaire.
@@ -58,6 +74,12 @@ L'esplanade de Port-Aubel pendant la Fête des Lanternes : une scène, des stand
 
 ## Les jours d'avant et la mémoire (A1)
 
+> **État au 2026-10-29 : non implémenté.** La mémoire épisodique existe et
+> fonctionne (elle se remplit pendant le run), mais la **préhistoire J−3**
+> décrite ci-dessous n'est pas encore branchée : aucun run ne commence
+> trois jours avant. C'est la tâche A1 de la vague 2 de
+> `docs/plan-socle.md`. Le protocole X5 reste donc à jouer.
+
 Pour que la mémoire compte, chaque run commence trois jours simulés avant l'évacuation, puis l'horloge saute jusqu'à 22 h 00 le soir de la fête.
 
 | Jour simulé | Échange préalable | Ce que l'agent retient |
@@ -72,18 +94,26 @@ Chaque agent LLM a 2 à 3 échanges avant la fête, soit environ 45 appels de pl
 
 ## Population
 
-La foule est hybride : 15 agents LLM à profil riche portent les décisions qui comptent, et 45 agents à règles assurent la densité (A6), pour 60 agents au total.
+**Corrigé le 2026-10-29.** La foule est hybride : **12 agents LLM** portent
+les décisions qui comptent, et **48 agents à règles** assurent la densité
+(A6), pour 60 agents au total. Le profil « groupe d'amis » n'existe pas dans
+le moteur ; il est remplacé par `vendeur`, et les cinq profils réels sont
+`securite`, `habitue`, `famille`, `visiteur`, `vendeur`.
 
-| Profil | Priorité | Sait au départ | Type | Modèle |
+| Profil | Priorité | Sait au départ | Type | Tier (A5) |
 | --- | --- | --- | --- | --- |
-| Famille (3) | Retrouver l'enfant égaré avant de partir | Seulement son entrée d'arrivée | LLM | Gemma local |
-| Agent de sécurité (2) | Guider, sa parole pèse plus | Les trois sorties et le protocole | LLM | Grand modèle OpenRouter |
-| Habitués (3) | Partir vite, par la sortie C | La sortie discrète | LLM | Grand modèle OpenRouter |
-| Visiteurs (5) | Comprendre avant d'agir | Seulement leur entrée d'arrivée | LLM | Gemma local |
-| Groupe d'amis (2) | Filmer plutôt que partir | Seulement son entrée d'arrivée | LLM | Gemma local |
-| Foule de fond (45) | Suivre le flux | Rien | Règles : force sociale + suivi du voisin | Aucun |
+| Famille (2 LLM + 14 règles) | Retrouver l'enfant égaré avant de partir | Seulement son entrée d'arrivée | LLM / règles | grand |
+| Agent de sécurité (2 + 2) | Guider, sa parole pèse plus | Les trois sorties et le protocole | LLM / règles | grand |
+| Habitué (2 + 6) | Partir vite, par la sortie C | La sortie discrète | LLM / règles | grand |
+| Visiteur (4 + 24) | Comprendre avant d'agir | Seulement son entrée d'arrivée | LLM / règles | petit |
+| Vendeur (2 + 2) | Tenir son stand | Son étal et ses habitudes | LLM / règles | petit |
 
-**Règle d'attribution des modèles (A5).** Le modèle dépend du rôle et de l'expérience du profil, jamais d'une catégorie sociale. L'hypothèse de travail est que la taille du modèle représente une capacité cognitive différente.
+**Règle d'attribution des modèles (A5).** Le modèle dépend du rôle et de
+l'expérience du profil, jamais d'une catégorie sociale. Le profil porte un
+**tier** (`big` / `small`), le YAML choisit le GGUF : `gemma4-e2b` (2,9 Go)
+pour le tier grand, `qwen3-0.6b` (378 Mo) pour le petit. Les deux tournent
+en local via llama.cpp — **aucun appel à OpenRouter**, contrairement à ce
+qui était prévu ici.
 
 **Dérives à tracer (A4, O2).** Sortie de rôle, réponse inexploitable (JSON invalide), absence de réponse, ton « assistant calme et altruiste ». Chaque incident est un événement typé et compté. En cas d'échec, l'agent retombe sur une règle par défaut pour que le monde ne se fige pas.
 
@@ -131,16 +161,19 @@ Lecture : les agents décident rarement, le moteur exécute à chaque pas, et se
 
 Une granularité plus grossière qu'une seconde ferait saccader la scène et fausserait la mesure de densité au goulot (I3).
 
-**Stockage justifié par besoin d'accès (F3).** Choix proposé, à confirmer en semaine 1.
+**Stockage justifié par besoin d'accès (F3).** *Corrigé le 2026-10-29* :
+les quatre stockages réels, et le besoin d'accès qui les justifie.
 
 | Donnée | Où | Pourquoi |
 | --- | --- | --- |
-| Flux d'événements | Kafka, rétention de quelques jours | Volume élevé, lecture séquentielle, faible latence |
-| État courant du monde | Mémoire du moteur plus instantanés dans Kafka | Accès à chaque pas, reconstructible depuis le journal |
-| Historique des runs | Parquet interrogé par DuckDB | Volume modéré, lecture analytique, requêtes reproductibles (F5) |
-| Base de connaissances (RAG) | Chroma en local | Quelques centaines de passages, recherche vectorielle simple |
+| Flux d'événements | **JSONL append-only**, un fichier par run (`runs/<id>/events.jsonl`) | Source de vérité, rejeu sans infrastructure, lisible à l'œil. Kafka est un bus de **diffusion** best-effort, jamais la persistance : un broker mort ne perd rien |
+| État courant du monde | Mémoire du moteur + instantanés `world.snapshot` dans le même journal | Accès à chaque pas pour le rendu, reconstructible depuis le journal |
+| Historique des runs | **Les mêmes JSONL, interrogés par DuckDB** (`read_json_auto`) | Volume modéré, lecture analytique, requêtes reproductibles (F5) sans exporter un second format |
+| Base de connaissances (RAG) | **FAISS exact + JSON + `mean.npy`** dans `data/rag` | Quelques centaines de passages, recherche exacte, correction d'anisotropie mesurée |
 
-Alternative si tu préfères une seule base : Postgres avec pgvector.
+Pas de Parquet, pas de Chroma, pas de Postgres : chacun ajouterait un format
+ou un service sans changer le besoin d'accès. Les requêtes F5 vivent dans
+`scripts/queries/` et lisent les JSONL directement.
 
 ## Décisions à figer dès le jour 1
 
@@ -171,13 +204,22 @@ Seize décisions d'architecture doivent exister avant la première ligne de simu
 
 Cinq indicateurs sont calculés pendant le run et affichés à côté de la scène, synchronisés avec elle (B2).
 
+**Corrigé le 2026-10-29.** Les indicateurs livrés sont ceux du moteur
+(`src/maree/metrics/indicators.py`), pas ceux esquissés ici. I4 et I5 ne
+mesurent pas ce qui était prévu ; I6 et I7 ont été ajoutés.
+
 | Indicateur | Ce qu'il mesure | Calcul |
 | --- | --- | --- |
-| I1 Consensus | Accord sur la sortie jugée sûre | Part de la croyance majoritaire et entropie de Shannon, sur les agents informés |
-| I2 Écart croyance/réalité | Distance entre ce que croient les agents et la vérité terrain | Part des agents dont la croyance sur le danger ou la sortie est fausse, dans le temps |
-| I3 Évacuation | Résultat physique | Évacués, temps médian, part piégée, répartition par sortie, durée de densité au-dessus d'un seuil |
-| I4 Suivi de meneur | Influence | Part des agents dont la destination est celle d'un agent vu dans les 10 s précédentes |
-| I5 Cohérence temporelle | Décisions fondées sur une information qui n'aurait pas pu arriver à temps | Nombre de violations par run, détectées à partir des horodatages (attendu : zéro) |
+| I1 Consensus | Accord sur la sortie jugée sûre | Part de la croyance majoritaire, sur les agents informés |
+| I2 Entropie | Dispersion des croyances | Entropie de Shannon normalisée (0 = tous d'accord, 1 = tous perdus) |
+| I3 Évacuation | Résultat physique | Part des agents sortis (fait physique, distinct d'une décision) |
+| I4 Horloge | **Quand** — et non combien de temps | `tick × 10 s`, **censuré à `max_ticks`** : à lire avec I3 |
+| I5 Densité | Encombrement maximal | Pic de densité par noyau de 2 m (la grille de 1 m saturait à 2,0) |
+| I6 Écart de croyance | Distance à la vérité terrain | Part des agents croyant en une sortie fermée ; **0 par construction si aucune sortie ne ferme** |
+| I7 Délai | **Combien de temps** | Premier signal de danger → dernier sorti ; défini sous censure |
+
+La « cohérence temporelle » n'est pas un indicateur affiché : c'est un
+vérificateur (C6) qui produit un compteur de violations dans `run.ended`.
 
 **Cohérence temporelle (C6).** Un vérificateur parcourt chaque décision et contrôle que tout ce qu'elle cite (perceptions, messages, passages RAG) était disponible à l'instant de la décision : date de production et, pour un message, date d'arrivée inférieures ou égales. Chaque écart devient un événement de violation compté dans I5, et le même vérificateur tourne en test automatique. En mode asynchrone, une décision appliquée sur un état déjà périmé n'est pas une violation : son décalage est mesuré à part (C7).
 

@@ -150,6 +150,14 @@ def _build(cfg: DictConfig, run_id: str):
         if bool(cfg.narrative.enabled)
         else None
     )
+    #: A5 : tier -> nom de modèle. Vide quand `two_tier` est faux, auquel
+    #: cas l'adaptateur applique `llm.model` à tout le monde.
+    models: dict[str, str] | None = None
+    if bool(cfg.llm.get("two_tier", False)):
+        models = {
+            "big": str(cfg.llm.model),
+            "small": str(cfg.llm.get("small_model", cfg.llm.model)),
+        }
     simulation = Simulation(
         config=config,
         plan=plan,
@@ -160,6 +168,7 @@ def _build(cfg: DictConfig, run_id: str):
         journal=journal,
         bus=bus,
         narrator=narrator,
+        models=models,
     )
     return simulation, llm, bus
 
@@ -176,6 +185,18 @@ def run(
 
     cfg = _compose(list(overrides or []))
     run_id = str(cfg.run_id or _new_run_id(int(cfg.seed)))
+    # Décision 5 : un run_id ne se réutilise jamais. Sans ce garde, un
+    # `run_id=` explicite ajoutait les événements du nouveau run à la suite
+    # de l'ancien (le journal est en append) : deux runs dans un fichier,
+    # un `seq` continu, et un rejeu qui mélange deux configurations.
+    if cfg.run_id:
+        from maree.adapters.journal.jsonl import JsonlJournal
+
+        if JsonlJournal(str(cfg.paths.runs)).read(run_id):
+            raise typer.BadParameter(
+                f"run_id {run_id!r} déjà journalisé — choisir un autre identifiant "
+                "ou supprimer runs/<run_id>/ (le journal est en append, décision 5)"
+            )
     simulation, llm, bus = _build(cfg, run_id)
 
     async def _go() -> None:
@@ -270,6 +291,7 @@ def replay(
                     "traces_completes": result.decisions.trace_complete,
                     "reconstruites": result.decisions.reconstructed,
                     "concordantes": result.decisions.matching,
+                    "replis_regles": result.decisions.fallbacks,
                 },
                 "narratives": {"total": result.narratives, "valides": result.narratives_valid},
                 "ok": result.ok,
@@ -281,6 +303,46 @@ def replay(
     )
     for line in narrate_from_journal(target, journal):
         typer.echo(f"  t{line['tick']:>3}  {line['text']}")
+
+
+@app.command()
+def trace(
+    run_id: str = typer.Option(None, help="identifiant du run (défaut : le plus récent)"),
+    indicator: str = typer.Option("I1_consensus", help="indicateur à expliquer"),
+    lookback: int = typer.Option(5, help="ticks de contexte avant la variation"),
+    runs: str = typer.Option("runs", help="répertoire des runs"),
+    as_json: bool = typer.Option(False, "--json", help="sortie machine (pour le client)"),
+) -> None:
+    """Remonte d'un saut d'indicateur aux échanges qui l'ont précédé (B4).
+
+    Ce que le jury demande : « montrez la conversation qui a précédé le
+    basculement ». On ne montre pas un graphique, on montre la chaîne.
+    """
+    from maree.adapters.journal.jsonl import JsonlJournal
+    from maree.engine.trace import report
+
+    journal = JsonlJournal(runs)
+    target = run_id or (journal.runs()[-1] if journal.runs() else None)
+    if not target:
+        raise typer.BadParameter("aucun run dans le journal")
+    result = report(journal.read(target), key=indicator, lookback=lookback)
+    if as_json:
+        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    if not result["found"]:
+        typer.echo(f"{indicator} : {result['reason']}")
+        return
+    typer.echo(
+        f"{indicator} : {result['from']} -> {result['to']} "
+        f"(delta {result['delta']:+.3f}) au tick {result['tick']}"
+    )
+    typer.echo(f"--- les {lookback} ticks qui précèdent ---")
+    for step in result["events"]:
+        typer.echo(f"  t{step['tick']:>3} #{step['seq']:<5} {step['type']:<22} {step['label']}")
+    typer.echo("--- chaînes causales des décisions ---")
+    for chain in result["chains"]:
+        for depth, step in enumerate(chain):
+            typer.echo(f"  {'  ' * depth}└ t{step['tick']:>3} {step['label']}")
 
 
 @app.command()

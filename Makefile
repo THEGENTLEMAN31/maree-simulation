@@ -78,6 +78,9 @@ smoke:  ## run complet sans LLM ni GPU (60 agents à règles)
 replay:  ## rejeu E3 du dernier run
 	uv run maree replay
 
+replay-demo:  ## rejoue le run versionné sans aucun appel LLM (E3)
+	uv run maree replay --run-id demo_replay
+
 serve:  ## diffuse le dernier run en WebSocket (pour Godot)
 	uv run maree serve
 
@@ -99,4 +102,4 @@ spike:  ## vérifie JuPedSim / Mesa / registry
 vram:  ## usage VRAM courant
 	nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay serve godot experiments report spike vram
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report spike vram

@@ -24,6 +24,7 @@ négligeable devant les ~2,8 s d'un appel LLM.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -56,6 +57,11 @@ class AgentState(TypedDict, total=False):
     llm: dict[str, Any]
     #: Vrai si l'intention finale vient des règles et non du modèle.
     fallback: bool
+    #: Tier de capacité du profil (« big » / « small », A5) et nom du
+    #: modèle concret résolu pour ce run. `None` = modèle par défaut de
+    #: l'adaptateur.
+    tier: str
+    model: str | None
 
 
 class DecisionGraph:
@@ -69,12 +75,16 @@ class DecisionGraph:
         memory: MemoryPort,
         plan: Plan,
         max_tokens: int = 256,
+        models: Mapping[str, str] | None = None,
     ) -> None:
         self._llm = llm
         self._retriever = retriever
         self._memory = memory
         self._plan = plan
         self._max_tokens = max_tokens
+        #: Tier (« big » / « small ») -> nom de modèle. Vide = un seul
+        #: modèle pour tout le monde (`llm.model`, comportement d'avant A5).
+        self._models = dict(models or {})
         self._compiled = self._build()
 
     # ---- construction -----------------------------------------
@@ -134,8 +144,17 @@ class DecisionGraph:
     async def _retrieve(self, state: AgentState) -> AgentState:
         profile = state["profile"]
         query = self._query_for(state)
+        from maree.agents.profiles import get_profile
+
+        # F1 : le profil choisit les collections qu'il a le droit de lire ;
+        # le corpus décide de la disponibilité temporelle et nominative.
+        collections = get_profile(profile).rag_collections or None
         passages = await self._retriever.retrieve(  # type: ignore[union-attr]
-            query, profile=profile, tick=state["tick"], k=3
+            query,
+            profile=profile,
+            tick=state["tick"],
+            k=3,
+            collections=collections,
         )
         return {
             **state,
@@ -158,6 +177,7 @@ class DecisionGraph:
                 ChatMessage("user", prompt),
             ],
             seed=self._seed_for(state),
+            model=state.get("model"),
             max_tokens=self._max_tokens,
         )
         parsed = parse_decision(result.text)
@@ -169,6 +189,16 @@ class DecisionGraph:
                 "prompt": result.prompt,
                 "seed": result.seed,
                 "model": result.model,
+                # Le tier demandé, distinct du nom rendu par le serveur :
+                # si le petit modèle manque, `model` peut retomber sur le
+                # grand et la trace doit le montrer (A5, honnêteté E5).
+                "tier": state.get("tier"),
+                "requested_model": state.get("model"),
+                #: Sortie du parseur, **avant** normalisation. Le rejeu
+                #: (E3) la compare à un re-parse de `raw_output` : c'est ce
+                #: qui prouve que la lecture est reproductible, sans avoir
+                #: à rejouer la validation (qui dépend du plan et du profil).
+                "parsed": parsed,
                 "raw_output": result.text,
                 "tokens_in": result.tokens_in,
                 "tokens_out": result.tokens_out,
@@ -213,6 +243,11 @@ class DecisionGraph:
             "tick": percept.tick,
             "trigger": trigger,
             "percept": _percept_to_dict(percept),
+            # A5 : le tier vient du profil (rôle + expérience), le nom
+            # concret du YAML. Sans mapping, `model` reste None et
+            # l'adaptateur applique son défaut — comportement d'avant.
+            "tier": profile.tier,
+            "model": self._models.get(profile.tier),
         }
         out = await self._compiled.ainvoke(state)
         return _intention_from_dict(out.get("intention")), out

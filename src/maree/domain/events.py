@@ -74,13 +74,24 @@ class Event:
         t_trait: Tick,
         t_real: float,
         data: dict[str, Any],
+        t_prod: Tick | None = None,
     ) -> Event:
-        """Événement dérivé : la causalité est établie automatiquement (B4)."""
+        """Événement dérivé : la causalité est établie automatiquement (B4).
+
+        `causation_id` pointe l'événement **directement** responsable ;
+        `correlation_id` est la racine de la chaîne, donc toute une
+        arborescence causale se retrouve d'un seul filtre.
+
+        `t_prod` est le tick où l'effet se produit, qui n'est pas celui de
+        la cause (un message lu trois ticks plus tard, une décision
+        appliquée après le retour du modèle) : C3 exige de distinguer les
+        deux, on ne les confond donc pas ici.
+        """
         return Event(
             seq=seq,
             run_id=self.run_id,
             type=type,
-            t_prod=self.t_prod,
+            t_prod=self.t_prod if t_prod is None else t_prod,
             t_trait=t_trait,
             t_real=t_real,
             causation_id=self.id,

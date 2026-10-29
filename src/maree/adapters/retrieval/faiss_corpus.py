@@ -89,6 +89,7 @@ class FaissRetriever:
         embedder: LLMPort | None,
         *,
         min_score: float = 0.0,
+        respect_collections: bool = True,
     ) -> None:
         import faiss
 
@@ -96,6 +97,12 @@ class FaissRetriever:
         self._mean = mean
         self._embedder = embedder
         self._min_score = min_score
+        #: F1 — un agent ne lit que les collections de son profil. Sans ce
+        #: filtre, `rag_collections` était déclaré dans chaque profil mais
+        #: jamais appliqué : la seule barrière était `allowed_profiles` du
+        #: corpus, ce qui laissait un visiteur lire des consignes de
+        #: sécurité si un passage les autorisait.
+        self._respect_collections = respect_collections
         self._matrix = _normalise(matrix - mean)
         self._index = faiss.IndexFlatIP(self._matrix.shape[1])
         self._index.add(self._matrix.astype(np.float32))
@@ -154,14 +161,28 @@ class FaissRetriever:
         return cls(passages, matrix + mean, mean, embedder)
 
     # ---- requête ----------------------------------------------
+    def _allowed(self, passage: Passage, profile: str, tick: Tick,
+                 collections: tuple[str, ...] | None) -> bool:
+        if not passage.allowed_for(profile, tick):
+            return False
+        if self._respect_collections and collections is not None:
+            return passage.collection in collections
+        return True
+
     async def retrieve(
-        self, query: str, *, profile: str, tick: Tick, k: int = 3
+        self,
+        query: str,
+        *,
+        profile: str,
+        tick: Tick,
+        k: int = 3,
+        collections: tuple[str, ...] | None = None,
     ) -> list[RetrievedPassage]:
         if self._embedder is None:
-            return self._lexical(query, profile=profile, tick=tick, k=k)
+            return self._lexical(query, profile=profile, tick=tick, k=k, collections=collections)
         vectors = await self._embedder.embed([query])
         if not vectors:
-            return self._lexical(query, profile=profile, tick=tick, k=k)
+            return self._lexical(query, profile=profile, tick=tick, k=k, collections=collections)
         q = np.asarray(vectors[0], dtype=np.float32) - self._mean
         norm = np.linalg.norm(q) or 1.0
         q = (q / norm).astype(np.float32).reshape(1, -1)
@@ -171,7 +192,7 @@ class FaissRetriever:
             if idx < 0:
                 continue
             passage = self._passages[int(idx)]
-            if not passage.allowed_for(profile, tick):
+            if not self._allowed(passage, profile, tick, collections):
                 continue
             if float(score) < self._min_score:
                 continue
@@ -190,16 +211,24 @@ class FaissRetriever:
             )
             if len(out) >= k:
                 break
-        return out or self._lexical(query, profile=profile, tick=tick, k=k)
+        return out or self._lexical(
+            query, profile=profile, tick=tick, k=k, collections=collections
+        )
 
     # ---- repli lexical (signalé, jamais présenté comme sémantique) ----
     def _lexical(
-        self, query: str, *, profile: str, tick: Tick, k: int
+        self,
+        query: str,
+        *,
+        profile: str,
+        tick: Tick,
+        k: int,
+        collections: tuple[str, ...] | None = None,
     ) -> list[RetrievedPassage]:
         wanted = {w.lower() for w in _WORD.findall(query) if len(w) > 2}
         scored: list[tuple[float, Passage]] = []
         for passage in self._passages:
-            if not passage.allowed_for(profile, tick):
+            if not self._allowed(passage, profile, tick, collections):
                 continue
             terms = {w.lower() for w in _WORD.findall(passage.text) if len(w) > 2}
             overlap = len(wanted & terms)

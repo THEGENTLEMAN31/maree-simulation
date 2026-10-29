@@ -10,8 +10,15 @@
 base_url: ${oc.env:MAREE_LLM_URL,http://llama-cpp:8080/v1}
 api_key: ${oc.env:MAREE_LLM_KEY,sk-local}
 
-model: gemma4-e2b          # décisions (2,9 Go)
+model: gemma4-e2b          # décisions (2,9 Go) — tier « big »
+small_model: qwen3-0.6b    # tier « small » (378 Mo, A5)
 embed_model: bge-m3        # RAG (417 Mo)
+
+#: A5 — deux tailles de modèle, attribuées par le **rôle et l'expérience**
+#: du profil (le tier vit dans `agents/profiles.py`, jamais ici).
+#: `false` = tous les agents LLM sur `model` : c'est le bras « tous_grand »
+#: de E5, et le comportement d'avant A5.
+two_tier: true
 
 #: Au-delà, on considère le serveur perdu et on replie sur les règles.
 timeout_s: 120

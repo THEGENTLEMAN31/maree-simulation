@@ -162,6 +162,7 @@ class Simulation:
         journal: JournalPort,
         bus: EventBus,
         narrator: Chroniqueur | None = None,
+        models: dict[str, str] | None = None,
     ) -> None:
         self._cfg = config
         self._plan = plan
@@ -173,7 +174,11 @@ class Simulation:
         self._bus = bus
         self._narrator = narrator
         self._graph = DecisionGraph(
-            llm=llm, retriever=retriever, memory=memory, plan=plan
+            llm=llm,
+            retriever=retriever,
+            memory=memory,
+            plan=plan,
+            models=models,
         )
         self._rng = random.Random(config.seed)
         self._seq = journal.last_seq(config.run_id)
@@ -193,19 +198,51 @@ class Simulation:
         #: zéro.
         self._first_signal_s: float | None = None
         self._last_exit_s: float | None = None
+        #: B4 — de quoi reconstruire la chaîne causale sans relire le
+        #: journal : le dernier événement de monde par nature, le dernier
+        #: message émis par (émetteur, tick), la dernière décision par
+        #: agent, et le dernier bloc d'indicateurs.
+        self._signal_events: dict[str, Event] = {}
+        self._message_events: dict[tuple[str, int], Event] = {}
+        self._last_decision: dict[AgentId, Event] = {}
+        self._last_indicators: Event | None = None
 
     # ---- journal ----------------------------------------------
-    async def _emit(self, tick: int, type_: EventType, data: dict[str, Any]) -> Event:
+    async def _emit(
+        self,
+        tick: int,
+        type_: EventType,
+        data: dict[str, Any],
+        *,
+        cause: Event | None = None,
+    ) -> Event:
+        """Écrit un événement et le publie.
+
+        `cause` établit la chaîne causale (B4) : l'événement sait lequel
+        l'a provoqué, et `correlation_id` remonte à la racine. Sans cause
+        explicite (instantané, indicateurs agrégés), le champ reste vide —
+        prétendre le contraire serait mentir sur la traçabilité.
+        """
         self._seq += 1
-        event = Event(
-            seq=self._seq,
-            run_id=self._cfg.run_id,
-            type=type_,
-            t_prod=tick,
-            t_trait=tick,
-            t_real=time.monotonic() - self._t0,
-            data=data,
-        )
+        if cause is not None:
+            event = cause.child(
+                seq=self._seq,
+                type=type_,
+                t_prod=tick,
+                t_trait=tick,
+                t_real=time.monotonic() - self._t0,
+                data=data,
+            )
+        else:
+            event = Event(
+                seq=self._seq,
+                run_id=self._cfg.run_id,
+                type=type_,
+                t_prod=tick,
+                t_trait=tick,
+                t_real=time.monotonic() - self._t0,
+                data=data,
+            )
         self._journal.append(event)
         topic = {
             EventType.DECISION: TOPIC_DECISIONS,
@@ -230,7 +267,7 @@ class Simulation:
             # le LLM : c'est exactement le bug qui rendrait le run
             # impossible à terminer.
             if entry.kind == "rules":
-                profile = replace(profile, kind="rules", model="")
+                profile = replace(profile, kind="rules")
             for _ in range(entry.count):
                 index += 1
                 agent_id = f"A{index:02d}"
@@ -332,7 +369,10 @@ class Simulation:
                         IntentionKind.GO_EXIT, None, "sorti", tick
                     )
                     await self._emit(
-                        tick, EventType.EVACUATED, {"agent_id": agent_id, "kind": "exit"}
+                        tick,
+                        EventType.EVACUATED,
+                        {"agent_id": agent_id, "kind": "exit"},
+                        cause=self._last_decision.get(agent_id),
                     )
 
             # --- 2. événements du monde --------------------------
@@ -364,9 +404,15 @@ class Simulation:
             # --- 5. décisions (concurrentes, appliquées dans l'ordre) ---
             results = await self._decide_all(todo, percepts)
 
-            for agent_id, reason, intention, trace in results:
+            for agent_id, reason, intention, trace, context in results:
                 await self._apply(
-                    agent_id, intention, trace, percepts[agent_id], positions, trigger=reason
+                    agent_id,
+                    intention,
+                    trace,
+                    percepts[agent_id],
+                    positions,
+                    trigger=reason,
+                    context=context,
                 )
 
             # --- 6. messages et mémoire --------------------------
@@ -384,7 +430,9 @@ class Simulation:
                 last_exit_s=self._last_exit_s,
             )
             self._events.append(ind)
-            await self._emit(tick, EventType.INDICATORS, ind.to_dict())
+            self._last_indicators = await self._emit(
+                tick, EventType.INDICATORS, ind.to_dict()
+            )
             await self._emit(tick, EventType.SNAPSHOT, self._snapshot(tick))
 
             # --- 8. chroniqueur ----------------------------------
@@ -434,7 +482,7 @@ class Simulation:
             self._smoke_active = True
             self._signal(tick)
             self._recent.append(f"t{tick} fumée près de la scène")
-            await self._emit(
+            self._signal_events["smoke"] = await self._emit(
                 tick,
                 EventType.WORLD_SMOKE,
                 {"position": list(cfg.smoke_position), "radius": cfg.smoke_radius},
@@ -444,12 +492,14 @@ class Simulation:
             self._physics.close_exit(cfg.close_exit)
             self._signal(tick)
             self._recent.append(f"t{tick} sortie {cfg.close_exit} fermée")
-            await self._emit(tick, EventType.EXIT_CLOSED, {"exit": cfg.close_exit})
+            self._signal_events["exit_closed"] = await self._emit(
+                tick, EventType.EXIT_CLOSED, {"exit": cfg.close_exit}
+            )
         if cfg.announcement_tick and tick == cfg.announcement_tick:
             self._announcement = cfg.announcement
             self._signal(tick)
             self._recent.append(f"t{tick} annonce officielle")
-            await self._emit(
+            self._signal_events["announcement"] = await self._emit(
                 tick, EventType.ANNOUNCEMENT, {"text": cfg.announcement}
             )
 
@@ -537,15 +587,26 @@ class Simulation:
 
     async def _decide_all(
         self, todo: list[tuple[AgentId, str]], percepts: dict[AgentId, Percept]
-    ) -> list[tuple[AgentId, str, Intention, dict[str, Any] | None]]:
-        """Décisions concurrentes, mais **appliquées** dans l'ordre canonique."""
+    ) -> list[
+        tuple[AgentId, str, Intention, dict[str, Any] | None, dict[str, Any]]
+    ]:
+        """Décisions concurrentes, mais **appliquées** dans l'ordre canonique.
+
+        Le `contexte` (passages retrouvés, souvenirs rappelés) est journalisé
+        avec la décision : sans lui, F2 (« montrez ce qui a été retrouvé »)
+        n'est pas recalculable après coup, et D2 ne peut pas expliquer une
+        décision dans l'interface.
+        """
         semaphore = asyncio.Semaphore(self._cfg.max_concurrency)
-        out: list[tuple[AgentId, str, Intention, dict[str, Any] | None]] = []
+        out: list[
+            tuple[AgentId, str, Intention, dict[str, Any] | None, dict[str, Any]]
+        ] = []
 
         async def one(agent_id: AgentId, reason: str) -> None:
             runtime = self._agents[agent_id]
             percept = percepts[agent_id]
             async with semaphore:
+                context: dict[str, Any] = {}
                 if runtime.profile.kind == "rules":
                     intention = rules_decide(
                         percept, self._plan, profile=runtime.profile.id
@@ -559,15 +620,40 @@ class Simulation:
                         trigger=reason,
                     )
                     trace = state.get("llm")
+                    if state.get("passages"):
+                        context["retrieved"] = state["passages"]
+                    if state.get("memories"):
+                        context["memory"] = state["memories"]
                     self._llm_calls += 1
                     if trace:
                         trace["fallback"] = bool(state.get("fallback"))
                         if trace.get("ok"):
                             self._llm_ok += 1
-            out.append((agent_id, reason, intention, trace))
+            out.append((agent_id, reason, intention, trace, context))
 
         await asyncio.gather(*(one(a, r) for a, r in todo))
         return sorted(out, key=lambda x: x[0])
+
+    # ---- causalité (B4) ---------------------------------------
+    def _cause_for(self, trigger: str, percept: Percept) -> Event | None:
+        """Quel événement a provoqué cette décision ?
+
+        Une décision périodique n'a pas de cause externe : elle vient du
+        filet de sécurité, pas du monde. On ne lui invente donc pas un
+        parent — c'est précisément ce que B4 doit rendre lisible.
+        """
+        if trigger == "fumee_visible":
+            return self._signal_events.get("smoke")
+        if trigger == "annonce":
+            return self._signal_events.get("announcement")
+        if trigger == "sortie_fermee":
+            return self._signal_events.get("exit_closed")
+        if trigger.startswith("message:"):
+            sender = trigger.split(":", 1)[1]
+            for msg in reversed(percept.messages):
+                if msg.sender == sender:
+                    return self._message_events.get((msg.sender, msg.tick))
+        return None
 
     async def _apply(
         self,
@@ -578,6 +664,7 @@ class Simulation:
         positions: dict[AgentId, Point],
         *,
         trigger: str,
+        context: dict[str, Any] | None = None,
     ) -> None:
         runtime = self._agents[agent_id]
         runtime.intention = intention
@@ -701,11 +788,18 @@ class Simulation:
         }
         if trace:
             data["llm"] = trace
-        await self._emit(percept.tick, EventType.DECISION, data)
+        if context:
+            data.update(context)
+        cause = self._cause_for(trigger, percept)
+        decision = await self._emit(
+            percept.tick, EventType.DECISION, data, cause=cause
+        )
+        self._last_decision[agent_id] = decision
         await self._emit(
             percept.tick,
             EventType.BELIEF_UPDATED,
             {"agent_id": agent_id, "beliefs": runtime.beliefs.snapshot()},
+            cause=decision,
         )
 
     async def _diffuse(self, tick: int, positions: dict[AgentId, Point]) -> None:
@@ -734,12 +828,15 @@ class Simulation:
             runtime.spoke = True
             claim = f"sortie_{best}"
             content = f"il faut sortir par la sortie {best}"
-            await self._emit(
+            voisins = self._neighbours(agent_id, positions)
+            sent = await self._emit(
                 tick,
                 EventType.MESSAGE_SENT,
-                {"from": agent_id, "to": self._neighbours(agent_id, positions), "content": content},
+                {"from": agent_id, "to": voisins, "content": content},
+                cause=self._last_decision.get(agent_id),
             )
-            for other in self._neighbours(agent_id, positions):
+            self._message_events[(agent_id, tick)] = sent
+            for other in voisins:
                 target = self._agents[other]
                 if target.evacuated:
                     continue
@@ -761,6 +858,7 @@ class Simulation:
                     tick,
                     EventType.MESSAGE_HEARD,
                     {"agent_id": other, "from": agent_id, "content": content},
+                    cause=sent,
                 )
 
     async def _narrate(
@@ -786,6 +884,7 @@ class Simulation:
                 "problems": list(narrative.problems),
                 "llm": narrative.llm,
             },
+            cause=self._last_indicators,
         )
 
     # ---- vues --------------------------------------------------

@@ -338,3 +338,32 @@ async def test_un_guide_sans_danger_ne_diffuse_pas_d_alerte(tmp_path: Path) -> N
     assert not avant, "un guide a diffusé une alerte avant la fumée"
     sorties = [e for e in events if str(e.type) == "agent.evacuated" and e.t_prod < 10]
     assert not sorties, "des agents sont sortis avant la fumée"
+
+
+async def test_b4_une_decision_declenchee_par_la_fumee_a_une_cause(tmp_path: Path) -> None:
+    """B4 — `causation_id` pointe l'événement qui a réellement déclenché.
+
+    Le journal portait 0 / 1 181 `causation_id` : `Event.child()` existait
+    mais n'était jamais appelé. Sans ce lien, « montrez les échanges qui
+    ont précédé le basculement » n'a pas de réponse calculable.
+    """
+    _, journal, _, _ = await _run(tmp_path, "run_b4")
+    events = journal.read("run_b4")
+    by_id = {e.id: e for e in events}
+    smoke = next(e for e in events if str(e.type) == "world.smoke")
+    caused = [
+        e
+        for e in events
+        if str(e.type) == "agent.decision" and e.data.get("trigger") == "fumee_visible"
+    ]
+    assert caused, "aucune décision déclenchée par la fumée"
+    for decision in caused:
+        assert decision.causation_id == smoke.id
+        assert decision.correlation_id == smoke.id
+        assert by_id[decision.causation_id].type is smoke.type
+    # Une décision périodique n'a pas de parent inventé.
+    periodic = [
+        e for e in events if str(e.type) == "agent.decision" and e.data.get("trigger") == "periodique"
+    ]
+    assert periodic
+    assert all(e.causation_id is None for e in periodic)

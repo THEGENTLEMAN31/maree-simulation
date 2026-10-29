@@ -181,7 +181,13 @@ class RetrieverPort(Protocol):
     """
 
     async def retrieve(
-        self, query: str, *, profile: str, tick: Tick, k: int = 3
+        self,
+        query: str,
+        *,
+        profile: str,
+        tick: Tick,
+        k: int = 3,
+        collections: tuple[str, ...] | None = None,
     ) -> list[RetrievedPassage]: ...
 
     @property

@@ -27,7 +27,11 @@ class Profile:
     id: str
     label: str
     kind: Literal["llm", "rules"]
-    model: str
+    #: Capacité cognitive attendue, attribuée par le **rôle et
+    #: l'expérience** du profil, jamais par une catégorie sociale (A5).
+    #: Le nom concret du GGUF vient du YAML (`llm.model` / `llm.small_model`) :
+    #: un profil décrit un rôle, pas un fichier.
+    tier: Literal["big", "small"]
     temperature: float
     cadence_ticks: int
     #: None = connaît toutes les sorties du plan.
@@ -64,7 +68,7 @@ PROFILES: dict[str, Profile] = {
         id="securite",
         label="Agent de sécurité",
         kind="llm",
-        model="gemma4-e2b",
+        tier="big",
         temperature=0.2,
         cadence_ticks=2,
         knows_exits=None,
@@ -83,7 +87,7 @@ PROFILES: dict[str, Profile] = {
         id="habitue",
         label="Habitué du quartier",
         kind="llm",
-        model="gemma4-e2b",
+        tier="big",
         temperature=0.2,
         cadence_ticks=3,
         knows_exits=("A", "B", "C"),
@@ -101,7 +105,7 @@ PROFILES: dict[str, Profile] = {
         id="famille",
         label="Parent accompagné",
         kind="llm",
-        model="gemma4-e2b",
+        tier="big",
         temperature=0.3,
         cadence_ticks=3,
         knows_exits=("A", "C"),
@@ -119,7 +123,7 @@ PROFILES: dict[str, Profile] = {
         id="visiteur",
         label="Visiteur",
         kind="llm",
-        model="gemma4-e2b",
+        tier="small",
         temperature=0.3,
         cadence_ticks=3,
         knows_exits=("A",),
@@ -137,7 +141,7 @@ PROFILES: dict[str, Profile] = {
         id="vendeur",
         label="Tenancier de stand",
         kind="llm",
-        model="gemma4-e2b",
+        tier="small",
         temperature=0.2,
         cadence_ticks=4,
         knows_exits=("A", "C"),
@@ -159,7 +163,7 @@ RULES_PROFILE = Profile(
     id="regles",
     label="Agent à règles (référence)",
     kind="rules",
-    model="",
+    tier="small",
     temperature=0.0,
     cadence_ticks=3,
     knows_exits=None,

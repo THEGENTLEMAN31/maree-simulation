@@ -131,3 +131,118 @@ def test_decision_sans_trace_nest_pas_reconstructible() -> None:
     assert check.total == 1
     assert check.trace_complete == 0
     assert check.reconstructed == 0
+
+
+# ------------------------------------------------------------
+# Le rejeu ne doit pas confondre normalisation, repli et divergence
+# ------------------------------------------------------------
+def test_une_normalisation_n_est_pas_une_divergence(tmp_path: Path) -> None:
+    """`stay` avec `"target": "null"` est nettoyé, pas réécrit.
+
+    Constaté sur le run `demo_replay` : 20 des 49 décisions étaient
+    comptées comme divergentes alors qu'elles étaient seulement
+    normalisées (`stay`/`search` perdent leur cible, `follow <sortie>`
+    devient `go_exit`). Le rejeu criait au loup sur un run correct.
+    """
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _llm_decision(2, '{"action": "stay", "target": "null"}', "stay", None),
+        _llm_decision(3, '{"action": "search", "target": "A"}', "search", None),
+        _event(4, EventType.RUN_ENDED, {}),
+    ]
+    result = replay(RUN, _write(tmp_path, events))
+    assert result.decisions.matching == 2
+    assert result.decisions.fallbacks == 0
+    assert result.ok, result.problems
+
+
+def test_un_repli_journalise_n_est_pas_une_divergence(tmp_path: Path) -> None:
+    """Le modèle a répondu `go_zone A` ; A n'est pas une zone, les règles décident.
+
+    C'est le comportement voulu, et le journal le dit (`fallback: true`).
+    """
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _event(
+            2,
+            EventType.DECISION,
+            {
+                "agent_id": "A32",
+                "kind": "llm",
+                "intention": {"kind": "go_exit", "target": "A", "reason": "règles", "tick": 10},
+                "llm": {
+                    "prompt": "…",
+                    "seed": 42,
+                    "raw_output": '{"action": "go_zone", "target": "A"}',
+                    "ok": True,
+                    "fallback": True,
+                },
+            },
+            tick=10,
+        ),
+        _event(3, EventType.RUN_ENDED, {}),
+    ]
+    result = replay(RUN, _write(tmp_path, events))
+    assert result.decisions.fallbacks == 1
+    assert result.decisions.matching == 1
+    assert result.ok, result.problems
+
+
+def test_un_repli_annonce_sur_une_sortie_valide_est_signale(tmp_path: Path) -> None:
+    """Si la sortie était utilisable, annoncer un repli est une incohérence."""
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _event(
+            2,
+            EventType.DECISION,
+            {
+                "agent_id": "A01",
+                "kind": "llm",
+                "intention": {"kind": "go_exit", "target": "A", "reason": "x", "tick": 10},
+                "llm": {
+                    "prompt": "…",
+                    "seed": 42,
+                    "raw_output": '{"action": "go_exit", "target": "A"}',
+                    "ok": True,
+                    "fallback": True,
+                },
+            },
+            tick=10,
+        ),
+        _event(3, EventType.RUN_ENDED, {}),
+    ]
+    result = replay(RUN, _write(tmp_path, events))
+    assert not result.ok
+    assert "repli annoncé" in str(result.decisions.mismatches)
+
+
+def test_un_re_parse_different_du_parse_journalise_est_signale(tmp_path: Path) -> None:
+    """Le journal dit `parsed = stay` ; la sortie brute dit `go_exit`.
+
+    C'est le seul cas qui prouve une altération du journal (ou un parseur
+    non déterministe) : on le refuse.
+    """
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _event(
+            2,
+            EventType.DECISION,
+            {
+                "agent_id": "A01",
+                "kind": "llm",
+                "intention": {"kind": "stay", "target": None, "reason": "x", "tick": 10},
+                "llm": {
+                    "prompt": "…",
+                    "seed": 42,
+                    "raw_output": '{"action": "go_exit", "target": "A"}',
+                    "ok": True,
+                    "parsed": {"action": "stay", "target": None},
+                },
+            },
+            tick=10,
+        ),
+        _event(3, EventType.RUN_ENDED, {}),
+    ]
+    result = replay(RUN, _write(tmp_path, events))
+    assert not result.ok
+    assert "re-parse" in str(result.decisions.mismatches)

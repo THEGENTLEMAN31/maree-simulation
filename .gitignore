@@ -18,7 +18,7 @@ models/
 # ---- Données de simulation ----
 data/
 logs/
-runs/
+runs/*
 *.jsonl
 *.parquet
 mlruns/
@@ -43,3 +43,9 @@ src/maree/gen/
 
 # ---- Secrets ----
 .env
+
+# ---- Run enregistré (E3) ----
+# Un seul run est versionné : celui que `make replay-demo` rejoue. Il sert
+# de preuve que le journal suffit à reconstruire un run complet.
+!runs/demo_replay/
+!runs/demo_replay/events.jsonl

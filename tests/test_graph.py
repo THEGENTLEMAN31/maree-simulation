@@ -248,3 +248,77 @@ async def test_rester_ne_porte_jamais_de_cible(plan: Plan) -> None:
         assert intention.target is None, brut
         assert intention.to_dict()["target"] is None
         assert not state.get("fallback")
+
+
+# ------------------------------------------------------------
+# A5 — deux tailles de modèle, attribuées par le rôle et l'expérience
+# ------------------------------------------------------------
+class RecordingLLM:
+    """Retient le nom de modèle demandé à chaque appel."""
+
+    def __init__(self) -> None:
+        self.models: list[str | None] = []
+
+    async def chat(self, messages, *, seed: int, model=None, **kwargs) -> LLMResult:
+        self.models.append(model)
+        return LLMResult(
+            text='{"action": "stay", "target": null, "confidence": 0.5, "reason": "ok"}',
+            prompt="…",
+            seed=seed,
+            model=model or "defaut",
+            ok=True,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_a5_le_tier_du_profil_choisit_le_modele(plan: Plan) -> None:
+    """Un habitué (expérimenté) et un visiteur n'appellent pas le même GGUF.
+
+    L'attribution vient de `Profile.tier`, pas d'une catégorie sociale :
+    le mapping tier → nom est fourni par le YAML, le profil ne connaît
+    aucun nom de fichier.
+    """
+    llm = RecordingLLM()
+    graph = DecisionGraph(
+        llm=llm,
+        retriever=None,
+        memory=NullMemory(),
+        plan=plan,
+        max_tokens=64,
+        models={"big": "grand.gguf", "small": "petit.gguf"},
+    )
+    for profil in ("habitue", "securite", "famille"):
+        await graph.decide(
+            agent_id="A01",
+            profile=get_profile(profil),
+            percept=_percept(),
+            trigger="annonce",
+        )
+    for profil in ("visiteur", "vendeur"):
+        await graph.decide(
+            agent_id="A02",
+            profile=get_profile(profil),
+            percept=_percept(),
+            trigger="annonce",
+        )
+    assert llm.models == [
+        "grand.gguf",
+        "grand.gguf",
+        "grand.gguf",
+        "petit.gguf",
+        "petit.gguf",
+    ]
+
+
+async def test_a5_sans_mapping_un_seul_modele(plan: Plan) -> None:
+    """`two_tier: false` = comportement d'avant : aucun nom imposé."""
+    llm = RecordingLLM()
+    graph = DecisionGraph(
+        llm=llm, retriever=None, memory=NullMemory(), plan=plan, max_tokens=64
+    )
+    await graph.decide(
+        agent_id="A01", profile=get_profile("visiteur"), percept=_percept(), trigger="annonce"
+    )
+    assert llm.models == [None]

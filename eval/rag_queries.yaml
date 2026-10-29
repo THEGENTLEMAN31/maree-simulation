@@ -1,0 +1,161 @@
+# Jeu d'évaluation de la récupération (F2)
+#
+# Chaque entrée décrit une décision réelle du monde : une question qu'un
+# agent se pose, son profil et le tick simulé. `expected_any` liste les
+# passages dont le contenu répond effectivement à la question — un seul
+# suffit. Ce n'est pas une vérité absolue : c'est une annotation assumée,
+# relue à la main, et c'est ce qui manquait à `rag_eval.json` (artefact v1).
+#
+# Convention : `doc_id` = chemin relatif sans extension dans `world_corpus/`.
+# Plusieurs identifiants sont admis quand le corpus contient des variantes
+# équivalentes (les fiches « cheminement-B-02/05/08/11 » répondent toutes à
+# « comment rejoindre la sortie B »).
+
+queries:
+  - id: q01
+    query: "odeur de fumée côté sud des stands, faut-il s'inquiéter"
+    profile: visiteur
+    tick: 12
+    expected_any: [souvenirs_editions/odeur-fumee-sud]
+
+  - id: q02
+    query: "la sortie A a fermé l'an dernier, que s'est-il passé"
+    profile: habitue
+    tick: 20
+    expected_any: [souvenirs_editions/fermeture-a-dernier]
+
+  - id: q03
+    query: "un raccourci discret par la ruelle à l'est pour éviter la foule"
+    profile: habitue
+    tick: 0
+    expected_any: [savoir_profils/habitue-raccourci]
+
+  - id: q04
+    query: "consigne de zone pour la scène principale, effectif et points de conflit"
+    profile: securite
+    tick: 0
+    expected_any: [consignes_securite/consigne-zone-01]
+
+  - id: q05
+    query: "que faire en cas d'incendie sur l'esplanade"
+    profile: securite
+    tick: 0
+    expected_any: [consignes_securite/fiche-incident-02]
+
+  - id: q06
+    query: "protocole d'évacuation de la fête, étapes et responsables"
+    profile: securite
+    tick: 0
+    expected_any: [consignes_securite/protocole]
+
+  - id: q07
+    query: "plan général de l'esplanade et emplacement des sorties"
+    profile: securite
+    tick: 0
+    expected_any: [plan_signalétique/plan-esplanade]
+
+  - id: q08
+    query: "comment rejoindre la sortie B depuis la partie nord"
+    profile: securite
+    tick: 0
+    expected_any:
+      - plan_signalétique/cheminement-B-02
+      - plan_signalétique/cheminement-B-05
+      - plan_signalétique/cheminement-B-08
+      - plan_signalétique/cheminement-B-11
+
+  - id: q09
+    query: "annonce claire du haut-parleur, consignes d'évacuation"
+    profile: securite
+    tick: 12
+    expected_any: [annonces/annonce-claire]
+
+  - id: q10
+    query: "rumeur : la sortie B serait fermée"
+    profile: habitue
+    tick: 20
+    expected_any: [annonces/rumeur-fermeture-b]
+
+  - id: q11
+    query: "annonce du haut-parleur à peine audible, message ambigu"
+    profile: visiteur
+    tick: 24
+    expected_any: [annonces/annonce-ambigue]
+
+  - id: q12
+    query: "par où suis-je arrivé, l'entrée principale au nord"
+    profile: visiteur
+    tick: 0
+    expected_any: [savoir_profils/visiteur-entree]
+
+  - id: q13
+    query: "je cherche mon enfant perdu dans la foule"
+    profile: famille
+    tick: 0
+    expected_any: [savoir_profils/famille-enfant]
+
+  - id: q14
+    query: "le stand doit-il rester ouvert malgré la fumée"
+    profile: vendeur
+    tick: 12
+    expected_any: [savoir_profils/vendeur-fumee]
+
+  - id: q15
+    query: "la sortie C que les habitués connaissent"
+    profile: habitue
+    tick: 0
+    expected_any: [souvenirs_editions/sortie-c-habitues]
+
+  - id: q16
+    query: "densité de foule et largeur devant la sortie A"
+    profile: securite
+    tick: 0
+    expected_any: [plan_signalétique/plan-zone-sortie_a]
+
+  - id: q17
+    query: "procédure radio des agents de sécurité"
+    profile: securite
+    tick: 0
+    expected_any: [savoir_profils/securite-radio]
+
+  - id: q18
+    query: "consigne pour la passerelle, points de vigilance"
+    profile: securite
+    tick: 0
+    expected_any: [consignes_securite/consigne-zone-06]
+
+  - id: q19
+    query: "signalétique de la sortie C la nuit"
+    profile: securite
+    tick: 0
+    expected_any: [plan_signalétique/signaletique-11]
+
+  - id: q20
+    query: "fumée vue par un visiteur qui ne connaît rien"
+    profile: visiteur
+    tick: 12
+    expected_any: [savoir_profils/visiteur-fumee]
+
+  - id: q21
+    query: "souvenir de la foule de l'édition 2023"
+    profile: habitue
+    tick: 0
+    expected_any: [souvenirs_editions/2023-foule]
+
+  - id: q22
+    query: "gérer une bousculade dans la foule"
+    profile: securite
+    tick: 0
+    expected_any: [consignes_securite/fiche-incident-03]
+
+  - id: q23
+    query: "où se garer quand on est un habitué"
+    profile: habitue
+    tick: 0
+    expected_any: [savoir_profils/habitue-parking]
+
+  - id: q24
+    query: "consignes pour la partie ouest de l'esplanade"
+    profile: securite
+    tick: 0
+    expected_any: [consignes_securite/consigne-zone-03]

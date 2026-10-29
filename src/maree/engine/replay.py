@@ -31,6 +31,9 @@ class DecisionCheck:
     trace_complete: int
     reconstructed: int
     matching: int
+    #: Décisions où le modèle a été appelé mais où les règles ont tranché.
+    #: Ce n'est pas une divergence : c'est un repli journalisé.
+    fallbacks: int = 0
     mismatches: tuple[dict[str, object], ...] = ()
 
 
@@ -57,12 +60,45 @@ def indicators_hash(events: list[Event]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
+#: Actions dont la cible est effacée par la validation (graph._to_intention).
+#: Ce n'est pas une divergence : c'est une normalisation documentée, et le
+#: rejeu doit la connaître pour ne pas crier au loup.
+_TARGETLESS = {"stay", "search"}
+
+
+def _is_normalisation(parsed: dict, applied: dict) -> bool:
+    """`applied` est-il le résultat légitime de `parsed` après validation ?"""
+    action = str(parsed.get("action"))
+    kind = str(applied.get("kind"))
+    target = parsed.get("target")
+    kept = applied.get("target")
+    if action == kind:
+        if target == kept:
+            return True
+        # `stay` et `search` perdent leur cible ; `"null"` (la chaîne) aussi.
+        return kept is None and (action in _TARGETLESS or str(target).lower() == "null")
+    # « follow la sortie C » est lu comme « go_exit C ».
+    return action == "follow" and kind == "go_exit" and target == kept
+
+
 def check_decisions(events: list[Event]) -> DecisionCheck:
-    """Re-parse la sortie brute et la compare à l'intention appliquée."""
+    """Re-parse la sortie brute et vérifie que l'intention appliquée en découle.
+
+    Deux contrôles distincts, parce qu'ils ne prouvent pas la même chose :
+
+      1. `parse_decision(raw_output)` redonne le `parsed` journalisé — la
+         lecture du modèle est reproductible ;
+      2. `parsed` mène à `intention` par les seules normalisations connues
+         (`stay`/`search` sans cible, `follow <sortie>` lu `go_exit`) — la
+         validation ne réécrit pas la décision en douce.
+
+    Confondre les deux faisait échouer le rejeu sur 20 décisions sur 49 :
+    elles étaient *normalisées*, pas divergentes.
+    """
     decisions = [
         e for e in events if e.type is EventType.DECISION and e.data.get("kind") == "llm"
     ]
-    complete = reconstructed = matching = 0
+    complete = reconstructed = matching = normalised = fallbacks = 0
     mismatches: list[dict[str, object]] = []
     for event in decisions:
         trace = event.data.get("llm") or {}
@@ -74,11 +110,41 @@ def check_decisions(events: list[Event]) -> DecisionCheck:
             mismatches.append({"seq": event.seq, "reason": "sortie non parsable"})
             continue
         reconstructed += 1
+        recorded = trace.get("parsed")
+        if recorded is not None and recorded != parsed:
+            mismatches.append(
+                {
+                    "seq": event.seq,
+                    "agent": event.data.get("agent_id"),
+                    "reason": "re-parse différent du parse journalisé",
+                    "now": parsed,
+                    "recorded": recorded,
+                }
+            )
+            continue
         applied = event.data.get("intention") or {}
-        same_action = str(parsed.get("action")) == str(applied.get("kind"))
-        same_target = parsed.get("target") == applied.get("target")
-        if same_action and same_target:
+        if trace.get("fallback"):
+            # Le modèle a répondu, mais sa sortie a été rejetée : les règles
+            # ont décidé. Le journal le dit (`fallback: true`) ; ce n'est une
+            # divergence que si la sortie était pourtant utilisable.
+            if _is_normalisation(parsed, applied):
+                mismatches.append(
+                    {
+                        "seq": event.seq,
+                        "agent": event.data.get("agent_id"),
+                        "reason": "repli annoncé sur une sortie valide",
+                        "parsed": parsed,
+                        "applied": applied,
+                    }
+                )
+            else:
+                matching += 1
+                fallbacks += 1
+            continue
+        if _is_normalisation(parsed, applied):
             matching += 1
+            if parsed.get("target") != applied.get("target") or parsed.get("action") != applied.get("kind"):
+                normalised += 1
         else:
             mismatches.append(
                 {
@@ -93,6 +159,7 @@ def check_decisions(events: list[Event]) -> DecisionCheck:
         trace_complete=complete,
         reconstructed=reconstructed,
         matching=matching,
+        fallbacks=fallbacks,
         mismatches=tuple(mismatches[:20]),
     )
 
