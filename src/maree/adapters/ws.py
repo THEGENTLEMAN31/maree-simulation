@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from maree.domain.events import Event, EventType
@@ -66,6 +66,7 @@ class JournalStreamer:
         port: int = 8765,
         speed: float = 5.0,
         include_prompts: bool = False,
+        control: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self._journal = journal
         self._run_id = run_id
@@ -76,6 +77,11 @@ class JournalStreamer:
         self._speed = speed
         #: Inclure le prompt LLM dans les trames `decision` (~3 Ko chacune).
         self._include_prompts = include_prompts
+        #: D3 — si le moteur tourne dans le même processus (`maree live`),
+        #: cette fonction reçoit les trames entrantes du client. En mode
+        #: rejeu elle est absente : un client ne peut pas injecter dans un
+        #: run déjà terminé, et le serveur le lui dit.
+        self._control = control
 
     def _decision_frame(self, event: Event) -> dict[str, Any]:
         data = dict(event.data)
@@ -117,6 +123,11 @@ class JournalStreamer:
                     yield {"type": "belief", "tick": event.t_prod, **event.data}
                 elif event.type is EventType.EVACUATED:
                     yield {"type": "evacuated", "tick": event.t_prod, **event.data}
+                elif event.type is EventType.INJECTION:
+                    # D3 — une commande venue du client devient un
+                    # événement du journal comme un autre : elle est donc
+                    # rejouable, et le client la voit revenir.
+                    yield {"type": "injection", "tick": event.t_prod, **event.data}
                 elif event.type in _WORLD_KINDS:
                     yield {
                         "type": "world",
@@ -153,7 +164,53 @@ class JournalStreamer:
                 return dict(event.data)
         return {}
 
-    async def _handler(self, websocket) -> None:
+    async def _receive(self, websocket) -> None:
+        """Traite les trames entrantes (D3) : `inject`, `ping`.
+
+        Le client n'a besoin de rien savoir du moteur : il envoie un JSON
+        avec un `kind`, le moteur journalise `control.injection` puis
+        l'événement de monde correspondant, et le client le voit revenir
+        comme n'importe quel autre événement. Une trame inconnue reçoit une
+        erreur explicite, elle n'est jamais ignorée en silence.
+        """
+        async for raw in websocket:
+            try:
+                frame = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send(
+                    json.dumps({"type": "error", "reason": "JSON invalide"})
+                )
+                continue
+            if frame.get("type") == "ping":
+                await websocket.send(json.dumps({"type": "pong"}))
+                continue
+            if frame.get("type") != "inject":
+                await websocket.send(
+                    json.dumps(
+                        {"type": "error", "reason": f"trame inconnue : {frame.get('type')!r}"}
+                    )
+                )
+                continue
+            if self._control is None:
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "reason": "run en rejeu : aucune injection possible",
+                        }
+                    )
+                )
+                continue
+            payload = {k: v for k, v in frame.items() if k != "type"}
+            self._control(payload)
+            await websocket.send(
+                json.dumps(
+                    {"type": "ack", "kind": payload.get("kind"), "queued": True},
+                    ensure_ascii=False,
+                )
+            )
+
+    async def handler(self, websocket) -> None:
         await websocket.send(
             json.dumps(
                 {
@@ -161,15 +218,19 @@ class JournalStreamer:
                     "run_id": self._run_id,
                     "plan": self._plan,
                     "run": self._run_meta(),
+                    "live": self._control is not None,
                 },
                 ensure_ascii=False,
             )
         )
+        receiver = asyncio.create_task(self._receive(websocket))
         try:
             async for frame in self._frames():
                 await websocket.send(json.dumps(frame, ensure_ascii=False))
         except Exception:
             return
+        finally:
+            receiver.cancel()
         # Godot abandonne les paquets encore en attente quand `poll()` voit
         # la socket fermée : sans ce délai, la dernière trame (`end`) était
         # perdue et le client affichait « déconnecté » sur une diffusion
@@ -180,7 +241,7 @@ class JournalStreamer:
     async def serve_forever(self) -> None:
         from websockets.asyncio.server import serve
 
-        async with serve(self._handler, self._host, self._port):
+        async with serve(self.handler, self._host, self._port):
             print(
                 f"MARÉE — diffusion de {self._run_id} sur ws://{self._host}:{self._port} "
                 f"({self._speed} ticks/s)"

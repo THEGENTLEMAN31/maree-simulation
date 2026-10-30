@@ -23,3 +23,13 @@ announcement: "Évacuation. Rejoignez la sortie nord."
 max_concurrency: 4
 message_radius: 8.0
 density_radius: 3.0
+
+# A2/B3 — false = bras « sans communication » (contrôle négatif de I1).
+communication: true
+
+# A1 — 0 = pas de passé ; 3 = préhistoire J-3 .. J-1 (table figée).
+prehistory_days: 0
+
+# D3 — pause reelle entre deux ticks. 0 = campagne (aussi vite que
+# possible) ; `maree live --tick-ms 600` la surcharge pour la demo.
+tick_delay_s: 0.0

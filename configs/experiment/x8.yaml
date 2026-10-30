@@ -1,0 +1,36 @@
+# @package _global_
+# ============================================================
+# X8 — la communication sert-elle à quelque chose ? (A2 / B3)
+#
+# B3 n'est pas « la foule s'influence » : c'est « **le dispositif sait-il
+# distinguer une émergence de son absence ?** ». On coupe donc la
+# diffusion des croyances (`run.communication: false`) et on regarde si
+# I1 bouge.
+#
+# Trois issues possibles, toutes défendables — mais une seule est
+# honnête :
+#
+#   1. I1 s'effondre sans communication → l'indicateur mesure bien
+#      l'accord social, et la diffusion le fabrique ;
+#   2. I1 ne bouge pas → I1 mesure la **règle**, pas l'émergence : c'est
+#      un artefact, et il faut le dire au lieu de le vendre ;
+#   3. I1 monte sans communication → encore plus net : l'indicateur
+#      mesure la ressemblance des réponses d'un modèle à un même prompt.
+#
+# `messages` est déclaré comme mesure du protocole : sans lui, on ne
+# peut pas prouver que le bras « sans » n'a réellement rien diffusé.
+# ============================================================
+
+experiment:
+  id: X8
+  hypothesis: B3
+  indicators: [I1_consensus, I2_entropy, I3_evacuated, I7_delay, messages]
+  arms:
+    - name: avec
+      description: diffusion des croyances active (défaut)
+      run:
+        communication: true
+    - name: sans
+      description: diffusion coupée — contrôle négatif de I1
+      run:
+        communication: false

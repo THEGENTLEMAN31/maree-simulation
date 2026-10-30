@@ -42,13 +42,19 @@ rejouable de bout en bout.
 - Budget VRAM (RTX 3050, 4 Go) : E2B 2,9 Go + bge-m3 0,42 Go = 3,3 Go.
   **E4B (4,7 Go) évince un modèle.** Si OOM au premier `make up` :
   `parallel = 2`, `ctx-size = 4096`.
-- **A5 exige un troisième modèle** : `qwen3-0.6b` Q4_K_M (378 Mo,
-  `unsloth/Qwen3-0.6B-GGUF`). Le preset le déclare (`[qwen3-0-6b]`), mais
-  le conteneur tourne encore avec `--models-max 2` : tant qu'il n'est pas
-  relancé avec `--models-max 3`, les appels au petit modèle répondent
-  « model not found » et l'adaptateur **retombe sur le grand** en le
-  journalisant (`requested_model` ≠ `model`). Un run « two_tier » n'est
-  donc pas forcément un run à deux modèles : vérifier la trace.
+- **A5 exige un troisième modèle** : `qwen3-0-6b` Q4_K_M (378 Mo,
+  `unsloth/Qwen3-0.6B-GGUF`). Le conteneur a été recréé le 2026-10-30 avec
+  `--models-max 3` : les deux tiers tournent pour de vrai (mesuré : 24
+  appels `gemma4-e2b` + 73 `qwen3-0-6b` dans un run hybride, 0 repli).
+  Tant qu'il tourne avec `--models-max 2`, les appels au petit modèle
+  répondent « model not found » et l'adaptateur **retombe sur le grand**
+  en le journalisant (`requested_model` ≠ `model`). Un run « two_tier »
+  n'est donc pas forcément un run à deux modèles : vérifier la trace.
+- **Le routeur normalise les points en tirets.** L'alias `qwen3-0.6b` du
+  preset est annoncé `qwen3-0-6b` par `GET /v1/models`. Configurer
+  `small_model: qwen3-0.6b` donne un 404 à chaque appel « small », et le
+  repli sur le grand **ressemble** à un run à deux tiers. `configs/llm/`
+  utilise donc le nom annoncé.
 - Le routeur llama.cpp **n'annonce pas** un modèle absent : `GET /v1/models`
   liste les alias déclarés, chargés ou non (`status.value`). Un alias
   manquant du preset renvoie 404 au premier appel, pas à l'indexation.
@@ -99,6 +105,23 @@ rejouable de bout en bout.
   en 11 s et un résultat d'apparence normale. `RunResult.llm_ok` compte
   les succès, le journal marque `llm.fallback=true`, et la CLI crie
   quand `llm_ok == 0`. Un run à 0 succès n'est **pas** un run hybride.
+- **Un souvenir de J−3 s'efface en 200 s si on ne fait rien.** La récence
+  vaut `1 / (1 + âge/20)` : un épisode daté −25 920 avait un score de
+  0,0008 et n'était jamais rappelé. La préhistoire a donc un **plancher de
+  récence** (0,35) dans `memory/store.py`, documenté comme un choix : un
+  souvenir ancien mais saillant ne s'efface pas comme une perception de la
+  dernière minute. Aucun run d'avant A1 n'a de tick négatif, la campagne
+  X1–X7 n'est pas affectée.
+- **Une injection appliquée dans le tick est une perception à deux
+  vitesses.** Les commandes du client sont drainées en tête de
+  `_world_events`, donc au tick suivant : une fumée injectée au milieu
+  d'un tick serait vue par certains agents et pas d'autres. `submit()` ne
+  fait que mettre en file ; `_drain_injections` journalise
+  `control.injection` **avant** l'événement qu'elle provoque.
+- **`runs/` dans `.gitignore` interdit toute exception enfant.** Git ne
+  descend pas dans un répertoire exclu : `!runs/demo_replay/events.jsonl`
+  ne marche que si le motif parent est `runs/*`, pas `runs/`. C'est ce qui
+  rend le run versionné E3 visible.
 - **Le rejeu confondait normalisation et divergence.** `graph._to_intention`
   efface la cible de `stay`/`search` et lit `follow <sortie>` comme
   `go_exit` : 20 des 49 décisions du run `demo_replay` étaient comptées
@@ -232,6 +255,11 @@ rejouable de bout en bout.
   Le 2026-10-29 elle est passée de `172.19.0.3` à `172.19.0.2` : un
   `MAREE_LLM_URL` figé dans un script pointait dans le vide, et les runs
   redevenaient des replis règles sans le dire.
+- **Recréer le conteneur change aussi de réseau.** Le 2026-10-30, pour
+  passer à `--models-max 3`, `docker run` sans `--network` l'a posé sur
+  le bridge **par défaut** : l'IP est devenue `172.17.0.2`, et non plus
+  `172.19.0.x`. Toujours relire l'IP après un `docker run`, pas seulement
+  après un reboot.
 - `MAREE_LLM_URL` est la variable lue par `configs/llm/llamacpp.yaml`.
   Le compose exportait `MAREE_LLM_BASE_URL`, que **personne** ne lisait :
   le run retombait silencieusement sur l'URL par défaut.
@@ -306,10 +334,11 @@ p = 0,083, n'est pas tranché).
 
 ```bash
 uv sync --all-extras          # venv + deps
-uv run pytest                 # 125 tests, sans GPU
+uv run pytest                 # 167 tests, sans GPU
 uv run maree run population=rules_only bus.backend=memory narrative.enabled=false
-uv run maree serve            # WebSocket sur 8765
+uv run maree serve            # WebSocket sur 8765 (rejeu d'un run)
 uv run maree serve --prompts  # + le prompt LLM dans les décisions
+uv run maree live --tick-ms 600  # run + diffusion + injections (D3)
 godot --path godot/project    # client
 uv run maree replay           # rejeu du dernier run
 uv run maree replay --run-id demo_replay   # le run versionné (E3)

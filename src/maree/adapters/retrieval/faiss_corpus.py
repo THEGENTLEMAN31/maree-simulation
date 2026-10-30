@@ -241,7 +241,11 @@ class FaissRetriever:
                 text=p.text,
                 score=score,
                 collection=p.collection,
-                metadata={"title": p.title, "degraded": True},
+                metadata={
+                    "title": p.title,
+                    "available_tick": p.available_tick,
+                    "degraded": True,
+                },
             )
             for score, p in scored[:k]
         ]

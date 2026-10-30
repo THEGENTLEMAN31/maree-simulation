@@ -36,16 +36,24 @@ class EventType(StrEnum):
     EXIT_CLOSED = "world.exit_closed"
     ANNOUNCEMENT = "world.announcement"
     INJECTION = "control.injection"
+    #: A1 — la préhistoire (J-3 .. J-1) est journalisée comme un fait du
+    #: monde, pas comme une initialisation silencieuse : sans cela, on ne
+    #: pourrait pas dire ce que l'agent savait avant t0.
+    MEMORY_SEEDED = "memory.seeded"
     # agents
     DECISION = "agent.decision"
     EVACUATED = "agent.evacuated"
     BELIEF_UPDATED = "agent.belief"
     MESSAGE_SENT = "agent.message.sent"
     MESSAGE_HEARD = "agent.message.heard"
+    # dérives de modèle (A4)
+    INCIDENT = "agent.incident"
     # mesure et récit
     INDICATORS = "metrics.indicators"
     NARRATIVE = "narrative.generated"
-    # erreurs
+    # cohérence (C6)
+    TEMPORAL_VIOLATION = "temporal.violation"
+    # erreurs (F4)
     INVALID = "dlq.invalid"
 
 
@@ -127,3 +135,54 @@ class Event:
             data=d.get("data") or {},
             schema_version=d.get("schema_version", SCHEMA_VERSION),
         )
+
+
+# ============================================================
+# Schémas par type (F4) — ce qui doit exister pour qu'un
+# événement soit lisible par le rejeu et par le client.
+# ============================================================
+#: Champs obligatoires dans `data`, par type. Ce n'est pas un schéma
+#: exhaustif (JSON Schema serait plus lourd que le besoin) : c'est le
+#: contrat minimal que le rejeu et l'interface consomment. Un événement
+#: qui n'a pas ces clés est isolé, jamais écrit dans le journal principal.
+SCHEMAS: dict[EventType, tuple[str, ...]] = {
+    EventType.RUN_STARTED: ("config_hash", "seed", "plan"),
+    EventType.RUN_ENDED: ("ticks", "llm_calls", "evacuated", "total"),
+    EventType.SNAPSHOT: ("tick", "agents"),
+    EventType.WORLD_SMOKE: ("position", "radius"),
+    EventType.EXIT_CLOSED: ("exit",),
+    EventType.ANNOUNCEMENT: ("text",),
+    EventType.INJECTION: ("kind",),
+    EventType.MEMORY_SEEDED: ("agents", "days"),
+    EventType.DECISION: ("agent_id", "kind", "trigger", "intention"),
+    EventType.EVACUATED: ("agent_id", "kind"),
+    EventType.BELIEF_UPDATED: ("agent_id", "beliefs"),
+    EventType.MESSAGE_SENT: ("from", "to", "content"),
+    EventType.MESSAGE_HEARD: ("agent_id", "from", "content"),
+    EventType.INCIDENT: ("agent_id", "kind"),
+    EventType.INDICATORS: ("tick", "I1_consensus", "I3_evacuated"),
+    EventType.NARRATIVE: ("text", "valid"),
+    EventType.TEMPORAL_VIOLATION: ("agent_id", "reason"),
+    EventType.INVALID: ("type", "problems"),
+}
+
+
+def validate(event: Event) -> list[str]:
+    """Problèmes de forme et de temps d'un événement ; liste vide = valide.
+
+    Deux familles, volontairement séparées :
+
+      * **forme** — les clés que le rejeu et le client lisent ;
+      * **temps** — `t_prod <= t_trait` (C3). Un événement produit après
+        son traitement est une incohérence d'horloge, pas un détail.
+    """
+    problems: list[str] = []
+    if event.seq <= 0:
+        problems.append(f"seq non positif : {event.seq}")
+    if event.t_prod > event.t_trait:
+        problems.append(f"t_prod ({event.t_prod}) > t_trait ({event.t_trait})")
+    required = SCHEMAS.get(event.type, ())
+    missing = [key for key in required if key not in event.data]
+    if missing:
+        problems.append(f"champs manquants : {', '.join(missing)}")
+    return problems

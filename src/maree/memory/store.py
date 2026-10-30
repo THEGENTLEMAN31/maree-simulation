@@ -82,7 +82,12 @@ class EventSourcedMemory:
 
         def score(e: Episode) -> tuple[float, int, int]:
             age = max(0, now - e.tick)
-            recency = 1.0 / (1.0 + age / 20.0)
+            # A1 : un souvenir de la préhistoire (tick négatif, J-3) ne
+            # s'efface pas au bout de 200 s comme une perception de la
+            # dernière minute. On lui donne un plancher de récence, plutôt
+            # que de mentir sur sa date. Aucun run d'avant A1 n'a de tick
+            # négatif : la campagne X1-X7 n'est pas affectée.
+            recency = 0.35 if e.tick < 0 else 1.0 / (1.0 + age / 20.0)
             relevance = len(wanted & _terms(e.content)) / (len(wanted) or 1)
             return (0.5 * recency + 0.3 * relevance + 0.2 * e.salience, e.tick, -len(e.content))
 

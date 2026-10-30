@@ -115,7 +115,12 @@ def _journal_cognition(tmp_path: Path) -> JsonlJournal:
             tick=1,
         ),
         _event(9, EventType.EVACUATED, {"agent_id": "A02", "kind": "exit"}, tick=2),
-        _event(10, EventType.INJECTION, {"kind": "close_exit", "exit": "B"}, tick=2),
+        _event(
+            10,
+            EventType.INJECTION,
+            {"kind": "close_exit", "params": {"exit": "B"}, "source": "ui"},
+            tick=2,
+        ),
         _event(11, EventType.SNAPSHOT, {"tick": 2, "agents": []}, tick=2),
         _event(12, EventType.RUN_ENDED, {"ticks": 2}, tick=2),
     ]
@@ -147,7 +152,7 @@ async def test_les_evenements_de_cognition_sont_diffuses(tmp_path: Path) -> None
         "message",
         "heard",
         "evacuated",
-        "event",      # control.injection, type sans trame dédiée
+        "injection",  # D3 : commande venue du client, trame dédiée
         "snapshot",
         "end",
     ]
@@ -180,13 +185,23 @@ async def test_le_prompt_est_diffuse_si_demande(tmp_path: Path) -> None:
 
 
 async def test_aucun_evenement_nest_perdu(tmp_path: Path) -> None:
-    """Tout le journal est diffusé : un type inconnu passe en `event`."""
+    """Tout le journal est diffusé : un type inconnu passe en `event`.
+
+    Les types qui ont une trame dédiée (`injection`) la gardent, mais
+    portent les mêmes champs : le client n'y perd rien.
+    """
     streamer = JournalStreamer(_journal_cognition(tmp_path), RUN, plan={}, speed=0)
     frames = await _frames_of(streamer)
 
-    inject = next(f for f in frames if f.get("event") == "control.injection")
-    assert inject["seq"] == 10
-    assert inject["data"]["exit"] == "B"
+    inject = next(f for f in frames if f["type"] == "injection")
+    assert inject["kind"] == "close_exit"
+    assert inject["params"]["exit"] == "B"
+    assert inject["source"] == "ui"
+
+    # `run.started` n'a pas de trame typée : il passe en `event`, enveloppe
+    # comprise. C'est la garantie « aucun événement n'est filtré ».
+    started = next(f for f in frames if f.get("event") == "run.started")
+    assert started["data"]["seed"] == 7
 
     belief = next(f for f in frames if f["type"] == "belief")
     assert belief["agent_id"] == "A01"
@@ -203,3 +218,103 @@ def test_hello_porte_les_metadonnees_du_run(tmp_path: Path) -> None:
         "config_hash": "abc",
         "plan": "port_aubel",
     }
+
+
+# ------------------------------------------------------------
+# D3 — le client peut agir sur le monde, et le serveur le dit
+# ------------------------------------------------------------
+class _FakeWS:
+    """Socket minimale : un itérateur d'entrées, une liste de sorties."""
+
+    def __init__(self, incoming: list[str]) -> None:
+        self._incoming = list(incoming)
+        self.sent: list[dict] = []
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._incoming:
+            raise StopAsyncIteration
+        return self._incoming.pop(0)
+
+    async def send(self, raw: str) -> None:
+        import json
+
+        self.sent.append(json.loads(raw))
+
+
+async def test_une_injection_recue_est_transmise_au_moteur(tmp_path: Path) -> None:
+    """D3 — `inject` → la fonction de contrôle, puis un `ack` au client.
+
+    Le client n'a besoin de connaître ni le moteur ni le journal : il
+    envoie un `kind`, le moteur décide, et l'événement revient par le
+    flux normal.
+    """
+    import json
+
+    received: list[dict] = []
+    streamer = JournalStreamer(
+        _journal(tmp_path), RUN, plan={}, speed=0, control=received.append
+    )
+    ws = _FakeWS(
+        [
+            json.dumps({"type": "inject", "kind": "announcement", "text": "Sortez"}),
+            json.dumps({"type": "ping"}),
+        ]
+    )
+    await streamer._receive(ws)
+    assert received == [{"kind": "announcement", "text": "Sortez"}]
+    assert [f["type"] for f in ws.sent] == ["ack", "pong"]
+    assert ws.sent[0]["queued"] is True
+
+
+async def test_injection_refusee_sur_un_run_rejoue(tmp_path: Path) -> None:
+    """Sans moteur dans le processus, le serveur refuse — explicitement."""
+    import json
+
+    streamer = JournalStreamer(_journal(tmp_path), RUN, plan={}, speed=0)
+    ws = _FakeWS([json.dumps({"type": "inject", "kind": "smoke"})])
+    await streamer._receive(ws)
+    assert ws.sent[0]["type"] == "error"
+    assert "rejeu" in ws.sent[0]["reason"]
+
+
+async def test_une_trame_inconnue_recoit_une_erreur(tmp_path: Path) -> None:
+    import json
+
+    streamer = JournalStreamer(
+        _journal(tmp_path), RUN, plan={}, speed=0, control=lambda c: None
+    )
+    ws = _FakeWS(["pas du json", json.dumps({"type": "danse"})])
+    await streamer._receive(ws)
+    assert [f["type"] for f in ws.sent] == ["error", "error"]
+
+
+def test_l_injection_devient_une_trame_dediee(tmp_path: Path) -> None:
+    """D3 — l'injection est visible telle quelle, pas noyée dans `event`."""
+    import asyncio
+
+    journal = JsonlJournal(tmp_path)
+    for event in [
+        _event(1, EventType.RUN_STARTED, {"config_hash": "x", "seed": 0, "plan": "p"}),
+        _event(
+            2,
+            EventType.INJECTION,
+            {"kind": "smoke", "params": {}, "source": "ui"},
+            tick=3,
+        ),
+        _event(3, EventType.RUN_ENDED, {"ticks": 3}),
+    ]:
+        journal.append(event)
+    streamer = JournalStreamer(journal, RUN, plan={}, speed=0)
+
+    async def collect():
+        out = []
+        async for frame in streamer._frames():
+            out.append(frame)
+        return out
+
+    frames = asyncio.run(collect())
+    assert [f["type"] for f in frames] == ["event", "injection", "end"]
+    assert frames[1]["kind"] == "smoke"

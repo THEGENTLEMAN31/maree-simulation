@@ -314,7 +314,9 @@ class DecisionGraph:
             lines.append(f"Message de {m.get('sender')} : {m.get('content')}")
         if state.get("memories"):
             lines.append("Souvenirs :")
-            lines.extend(f"  - t{e['tick']} {e['content']}" for e in state["memories"])
+            lines.extend(
+                f"  - {_when(e['tick'])} {e['content']}" for e in state["memories"]
+            )
         if state.get("passages"):
             lines.append("Extraits du guide :")
             lines.extend(f"  - {p['text'][:180]}" for p in state["passages"])
@@ -385,6 +387,14 @@ class DecisionGraph:
 # Conversions (le graphe transporte des dicts, pas des objets : l'état
 # LangGraph doit rester sérialisable pour être journalisé tel quel).
 # ------------------------------------------------------------
+def _when(tick: int) -> str:
+    """Date lisible d'un souvenir : `J-3` pour la préhistoire, `t12` sinon."""
+    if tick < 0:
+        days = -tick // 8640  # 8640 ticks de 10 s = 24 h simulées
+        return f"J-{max(1, days)}"
+    return f"t{tick}"
+
+
 def _percept_to_dict(p: Percept) -> dict[str, Any]:
     return {
         "tick": p.tick,

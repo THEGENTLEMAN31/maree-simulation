@@ -58,25 +58,30 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
 
 ### Vague 2 — le socle manquant
 
-- [ ] **D3** — injection en direct : file de contrôle drainée en tête de
+- [x] **D3** — injection en direct : file de contrôle drainée en tête de
       `_world_events` (perception figée préservée), trame entrante documentée,
       `control.injection` journalisé avec `causation_id`.
       *Sortie* : `maree live` + un client qui envoie `{"type":"inject",…}`.
-- [ ] **D2** — `snapshot` porte `memory`, `last_decision` (raison, règle,
+- [x] **D2** — `snapshot` porte `memory`, `last_decision` (raison, règle,
       passages) → inspection sans reconstruction côté client.
-- [ ] **C6** — vérificateur de cohérence temporelle : aucun agent n'agit sur une
+- [x] **C6** — vérificateur de cohérence temporelle : aucun agent n'agit sur une
       info postérieure à sa décision ; compteur dans `run.ended` et dans le
       journal (`temporal.violation`).
-- [ ] **A2 / B3** — bras `sans_communication` : la diffusion est coupée, I1 doit
-      s'effondrer. C'est la preuve que l'indicateur distingue l'émergence de son
-      absence.
-- [ ] **E4** — agréger `tokens_in/out` par run et par bras ; bilan de sobriété
-      (appels, tokens, mural, VRAM) mis en regard de l'apport.
-- [ ] **F4** — schémas par type documentés et versionnés, validation à l'écriture,
+- [x] **A2 / B3** — bras `sans_communication` (X8). *Résultat contre
+      l'attente* : I1 **ne bouge pas** (0,990 → 0,992), donc I1 ne mesure pas
+      l'influence sociale dans cette population — c'est l'artefact que B3
+      devait révéler, et il est publié tel quel. Ce sont I2 (0,333 → 0,461),
+      I3 (0,967 → 0,850) et le nombre de messages (58 → 0) qui distinguent les
+      deux bras.
+- [x] **E4** — `tokens_in/out`, mural, appels et violations agrégés par run et
+      par bras ; bilan dans `docs/resultats/sobriete-v2.md`, mis en regard de
+      l'apport mesuré.
+- [x] **F4** — schémas par type documentés et versionnés, validation à l'écriture,
       `dlq.invalid` réellement émis, quarantaine sans arrêt du run.
-- [ ] **A1** — préhistoire : épisodes horodatés à J−3, rappelés par la mémoire
-      bornée ; bras d'ablation `prehistory_days=0|3`.
-- [ ] **F6** — `sources` (seq) sur la trame `indicators` : remontée exacte.
+- [x] **A1** — préhistoire : de vrais `message.sent`/`heard` entre agents,
+      datés d'un tick négatif (J−3 = −25 920), mémorisés avec le nom de
+      l'émetteur ; ablation `prehistory_days=0|3` (X9).
+- [x] **F6** — `sources` (seq) sur la trame `indicators` : remontée exacte.
 
 ### Vague 3 — le temps, le vrai
 
@@ -103,6 +108,19 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
 - [ ] **F3 / F5** — architecture de données documentée ; requêtes reproductibles
       DuckDB sur les JSONL (aucun Parquet nécessaire).
 
+### État au 2026-10-30 (fin de la vague 2)
+
+| Statut | Exigences | Nombre |
+|---|---|---|
+| **Tenu** | A1, A2, A3, A5, A6, B1, B2, B3, B4, C2, C5, C6, D1, D2, D3, E1, E2, E3, E4, F1, F2, F4, F6 | 23 |
+| **Partiel** | C1, C3, F3, F5 | 4 |
+| **Absent** | A4, C4, C7, C8, E5 | 5 |
+
+Les cinq absences restantes sont toutes dans les vagues 3 et 4 : le temps
+réel (C3, C4, C7), les incidents (A4), les tailles de population (C8) et
+la répartition des modèles (E5). Les quatre « partiels » le sont pour une
+raison précise, notée dans leur case.
+
 ---
 
 ## 3. Journal d'exécution
@@ -111,6 +129,7 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
 |---|---|---|---|---|
 | 2026-10-29 | plan écrit | — | 138 passent | point de départ |
 | 2026-10-29 | A5 deux tiers + B4 causalité + F2 RAG journalisé + E3 run versionné + docs corrigées | `vague1` | 149 passent, ruff propre | voir ci-dessous |
+| 2026-10-30 | D3 injection + D2 justification + C6 cohérence + A1 préhistoire + A2/B3 + E4 coût + F4 schémas + F6 sources | `vague2` | 167 passent, ruff propre | X8 et X9 joués (5 graines) |
 
 ### Mesures de la vague 1
 
@@ -131,6 +150,38 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
   49/49 décisions concordantes, 3 replis règles annoncés.
 - **Docs** : `cadrage-maree.md` porte un bandeau et cinq sections corrigées ;
   les artefacts v1 sont archivés dans `docs/resultats/v1/`.
+
+### Mesures de la vague 2
+
+- **D3** : `maree live` (moteur + diffusion + file de contrôle dans un seul
+  processus). Vérifié de bout en bout avec un client WebSocket :
+  `inject` → `ack` → trame `injection` → trame `world`, appliqué au tick
+  suivant, `causation_id` reliant les deux. Une injection inconnue est
+  isolée (`invalid.jsonl`) et le run continue.
+- **D2** : `snapshot.agents[].last_decision` (raison, règle, passages,
+  mémoire) et `memory` (3 épisodes datés). L'inspection d'un agent ne
+  demande plus de recoller trois événements.
+- **C6** : `_check_temporal` vérifie messages, passages RAG et signal
+  déclencheur ; **0 violation** sur les 20 runs X8/X9 et sur les runs de
+  test. Un compteur `temporal_violations` est dans `run.ended`.
+- **A2/B3 (X8, 5 graines)** : I1 **ne bouge pas** (0,990 → 0,992) — c'est
+  l'artefact que B3 devait révéler, et il est publié. I2 0,333 → 0,461,
+  I3 0,967 → 0,850, messages 58 → 0. Coût : **77 → 131 appels** sans
+  communication (+70 %).
+- **A1 (X9, 5 graines)** : échanges J−3 journalisés ; **188 / 379**
+  décisions LLM (50 %) citent un épisode de préhistoire ; la sortie **C**
+  est choisie 9 fois contre 3 sans passé. Au niveau agrégé, I3 0,967 →
+  0,976 : l'effet est dilué par les 48 agents à règles.
+- **E4** : `tokens_in/out` par run et par bras ; bilan dans
+  `docs/resultats/sobriete-v2.md`. Énergie mesurée : **0,46 Wh** par run
+  hybride (52,5 W de surcoût pendant 31,6 s).
+- **F4** : `SCHEMAS` + `validate()` ; un événement non conforme part dans
+  `runs/<id>/invalid.jsonl` et laisse un `dlq.invalid`, sans arrêter le
+  run. `quarantined` est compté dans `run.ended`.
+- **F6** : `indicators.sources = {from_seq, to_seq, count}` ; vérifié
+  (t1 : 1 → 122).
+- **Deux tiers (A5)** : conteneur recréé avec `--models-max 3` ; mesuré
+  24 appels `gemma4-e2b` + 73 `qwen3-0-6b`, 0 repli, 2 691 MiB / 4 096.
 
 ---
 

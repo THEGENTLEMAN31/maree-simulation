@@ -93,6 +93,13 @@ def _run_config(cfg: DictConfig, run_id: str):
         narrative_every=int(cfg.narrative.every_ticks),
         message_radius=float(run.message_radius),
         density_radius=float(run.density_radius),
+        # A2/B3 et A1 : deux leviers d'expérience, donc deux champs de
+        # configuration — jamais un `if` caché dans le moteur.
+        communication=bool(run.get("communication", True)),
+        prehistory_days=int(run.get("prehistory_days", 0)),
+        # D3 — cadence de démonstration. 0 en campagne (aussi vite que
+        # possible), > 0 en `maree live` pour qu'un humain puisse injecter.
+        tick_delay_s=float(run.get("tick_delay_s", 0.0)),
         clocks=clocks,
     )
 
@@ -173,6 +180,47 @@ def _build(cfg: DictConfig, run_id: str):
     return simulation, llm, bus
 
 
+def _echo_result(result) -> None:
+    """Résumé d'un run, identique pour `run` et `live`."""
+    from maree.metrics.indicators import summarise
+
+    last = result.indicators[-1] if result.indicators else None
+    summary = summarise([i.to_dict() for i in result.indicators])
+    typer.echo(
+        json.dumps(
+            {
+                "run_id": result.run_id,
+                "config_hash": result.config_hash,
+                "ticks": result.ticks,
+                "events": result.events,
+                "llm_calls": result.llm_calls,
+                "llm_ok": result.llm_ok,
+                "tokens_in": result.tokens_in,
+                "tokens_out": result.tokens_out,
+                "temporal_violations": result.temporal_violations,
+                "quarantined": result.quarantined,
+                "duration_s": round(result.duration_s, 1),
+                "evacuated": last.counts.get("evacuated") if last else 0,
+                "total": last.counts.get("agents") if last else 0,
+                "I1_consensus": round(summary["I1_consensus"], 3),
+                "I4_seconds": round(summary["I4_seconds"], 0),
+                "I5_max_density": round(summary["I5_max_density"], 2),
+                "I6_belief_gap_peak": round(summary["I6_belief_gap"], 3),
+                "I7_delay_seconds": round(summary["I7_delay_seconds"], 0),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+    if result.llm_calls and not result.llm_ok:
+        typer.secho(
+            "\nATTENTION — aucun appel LLM n'a abouti : toutes les décisions "
+            "sont des replis sur les règles. Ce run n'est pas un run hybride.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+
+
 # ============================================================
 # Commandes
 # ============================================================
@@ -181,7 +229,6 @@ def run(
     overrides: list[str] = typer.Argument(None, help="surcharges Hydra"),
 ) -> None:
     """Lance un run complet."""
-    from maree.metrics.indicators import summarise
 
     cfg = _compose(list(overrides or []))
     run_id = str(cfg.run_id or _new_run_id(int(cfg.seed)))
@@ -205,36 +252,7 @@ def run(
         finally:
             await llm.close()
             await bus.close()
-        last = result.indicators[-1] if result.indicators else None
-        summary = summarise([i.to_dict() for i in result.indicators])
-        typer.echo(
-            json.dumps(
-                {
-                    "run_id": result.run_id,
-                    "config_hash": result.config_hash,
-                    "ticks": result.ticks,
-                    "events": result.events,
-                    "llm_calls": result.llm_calls,
-                    "llm_ok": result.llm_ok,
-                    "duration_s": round(result.duration_s, 1),
-                    "evacuated": last.counts.get("evacuated") if last else 0,
-                    "total": last.counts.get("agents") if last else 0,
-                    "I1_consensus": round(summary["I1_consensus"], 3),
-                    "I4_seconds": round(summary["I4_seconds"], 0),
-                    "I5_max_density": round(summary["I5_max_density"], 2),
-                    "I6_belief_gap_peak": round(summary["I6_belief_gap"], 3),
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
-        if result.llm_calls and not result.llm_ok:
-            typer.secho(
-                "\nATTENTION — aucun appel LLM n'a abouti : toutes les décisions "
-                "sont des replis sur les règles. Ce run n'est pas un run hybride.",
-                fg=typer.colors.RED,
-                err=True,
-            )
+        _echo_result(result)
 
     asyncio.run(_go())
 
@@ -382,6 +400,13 @@ def experiment(
 
             result = asyncio.run(_go())
             summary = summarise([i.to_dict() for i in result.indicators])
+            # E4 — le coût est une donnée du protocole, pas une note de bas
+            # de page : sans tokens et sans mural, « le LLM aide » n'est pas
+            # une affirmation mesurée.
+            from maree.adapters.journal.jsonl import JsonlJournal as _J
+            from maree.domain.events import EventType as _T
+
+            _events = _J(str(cfg.paths.runs)).read(run_id)
             rows.append(
                 {
                     "arm": arm.name,
@@ -396,6 +421,11 @@ def experiment(
                     "I7": summary["I7_delay_seconds"],
                     "llm_calls": result.llm_calls,
                     "llm_ok": result.llm_ok,
+                    "tokens_in": result.tokens_in,
+                    "tokens_out": result.tokens_out,
+                    "temporal_violations": result.temporal_violations,
+                    "quarantined": result.quarantined,
+                    "messages": sum(1 for e in _events if e.type is _T.MESSAGE_SENT),
                     "wall_s": round(result.duration_s, 1),
                 }
             )
@@ -471,6 +501,75 @@ def serve(
         asyncio.run(streamer.serve_forever())
     except KeyboardInterrupt:
         typer.echo("diffusion arrêtée")
+
+
+@app.command()
+def live(
+    overrides: list[str] = typer.Argument(None, help="surcharges Hydra"),
+    run_id: str = typer.Option(None, help="identifiant du run (défaut : généré)"),
+    port: int = typer.Option(8765, help="port WebSocket"),
+    host: str = typer.Option("127.0.0.1", help="adresse d'écoute"),
+    tick_ms: int = typer.Option(600, help="pause réelle entre deux ticks (ms)"),
+    prompts: bool = typer.Option(
+        False, "--prompts", help="inclure le prompt LLM dans les décisions"
+    ),
+) -> None:
+    """Lance un run **et** le diffuse en direct, injections comprises (D3).
+
+    Un seul processus, trois rôles : le moteur écrit le journal, le serveur
+    relit ce journal et le diffuse, et une trame `inject` reçue du client
+    est déposée dans la file du moteur. Le client n'a donc rien à savoir du
+    moteur : il envoie
+
+        {"type": "inject", "kind": "announcement", "text": "Évacuez par B"}
+
+    reçoit un `ack`, puis voit revenir `control.injection` et l'annonce
+    elle-même — comme n'importe quel autre événement du monde.
+
+    La cadence vient du **moteur** (`--tick-ms`), pas de la diffusion :
+    sans cela, un run de 20 ticks se terminerait en 0,8 s et personne
+    n'aurait le temps d'injecter quoi que ce soit.
+    """
+    from websockets.asyncio.server import serve as ws_serve
+
+    from maree.adapters.journal.jsonl import JsonlJournal
+    from maree.adapters.ws import JournalStreamer
+
+    cfg = _compose([*list(overrides or []), f"run.tick_delay_s={tick_ms / 1000.0}"])
+    rid = run_id or _new_run_id(int(cfg.seed))
+    simulation, llm, bus = _build(cfg, rid)
+    streamer = JournalStreamer(
+        JsonlJournal(str(cfg.paths.runs)),
+        rid,
+        plan=OmegaConf.to_container(cfg.world, resolve=True),
+        host=host,
+        port=port,
+        # La cadence est celle du moteur : la diffusion suit le journal.
+        speed=0.0,
+        include_prompts=prompts,
+        control=simulation.submit,
+    )
+
+    async def _go():
+        async with ws_serve(streamer.handler, host, port):
+            typer.echo(
+                f"MARÉE — {rid} en direct sur ws://{host}:{port} "
+                f"({tick_ms} ms/tick, injections ouvertes)"
+            )
+            try:
+                return await simulation.run()
+            finally:
+                await llm.close()
+                await bus.close()
+
+    try:
+        result = asyncio.run(_go())
+    except KeyboardInterrupt:
+        typer.echo("run interrompu")
+        return
+    # Laisse le temps au client de consommer la trame `end` avant que le
+    # processus ne rende la main (même raison que le délai du streamer).
+    _echo_result(result)
 
 
 @app.command()

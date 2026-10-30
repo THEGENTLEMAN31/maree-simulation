@@ -16,7 +16,12 @@ uv run maree serve                                  # dernier run, 5 ticks/s
 uv run maree serve --run-id run_hybrid_08 --speed 3 # run précis
 uv run maree serve --speed 0                        # aussi vite que possible
 uv run maree serve --prompts                        # ajoute le prompt LLM
+uv run maree live --tick-ms 600                     # run + diffusion + injections
 ```
+
+`serve` **rejoue** un run déjà écrit ; `live` **lance** un run et le
+diffuse en même temps, en laissant le client injecter des événements
+(voir §4bis). Les deux parlent exactement le même protocole.
 
 Le serveur écoute sur `ws://0.0.0.0:8765`. Il **relit le journal** : il
 fonctionne sur un run terminé comme sur un run en cours (le fichier
@@ -57,9 +62,19 @@ Un client peut donc animer « X décide » puis « voilà le nouvel état »,
 sans deviner. Le premier tick (`snapshot` de `tick: 0`) arrive juste
 après `hello`.
 
+**Une exception, et une seule** : quand le run a une préhistoire (A1), le
+journal contient des échanges **datés d'avant t0** (tick négatif, jusqu'à
+−25 920 = J−3), émis juste après `run.started`. L'ordre du flux est
+l'ordre du journal (`seq`), pas l'ordre du temps. Un client qui trie par
+`tick` les verra en tête ; un client qui suit le flux les verra après
+`hello`. Les deux sont corrects — mais ne pas les animer : ce sont des
+souvenirs, pas des présents. Ils sont dans le journal pour que le rejeu
+puisse dire ce que l'agent savait avant t0.
+
 **Rien n'est filtré.** Les événements qui n'ont pas de trame dédiée
-(`run.started`, `control.injection`, un futur type) passent en `event`,
-enveloppe comprise. Un client peut donc tout exploiter.
+(`run.started`, `memory.seeded`, un futur type) passent en `event`,
+enveloppe comprise. Un client peut donc tout exploiter, y compris ce qui
+n'existait pas quand ce document a été écrit.
 
 ---
 
@@ -84,6 +99,7 @@ valide à copier tel quel._
       {"profile": "visiteur", "count": 28, "kind": "rules"}
     ]
   },
+  "live": false,
   "plan": {
     "name": "Port-Aubel",
     "width": 60.0,
@@ -104,6 +120,9 @@ valide à copier tel quel._
   }
 }
 ```
+
+`live` dit si le serveur peut **recevoir** des commandes (voir §4bis).
+Il vaut `false` pour un run rejoué : on ne modifie pas un passé.
 
 `run` donne la graine, le hash de configuration et la population réelle :
 de quoi afficher un en-tête honnête (« graine 7, 60 agents, 12 LLM /
@@ -168,6 +187,11 @@ Trois `kind` : `smoke`, `announcement`, `exit_closed`. Ce sont des
 | `intention.target` | sortie (`A`), agent (`A14`), ou `null` |
 | `beliefs` | table complète, pas seulement l'argmax |
 | `density` | densité locale perçue (pers/m²) |
+| `retrieved` | passages RAG réellement lus (doc_id, texte, score, collection) |
+| `memory` | épisodes rappelés, avec leur **vrai** tick (`J-3` = préhistoire) |
+| `tier` | `big` / `small` — la capacité du modèle, pas la catégorie sociale |
+| `requested_model` / `model` | ce qui a été demandé / ce qui a répondu. **S'ils diffèrent, un repli a eu lieu** |
+| `fallback` | `true` : le modèle a répondu mais sa sortie a été rejetée, les règles ont décidé |
 
 Avec `--prompts`, la trame porte en plus `llm.prompt` et `llm.response`
 (~3 Ko par décision). Sans l'option, le prompt n'est pas transmis.
@@ -280,7 +304,23 @@ C'est un **fait physique**, pas une décision. Un agent peut décider
       "evacuated": false,
       "kin": "A14",
       "decided_at": 7,
-      "perceived": []
+      "perceived": [],
+      "memory": [
+        {"tick": -25920, "kind": "briefing", "content": "la sortie B se bouche…",
+         "source": "prehistoire", "salience": 0.5, "tags": []},
+        {"tick": 10, "kind": "vu", "content": "fumée visible près de la scène",
+         "source": "perception", "salience": 0.9, "tags": []}
+      ],
+      "last_decision": {
+        "tick": 10,
+        "kind": "rules",
+        "trigger": "fumee_visible",
+        "reason": "orienter vers A : A minimise distance + densité + étroitesse",
+        "rule": "orienter vers A : A minimise distance + densité + étroitesse",
+        "intention": {"kind": "guide", "target": "A", "reason": "…", "tick": 10},
+        "retrieved": ["plan-sorties#A"],
+        "memory": []
+      }
     }
   ]
 }
@@ -298,6 +338,13 @@ C'est un **fait physique**, pas une décision. Un agent peut décider
 | `kin` | proche apparié (`famille`), pour dessiner le lien |
 | `decided_at` | dernier tick où il a décidé |
 | `perceived` | ce qu'il a perçu : `smoke`, `announcement`, `closed:A`, `missing_kin` |
+| `memory` | ses trois souvenirs les plus saillants, **datés** ; un tick négatif est la préhistoire (`J-3`) |
+| `last_decision` | sa dernière décision, expliquée : raison, règle, passages, souvenirs. `null` avant la première |
+
+`last_decision` est là pour que **l'inspection d'un agent ne demande pas
+de recoller trois événements**. `rule` n'a de sens que pour un agent à
+règles (c'est sa règle) ; pour un agent LLM, c'est `null` et la
+justification est dans `reason`.
 
 `pos` est un point par tick. Pour une animation fluide, **interpoler**
 entre deux instantanés ; ne pas sauter.
@@ -320,7 +367,8 @@ entre deux instantanés ; ne pas sauter.
     "evacuated": 0,
     "remaining": 60,
     "by_belief": {"A": 57, "B": 1, "C": 2, "aucune": 0}
-  }
+  },
+  "sources": {"from_seq": 1, "to_seq": 122, "count": 122}
 }
 ```
 
@@ -336,6 +384,11 @@ entre deux instantanés ; ne pas sauter.
 
 `by_belief` compte les agents **actifs** par sortie crue ; `aucune` est
 explicite (un agent qui ne sait rien n'est pas un agent de plus sur A).
+
+`sources` donne la **plage de `seq`** qui a produit ce bloc : de quoi
+répondre à « d'où sort ce chiffre ? » en affichant les événements
+correspondants. C'est un intervalle du journal, pas un offset Kafka — le
+client n'a pas besoin de savoir qu'un bus existe.
 
 `I4_seconds` est une horloge : c'est le temps simulé depuis t0, donc il
 mesure surtout **l'heure du signal**. `I7_delay_seconds` enlève cette
@@ -355,13 +408,115 @@ agents. Quatre récits par run en moyenne.
 ### `end` — fin de diffusion
 
 ```json
-{"type": "end", "ticks": 20, "llm_calls": 0, "llm_ok": 0, "evacuated": 60, "total": 60}
+{
+  "type": "end",
+  "ticks": 20,
+  "llm_calls": 49,
+  "llm_ok": 49,
+  "tokens_in": 42662,
+  "tokens_out": 4695,
+  "temporal_violations": 0,
+  "quarantined": 0,
+  "bus_failures": 0,
+  "evacuated": 60,
+  "total": 60
+}
 ```
+
+`tokens_in` / `tokens_out` sont le **coût réel** (décisions + chroniqueur) :
+de quoi afficher « ce run a coûté X tokens » sans instrumenter le client.
+`temporal_violations` (C6) et `quarantined` (F4) doivent valoir 0 ; s'ils
+ne le sont pas, l'interface a le droit de le dire à l'écran.
 
 Le serveur laisse **0,3 s** après cette trame avant de fermer la socket.
 Lire les paquets en attente même quand la connexion est déjà fermée :
 sinon `end` est perdu et l'UI affiche « déconnecté » sur une diffusion
 pourtant terminée.
+
+---
+
+## 4bis. Le client peut agir : injections en direct (D3)
+
+Jusqu'ici le client ne faisait que lire. En mode **direct**, il peut
+aussi provoquer un événement du monde : une fumée, une annonce, une
+fermeture de sortie. C'est ce qui permet de jouer « et si l'annonce
+arrivait maintenant ? » devant un jury.
+
+### Lancer le mode direct
+
+```bash
+uv run maree live --tick-ms 600          # 600 ms par tick, injections ouvertes
+uv run maree live --port 9000 --run-id demo_live
+uv run maree live population=rules_only --tick-ms 300
+```
+
+Un seul processus, trois rôles : le moteur écrit le journal, le serveur
+relit ce journal et le diffuse, la file de contrôle du moteur reçoit les
+commandes. **La cadence vient du moteur**, pas de la diffusion : sans
+`--tick-ms`, un run de 20 ticks se terminerait en 0,8 s et personne
+n'aurait le temps d'injecter.
+
+`hello.live` vaut `true`. Sur un run rejoué (`maree serve`), il vaut
+`false` et toute injection reçoit une erreur : on ne modifie pas un
+passé.
+
+### Ce que le client envoie
+
+Trois trames, un objet JSON par message.
+
+```json
+{"type": "inject", "kind": "announcement", "text": "Évacuation immédiate, sortie B"}
+{"type": "inject", "kind": "smoke", "position": [44.0, 15.0], "radius": 15.0}
+{"type": "inject", "kind": "exit_closed", "exit": "B"}
+{"type": "ping"}
+```
+
+| `kind` | champs | effet |
+|---|---|---|
+| `announcement` | `text` | annonce perçue au tick suivant |
+| `smoke` | `position`, `radius` (optionnels) | fumée activée au tick suivant |
+| `exit_closed` | `exit` (`A`/`B`/`C`) | sortie fermée au tick suivant |
+| `ping` | — | garde la connexion, répond `pong` |
+
+### Ce que le serveur répond
+
+```json
+{"type": "ack", "kind": "announcement", "queued": true}
+{"type": "pong"}
+{"type": "error", "reason": "run en rejeu : aucune injection possible"}
+{"type": "error", "reason": "trame inconnue : 'danse'"}
+```
+
+`ack` signifie **mise en file**, pas appliquée : la commande est drainée
+en tête du tick suivant, jamais au milieu d'une perception. C'est ce qui
+préserve la règle « tous les agents perçoivent le même instant T » — sinon
+deux agents verraient deux mondes.
+
+Un `kind` inconnu n'arrête rien : il est isolé (`invalid.jsonl`) et
+compté dans `quarantined`, et le monde continue.
+
+### Ce que le client reçoit ensuite
+
+Deux trames, dans cet ordre :
+
+```json
+{"type": "injection", "tick": 12, "kind": "announcement",
+ "params": {"text": "Évacuation immédiate, sortie B"}, "source": "ui"}
+{"type": "world", "tick": 12, "kind": "announcement",
+ "text": "Évacuation immédiate, sortie B"}
+```
+
+`injection` est la **commande**, `world` est son **effet**. Les deux sont
+dans le journal, reliées par `causation_id` : un rejeu les retrouve, et
+une timeline peut afficher « le 12e tick, quelqu'un a décidé d'annoncer »
+plutôt que de faire croire que le monde a bougé tout seul.
+
+### Le contrat minimum, si tu ne veux rien d'autre
+
+1. envoyer `{"type":"inject","kind":…}` ;
+2. écouter `ack` (file) puis `error` (refus) ;
+3. traiter `injection` comme n'importe quel `event` si tu n'as pas envie
+   d'un rendu dédié — il porte `kind` et `params`, rien n'est caché.
 
 ---
 

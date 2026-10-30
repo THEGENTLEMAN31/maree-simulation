@@ -11,7 +11,11 @@ base_url: ${oc.env:MAREE_LLM_URL,http://llama-cpp:8080/v1}
 api_key: ${oc.env:MAREE_LLM_KEY,sk-local}
 
 model: gemma4-e2b          # décisions (2,9 Go) — tier « big »
-small_model: qwen3-0.6b    # tier « small » (378 Mo, A5)
+# Le routeur llama.cpp **normalise les points en tirets** dans l'id :
+# l'alias `qwen3-0.6b` du preset est annoncé `qwen3-0-6b`. Utiliser le
+# nom annoncé, sinon chaque appel « small » prend un 404 et retombe
+# silencieusement sur le grand (le journal le dit, mais tard).
+small_model: qwen3-0-6b    # tier « small » (378 Mo, A5)
 embed_model: bge-m3        # RAG (417 Mo)
 
 #: A5 — deux tailles de modèle, attribuées par le **rôle et l'expérience**

@@ -24,12 +24,28 @@ class JsonlJournal:
     def path_for(self, run_id: RunId) -> Path:
         return self._root / run_id / "events.jsonl"
 
+    def quarantine_path(self, run_id: RunId) -> Path:
+        return self._root / run_id / "invalid.jsonl"
+
     # ---- écriture ---------------------------------------------
     def append(self, event: Event) -> None:
         path = self.path_for(event.run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
+
+    def quarantine(self, event: Event, problems: list[str]) -> None:
+        """Isole un événement non conforme (F4), sans arrêter le run.
+
+        Le fichier est séparé : `events.jsonl` reste lisible par un
+        consommateur strict, et `invalid.jsonl` dit pourquoi la ligne a été
+        refusée. Un test peut donc exiger zéro ligne des deux côtés.
+        """
+        path = self.quarantine_path(event.run_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"event": event.to_dict(), "problems": problems}
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
     # ---- lecture ----------------------------------------------
     def read(self, run_id: RunId) -> list[Event]:

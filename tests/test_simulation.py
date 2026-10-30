@@ -103,7 +103,9 @@ class CountingLLM:
         raise AssertionError("aucun embedding attendu")
 
 
-def _config(run_id: str, *, seed: int = 0, ticks: int = 40) -> RunConfig:
+def _config(
+    run_id: str, *, seed: int = 0, ticks: int = 40, population=None, **extra
+) -> RunConfig:
     return RunConfig(
         run_id=run_id,
         seed=seed,
@@ -114,17 +116,19 @@ def _config(run_id: str, *, seed: int = 0, ticks: int = 40) -> RunConfig:
         close_exit=None,
         announcement_tick=6,
         announcement="Évacuation.",
-        population=(
+        population=population
+        or (
             PopulationEntry("visiteur", 3, "rules"),
             PopulationEntry("habitue", 2, "rules"),
             PopulationEntry("famille", 2, "rules"),
             PopulationEntry("vendeur", 1, "rules"),
         ),
         narrative_every=5,
+        **extra,
     )
 
 
-async def _run(tmp_path: Path, run_id: str, *, seed: int = 0):
+async def _run(tmp_path: Path, run_id: str, *, seed: int = 0, llm=None, **extra):
     plan = Plan.from_dict(
         __import__("yaml").safe_load(
             Path("configs/world/port_aubel.yaml").read_text("utf-8")
@@ -132,9 +136,9 @@ async def _run(tmp_path: Path, run_id: str, *, seed: int = 0):
     )
     journal = JsonlJournal(tmp_path)
     bus = InMemoryBus()
-    llm = CountingLLM()
+    llm = llm or CountingLLM()
     simulation = Simulation(
-        config=_config(run_id, seed=seed),
+        config=_config(run_id, seed=seed, **extra),
         plan=plan,
         physics=FakePhysics(plan),
         llm=llm,
@@ -367,3 +371,177 @@ async def test_b4_une_decision_declenchee_par_la_fumee_a_une_cause(tmp_path: Pat
     ]
     assert periodic
     assert all(e.causation_id is None for e in periodic)
+
+
+# ------------------------------------------------------------
+# Vague 2 : ce que le monde fait, et ce qu'il refuse de faire
+# ------------------------------------------------------------
+async def test_sans_communication_aucun_message(tmp_path: Path) -> None:
+    """A2/B3 — le bras « sans communication » ne diffuse rien du tout.
+
+    Ce n'est pas un détail d'implémentation : c'est le contrôle négatif
+    qui dit si I1 mesure une émergence sociale ou la ressemblance des
+    réponses d'un même modèle. S'il restait un seul message, le bras
+    serait un faux témoin.
+    """
+    _, journal_on, _, _ = await _run(tmp_path, "avec", communication=True)
+    _, journal_off, _, _ = await _run(tmp_path, "sans", communication=False)
+    sent_on = [e for e in journal_on.read("avec") if str(e.type) == "agent.message.sent"]
+    sent_off = [e for e in journal_off.read("sans") if str(e.type) == "agent.message.sent"]
+    heard_off = [e for e in journal_off.read("sans") if str(e.type) == "agent.message.heard"]
+    assert sent_on, "le bras avec communication doit produire des messages"
+    assert sent_off == []
+    assert heard_off == []
+
+
+async def test_prehistoire_est_un_echange_date_et_journalise(tmp_path: Path) -> None:
+    """A1 — « un échange vieux de plusieurs jours simulés ».
+
+    Trois choses à prouver, et pas une de moins :
+
+      1. c'est un **échange** : un émetteur, un destinataire, un contenu ;
+      2. c'est **vieux** : le tick est négatif (J-3 = -25 920), pas antidaté ;
+      3. c'est **journalisé** : le rejeu peut donc dire ce que l'agent
+         savait avant t0, sans rappeler un modèle.
+    """
+    result, journal, _, _ = await _run(
+        tmp_path,
+        "pre",
+        llm=GuideLLM(),
+        prehistory_days=3,
+        population=(
+            PopulationEntry("securite", 1, "llm"),
+            PopulationEntry("visiteur", 1, "llm"),
+            PopulationEntry("habitue", 1, "rules"),
+        ),
+    )
+    events = journal.read("pre")
+    seeded = [e for e in events if str(e.type) == "memory.seeded"]
+    assert len(seeded) == 1
+    assert seeded[0].data["days"] == 3
+    assert seeded[0].data["episodes"] > 0
+
+    # 1 et 2 — un vrai message, daté d'avant t0, avec sa cause.
+    ancient_messages = [
+        e
+        for e in events
+        if str(e.type) == "agent.message.sent" and e.t_prod < 0
+    ]
+    assert ancient_messages
+    heard = [e for e in events if str(e.type) == "agent.message.heard" and e.t_prod < 0]
+    assert heard
+    assert all(h.causation_id == ancient_messages[0].id for h in heard)
+
+    # 3 — le destinataire s'en souvient, et il sait qui lui a parlé.
+    first_snapshot = next(e for e in events if str(e.type) == "world.snapshot")
+    memories = [
+        episode
+        for agent in first_snapshot.data["agents"]
+        for episode in agent.get("memory", [])
+    ]
+    ancient = [m for m in memories if m["tick"] < 0]
+    assert ancient, "la préhistoire doit apparaître dans la mémoire des agents"
+    assert all(m["source"] == "prehistoire" for m in ancient)
+    assert any("m'a dit" in m["content"] for m in ancient)
+    assert result.ticks >= 1
+
+
+async def test_indicateurs_portent_leur_plage_de_seq(tmp_path: Path) -> None:
+    """F6 — chaque bloc d'indicateurs sait d'où il vient."""
+    _, journal, _, _ = await _run(tmp_path, "src")
+    blocks = [e for e in journal.read("src") if str(e.type) == "metrics.indicators"]
+    assert blocks
+    for block in blocks:
+        sources = block.data["sources"]
+        assert 1 <= sources["from_seq"] <= sources["to_seq"]
+        assert sources["count"] == sources["to_seq"] - sources["from_seq"] + 1
+
+
+async def test_snapshot_explique_la_derniere_decision(tmp_path: Path) -> None:
+    """D2 — l'interface n'a pas à recoller trois événements pour expliquer."""
+    _, journal, _, _ = await _run(tmp_path, "d2")
+    snapshots = [e for e in journal.read("d2") if str(e.type) == "world.snapshot"]
+    explained = [
+        agent["last_decision"]
+        for snapshot in snapshots
+        for agent in snapshot.data["agents"]
+        if agent.get("last_decision")
+    ]
+    assert explained
+    decision = explained[0]
+    for key in ("tick", "kind", "trigger", "reason", "intention"):
+        assert key in decision
+    # Un agent à règles expose la règle, pas un raisonnement inventé.
+    assert decision["rule"]
+
+
+async def test_injection_est_appliquee_au_tick_suivant(tmp_path: Path) -> None:
+    """D3 — une commande déposée avant le run est perçue au tick 1, pas à 0.
+
+    L'injection est journalisée **avant** l'événement qu'elle provoque :
+    c'est ce qui rend la chaîne causale lisible dans le rejeu.
+    """
+    plan = Plan.from_dict(
+        __import__("yaml").safe_load(
+            Path("configs/world/port_aubel.yaml").read_text("utf-8")
+        )
+    )
+    journal = JsonlJournal(tmp_path)
+    simulation = Simulation(
+        config=_config("d3"),
+        plan=plan,
+        physics=FakePhysics(plan),
+        llm=CountingLLM(),
+        retriever=None,
+        memory=EventSourcedMemory(n_exits=len(plan.exits)),
+        journal=journal,
+        bus=InMemoryBus(),
+        narrator=None,
+    )
+    simulation.submit({"kind": "announcement", "text": "Sortez par C"})
+    await simulation.run()
+
+    events = journal.read("d3")
+    injections = [e for e in events if str(e.type) == "control.injection"]
+    assert len(injections) == 1
+    assert injections[0].t_prod == 1
+    announcements = [e for e in events if str(e.type) == "world.announcement"]
+    assert any(a.causation_id == injections[0].id for a in announcements)
+    assert announcements[0].data["text"] == "Sortez par C"
+
+
+async def test_une_injection_inconnue_est_isolee(tmp_path: Path) -> None:
+    """D3 + F4 — une commande inconnue ne tue pas le monde, elle est isolée."""
+    plan = Plan.from_dict(
+        __import__("yaml").safe_load(
+            Path("configs/world/port_aubel.yaml").read_text("utf-8")
+        )
+    )
+    journal = JsonlJournal(tmp_path)
+    simulation = Simulation(
+        config=_config("d3bad"),
+        plan=plan,
+        physics=FakePhysics(plan),
+        llm=CountingLLM(),
+        retriever=None,
+        memory=EventSourcedMemory(n_exits=len(plan.exits)),
+        journal=journal,
+        bus=InMemoryBus(),
+        narrator=None,
+    )
+    simulation.submit({"kind": "nuke"})
+    result = await simulation.run()
+
+    assert result.quarantined >= 1
+    assert journal.quarantine_path("d3bad").exists()
+    events = journal.read("d3bad")
+    assert any(str(e.type) == "dlq.invalid" for e in events)
+    # Le run va jusqu'au bout : une commande folle n'arrête pas l'évacuation.
+    assert result.indicators
+
+
+async def test_aucune_violation_temporelle(tmp_path: Path) -> None:
+    """C6 — le monde est causal : rien ne cite une information future."""
+    result, journal, _, _ = await _run(tmp_path, "c6")
+    assert result.temporal_violations == 0
+    assert not [e for e in journal.read("c6") if str(e.type) == "temporal.violation"]

@@ -1,0 +1,12 @@
+{
+  "run_id": "run_energie_01",
+  "gpu": "NVIDIA RTX 3050 (4 Go)",
+  "duration_s": 31.6,
+  "samples": 64,
+  "idle_w_median": 6.5,
+  "run_w_mean": 59.0,
+  "delta_w": 52.5,
+  "energy_j": 1658.0,
+  "energy_wh": 0.461,
+  "note": "power.draw échantillonné à 0,5 s ; puissance au repos soustraite. Ordre de grandeur, pas mesure de laboratoire. CPU et RAM exclus."
+}

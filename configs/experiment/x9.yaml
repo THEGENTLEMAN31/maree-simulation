@@ -1,0 +1,40 @@
+# @package _global_
+# ============================================================
+# X9 — le passé change-t-il quelque chose ? (A1)
+#
+# Le monde ne commence pas à t0. Chaque agent LLM reçoit une préhistoire
+# figée (J-3 .. J-1) : un briefing pour la sécurité, une rumeur sur la
+# sortie C pour l'habitué, etc. Les épisodes portent un tick **négatif**
+# (-25 920 = J-3) : ils sont donc datés pour de vrai, pas antidatés.
+#
+# Ablation : même population, même graine, `prehistory_days = 0` contre
+# `3`. Si rien ne change, A1 est un décor — et il faut le dire. Si les
+# sorties choisies changent, la mémoire a un effet mesurable, ce qui est
+# précisément ce que l'exigence demande.
+#
+# Le **contenu** du passé vient d'une table figée, mais ce ne sont pas des
+# souvenirs posés dans le vide : chaque entrée produit un vrai
+# `agent.message.sent` / `agent.message.heard` entre deux agents, daté d'un
+# tick négatif. Le destinataire s'en souvient avec le nom de celui qui lui
+# a parlé — c'est l'« échange » d'A1.
+#
+# Pourquoi pas de génération LLM : un passé généré serait rejouable (il
+# serait journalisé, comme toute décision — E3), mais il coûterait des
+# appels avant le premier tick et rendrait l'ablation non appariable
+# (deux passés générés ne sont pas le même passé). C'est un choix de
+# protocole, pas une contrainte de rejeu.
+# ============================================================
+
+experiment:
+  id: X9
+  hypothesis: A1
+  indicators: [I1_consensus, I3_evacuated, I7_delay, llm_calls]
+  arms:
+    - name: sans_passe
+      description: mémoire vide à t0 (comportement d'avant A1)
+      run:
+        prehistory_days: 0
+    - name: avec_passe
+      description: préhistoire J-3, table figée
+      run:
+        prehistory_days: 3

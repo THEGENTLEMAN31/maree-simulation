@@ -33,7 +33,7 @@ from maree.agents.rules import rules_decide
 from maree.agents.triggers import Message, Percept, should_decide
 from maree.domain.beliefs import BeliefTable
 from maree.domain.clock import Clocks, SimClock
-from maree.domain.events import Event, EventType
+from maree.domain.events import Event, EventType, validate
 from maree.domain.geometry import Plan, Zone
 from maree.domain.ids import AgentId, ExitId, Point, RunId
 from maree.domain.intentions import Intention, IntentionKind
@@ -50,6 +50,43 @@ from maree.ports import (
     LLMPort,
     RetrieverPort,
 )
+
+#: A1 — 86 400 s par jour simulé, un tick = 10 s.
+TICKS_PER_DAY = 8640
+
+#: A1 — la préhistoire : qui parle, à qui, de quoi, et quand.
+#:
+#: Ce n'est **pas** une génération LLM, mais ce ne sont pas non plus des
+#: souvenirs posés dans le vide : chaque entrée produit un vrai
+#: `agent.message.sent` / `agent.message.heard` entre deux agents réels,
+#: daté d'un tick négatif (J-3 = -25 920). Le destinataire s'en souvient
+#: avec le nom de celui qui lui a parlé — c'est ce que A1 appelle « un
+#: échange vieux de plusieurs jours simulés ».
+#:
+#: Pourquoi pas de LLM ici : une préhistoire générée serait rejouable
+#: (elle serait journalisée, comme toute décision, E3), mais elle
+#: coûterait des appels **avant** le premier tick et rendrait l'ablation
+#: A1 non appariable (deux passés générés ne sont pas le même passé). La
+#: table est donc un choix de protocole, pas une contrainte de rejeu.
+#:
+#: (jours avant la fête, nature pour le destinataire, contenu, profil qui parle)
+PREHISTORY: dict[str, tuple[tuple[int, str, str, str], ...]] = {
+    "securite": (
+        (3, "briefing", "la sortie B se bouche dès qu'il y a du monde, la C reste fluide", "securite"),
+    ),
+    "habitue": (
+        (3, "entendu", "la sortie C évite la passerelle et la foule", "securite"),
+    ),
+    "famille": (
+        (2, "entendu", "la sortie B se bouche dès qu'il y a du monde", "securite"),
+    ),
+    "visiteur": (
+        (3, "entendu", "la sortie C existe, derrière les stands ouest", "habitue"),
+    ),
+    "vendeur": (
+        (1, "entendu", "la sortie A avait fermé l'an dernier", "vendeur"),
+    ),
+}
 
 TOPIC_WORLD = "world.events"
 TOPIC_DECISIONS = "agent.decisions"
@@ -84,6 +121,15 @@ class RunConfig:
     narrative_every: int = 5
     message_radius: float = 8.0
     density_radius: float = 3.0
+    #: A2/B3 — couper la diffusion ne doit pas être un commentaire dans le
+    #: code : c'est un bras d'expérience, donc un champ de configuration
+    #: qui entre dans `config_hash`.
+    communication: bool = True
+    #: A1 — nombre de jours simulés de préhistoire (0 = aucun passé).
+    prehistory_days: int = 0
+    #: D3 — pause réelle entre deux ticks. 0 = aussi vite que possible
+    #: (campagnes) ; > 0 = mode démonstration, où un humain peut injecter.
+    tick_delay_s: float = 0.0
     clocks: Clocks = field(default_factory=Clocks)
 
     def config_hash(self) -> str:
@@ -98,6 +144,8 @@ class RunConfig:
                 "announcement": [self.announcement_tick, self.announcement],
                 "population": [(p.profile, p.count, p.kind) for p in self.population],
                 "clocks": [self.clocks.physics_dt, self.clocks.cognition_s],
+                "communication": self.communication,
+                "prehistory_days": self.prehistory_days,
             },
             sort_keys=True,
         )
@@ -117,6 +165,14 @@ class RunResult:
     #: Appels LLM réellement aboutis. `llm_calls` compte les tentatives :
     #: sans serveur, un run « hybride » n'est qu'un run à règles déguisé.
     llm_ok: int = 0
+    #: E4 — coût réel, agrégé depuis les traces.
+    tokens_in: int = 0
+    tokens_out: int = 0
+    #: C6 — décisions fondées sur une information qui n'était pas encore
+    #: disponible. Attendu : zéro.
+    temporal_violations: int = 0
+    #: F4 — événements isolés dans `invalid.jsonl`.
+    quarantined: int = 0
 
 
 # ============================================================
@@ -142,6 +198,9 @@ class AgentRuntime:
     missing_kin_since: int | None = None
     decisions: int = 0
     spoke: bool = False
+    #: D2 — la dernière décision, telle que l'interface l'affiche : raison,
+    #: règle appliquée pour un agent à règles, passages et souvenirs.
+    last: dict[str, Any] = field(default_factory=dict)
 
     def best_exit(self) -> ExitId | None:
         return self.beliefs.best()
@@ -191,6 +250,18 @@ class Simulation:
         self._recent: list[str] = []
         self._llm_calls = 0
         self._llm_ok = 0
+        self._tokens_in = 0
+        self._tokens_out = 0
+        self._violations = 0
+        self._quarantined = 0
+        #: F6 — premier `seq` non encore référencé par un bloc d'indicateurs.
+        self._source_from = 1
+        #: D3 — commandes d'injection reçues de l'extérieur, drainées en
+        #: tête de `_world_events` : une commande arrivée pendant le tick
+        #: est perçue au tick suivant, jamais au milieu d'une perception.
+        self._inbox: list[dict[str, Any]] = []
+        self._bus_failures = 0
+        self._last_bus_error: str | None = None
         self._t0 = time.monotonic()
         #: Instant (s simulées) du premier signal de danger et du dernier
         #: sorti — les deux bornes de I7. `None` tant qu'ils n'ont pas eu
@@ -206,6 +277,78 @@ class Simulation:
         self._message_events: dict[tuple[str, int], Event] = {}
         self._last_decision: dict[AgentId, Event] = {}
         self._last_indicators: Event | None = None
+
+    # ---- contrôle (D3) -----------------------------------------
+    def submit(self, command: dict[str, Any]) -> None:
+        """Reçoit une commande d'injection depuis l'extérieur.
+
+        Elle n'est **pas** appliquée ici : elle est mise en file et drainée
+        en tête du tick suivant. C'est ce qui préserve la perception figée
+        (décision 10) — on n'injecte jamais une fumée au milieu d'une
+        perception, sous peine que deux agents voient deux mondes.
+        """
+        self._inbox.append(dict(command))
+
+    async def _drain_injections(self, tick: int) -> None:
+        """Applique les commandes reçues : journalisées avant d'agir."""
+        while self._inbox:
+            command = self._inbox.pop(0)
+            kind = str(command.get("kind", ""))
+            params = {k: v for k, v in command.items() if k not in ("type", "kind")}
+            injection = await self._emit(
+                tick,
+                EventType.INJECTION,
+                {"kind": kind, "params": params, "source": command.get("source", "ui")},
+            )
+            match kind:
+                case "smoke":
+                    self._smoke_active = True
+                    self._signal(tick)
+                    self._recent.append(f"t{tick} fumée injectée")
+                    self._signal_events["smoke"] = await self._emit(
+                        tick,
+                        EventType.WORLD_SMOKE,
+                        {
+                            "position": list(
+                                params.get("position") or self._cfg.smoke_position
+                            ),
+                            "radius": float(
+                                params.get("radius") or self._cfg.smoke_radius
+                            ),
+                        },
+                        cause=injection,
+                    )
+                case "announcement":
+                    text = str(params.get("text") or self._cfg.announcement or "")
+                    self._announcement = text
+                    self._signal(tick)
+                    self._recent.append(f"t{tick} annonce injectée")
+                    self._signal_events["announcement"] = await self._emit(
+                        tick, EventType.ANNOUNCEMENT, {"text": text}, cause=injection
+                    )
+                case "exit_closed":
+                    exit_id = str(params.get("exit", ""))
+                    if exit_id in self._exits_open:
+                        self._exits_open.discard(exit_id)
+                        self._physics.close_exit(exit_id)
+                        self._signal(tick)
+                        self._recent.append(f"t{tick} sortie {exit_id} fermée")
+                        self._signal_events["exit_closed"] = await self._emit(
+                            tick, EventType.EXIT_CLOSED, {"exit": exit_id}, cause=injection
+                        )
+                case _:
+                    # Une commande inconnue n'arrête pas le monde : elle est
+                    # isolée et comptée, comme tout événement non conforme.
+                    self._quarantined += 1
+                    self._journal.quarantine(
+                        injection, [f"kind d'injection inconnu : {kind!r}"]
+                    )
+                    await self._emit(
+                        tick,
+                        EventType.INVALID,
+                        {"type": "control.injection", "problems": [f"kind inconnu : {kind}"]},
+                        cause=injection,
+                    )
 
     # ---- journal ----------------------------------------------
     async def _emit(
@@ -243,6 +386,25 @@ class Simulation:
                 t_real=time.monotonic() - self._t0,
                 data=data,
             )
+        # F4 — un événement non conforme n'entre pas dans le journal
+        # principal : il part en quarantaine et laisse un `dlq.invalid` à sa
+        # place. Un consommateur strict (le client, le rejeu) ne rencontre
+        # donc jamais une ligne qu'il ne sait pas lire.
+        problems = validate(event)
+        if problems:
+            self._quarantined += 1
+            self._journal.quarantine(event, problems)
+            event = Event(
+                seq=event.seq,
+                run_id=event.run_id,
+                type=EventType.INVALID,
+                t_prod=event.t_prod,
+                t_trait=event.t_trait,
+                t_real=event.t_real,
+                causation_id=event.causation_id,
+                correlation_id=event.correlation_id,
+                data={"type": str(type_), "problems": problems},
+            )
         self._journal.append(event)
         topic = {
             EventType.DECISION: TOPIC_DECISIONS,
@@ -250,7 +412,14 @@ class Simulation:
             EventType.NARRATIVE: TOPIC_NARRATIVE,
             EventType.INDICATORS: TOPIC_METRICS,
         }.get(type_, TOPIC_WORLD)
-        await self._bus.publish(topic, event)
+        # Le bus est une diffusion, pas une persistance (décision 1) : un
+        # broker mort ne doit pas tuer un run rejouable. L'échec est compté
+        # et visible, jamais silencieux.
+        try:
+            await self._bus.publish(topic, event)
+        except Exception as exc:
+            self._bus_failures += 1
+            self._last_bus_error = f"{type(exc).__name__}: {exc}"[:200]
         return event
 
     # ---- population -------------------------------------------
@@ -351,6 +520,8 @@ class Simulation:
             },
         )
         self._spawn()
+        if cfg.prehistory_days:
+            await self._seed_prehistory()
         await self._emit(0, EventType.SNAPSHOT, self._snapshot(0))
 
         tick = 0
@@ -430,9 +601,19 @@ class Simulation:
                 last_exit_s=self._last_exit_s,
             )
             self._events.append(ind)
+            # F6 — la plage de `seq` qui a produit cette valeur. Le client
+            # peut donc répondre à « d'où sort ce chiffre ? » sans deviner,
+            # et sans dépendre d'offsets Kafka (le journal n'en a pas).
+            payload = ind.to_dict()
+            payload["sources"] = {
+                "from_seq": self._source_from,
+                "to_seq": self._seq,
+                "count": self._seq - self._source_from + 1,
+            }
             self._last_indicators = await self._emit(
-                tick, EventType.INDICATORS, ind.to_dict()
+                tick, EventType.INDICATORS, payload
             )
+            self._source_from = self._last_indicators.seq + 1
             await self._emit(tick, EventType.SNAPSHOT, self._snapshot(tick))
 
             # --- 8. chroniqueur ----------------------------------
@@ -441,7 +622,10 @@ class Simulation:
 
             if self._all_out():
                 break
+            if cfg.tick_delay_s:
+                await asyncio.sleep(cfg.tick_delay_s)
 
+        duration = time.monotonic() - self._t0
         await self._emit(
             tick,
             EventType.RUN_ENDED,
@@ -449,6 +633,13 @@ class Simulation:
                 "ticks": tick,
                 "llm_calls": self._llm_calls,
                 "llm_ok": self._llm_ok,
+                "tokens_in": self._tokens_in,
+                "tokens_out": self._tokens_out,
+                "duration_s": round(duration, 3),
+                "temporal_violations": self._violations,
+                "quarantined": self._quarantined,
+                "bus_failures": self._bus_failures,
+                "bus_error": self._last_bus_error,
                 "evacuated": sum(1 for a in self._agents.values() if a.evacuated),
                 "total": len(self._agents),
             },
@@ -462,7 +653,11 @@ class Simulation:
             narratives=tuple(self._narratives),
             llm_calls=self._llm_calls,
             llm_ok=self._llm_ok,
-            duration_s=time.monotonic() - self._t0,
+            tokens_in=self._tokens_in,
+            tokens_out=self._tokens_out,
+            temporal_violations=self._violations,
+            quarantined=self._quarantined,
+            duration_s=duration,
         )
 
     # ---- étapes ------------------------------------------------
@@ -478,6 +673,7 @@ class Simulation:
 
     async def _world_events(self, tick: int) -> None:
         cfg = self._cfg
+        await self._drain_injections(tick)
         if tick == cfg.smoke_tick and not self._smoke_active:
             self._smoke_active = True
             self._signal(tick)
@@ -502,6 +698,126 @@ class Simulation:
             self._signal_events["announcement"] = await self._emit(
                 tick, EventType.ANNOUNCEMENT, {"text": cfg.announcement}
             )
+
+    async def _seed_prehistory(self) -> None:
+        """A1 — le passé des agents LLM, fait d'échanges réels et datés.
+
+        Trois propriétés, et chacune répond à une exigence :
+
+          1. **c'est un échange** : un agent parle, un autre écoute, les
+             deux événements sont journalisés (`message.sent` / `heard`) ;
+          2. **c'est daté** : tick négatif (J-3 = -25 920), pas un
+             souvenir antidaté à t0 — sinon C6 ne saurait plus distinguer
+             un souvenir ancien d'une perception du tick ;
+          3. **c'est rejouable** : les échanges sont journalisés, donc le
+             rejeu les relit sans rappeler un modèle (E3). Le contenu vient
+             d'une table non par nécessité de rejeu — un passé généré serait
+             rejouable lui aussi — mais pour que l'ablation A1 compare deux
+             passés strictement identiques et ne paie rien avant t0.
+
+        Seuls les agents LLM reçoivent ce passé : A1 porte sur eux, et
+        donner une mémoire à un agent à règles laisserait croire qu'il
+        s'en sert.
+        """
+        days = self._cfg.prehistory_days
+        # Qui peut parler : n'importe quel agent. Un agent à règles est une
+        # personne aussi — c'est sa **mémoire** qui n'existe pas, pas sa
+        # parole. Restreindre les émetteurs aux LLM rendait la préhistoire
+        # muette dès qu'un profil n'avait qu'un agent LLM.
+        speakers: dict[str, list[AgentId]] = {}
+        for agent_id, runtime in sorted(self._agents.items()):
+            speakers.setdefault(runtime.profile.id, []).append(agent_id)
+
+        episodes = 0
+        listeners: set[AgentId] = set()
+        for listener, runtime in sorted(self._agents.items()):
+            if runtime.profile.kind != "llm":
+                continue
+            for day, kind, content, speaker_profile in PREHISTORY.get(
+                runtime.profile.id, ()
+            ):
+                if day > days:
+                    continue
+                candidates = [
+                    a for a in speakers.get(speaker_profile, ()) if a != listener
+                ]
+                if not candidates:
+                    continue
+                speaker = candidates[0]
+                tick = -day * TICKS_PER_DAY
+                sent = await self._emit(
+                    tick,
+                    EventType.MESSAGE_SENT,
+                    {"from": speaker, "to": [listener], "content": content},
+                )
+                await self._emit(
+                    tick,
+                    EventType.MESSAGE_HEARD,
+                    {"agent_id": listener, "from": speaker, "content": content},
+                    cause=sent,
+                )
+                self._memory.remember(
+                    listener,
+                    Episode(
+                        tick=tick,
+                        kind=kind,
+                        content=f"{speaker} m'a dit : {content}",
+                        source="prehistoire",
+                        salience=0.6,
+                    ),
+                )
+                if self._agents[speaker].profile.kind == "llm":
+                    self._memory.remember(
+                        speaker,
+                        Episode(
+                            tick=tick,
+                            kind="dit",
+                            content=f"j'ai dit à {listener} : {content}",
+                            source="prehistoire",
+                            salience=0.4,
+                        ),
+                    )
+                episodes += 1
+                listeners.add(listener)
+
+        await self._emit(
+            0,
+            EventType.MEMORY_SEEDED,
+            {
+                "agents": len(listeners),
+                "days": days,
+                "episodes": episodes,
+                "exchanges": episodes,
+            },
+        )
+
+    def _check_temporal(
+        self, agent_id: AgentId, percept: Percept, context: dict[str, Any] | None
+    ) -> list[str]:
+        """C6 — tout ce que la décision cite existait-il à l'instant T ?
+
+        Trois sources, trois vérifications : un message ne peut pas être
+        daté après la perception, un passage RAG ne peut pas être publié
+        après le tick simulé, et le signal qui a déclenché la décision ne
+        peut pas venir du futur. Le mode asynchrone (C4) ne crée **pas**
+        de violation : un décalage `t_trait - t_prod` est mesuré à part.
+        """
+        problems: list[str] = []
+        for message in percept.messages:
+            if message.tick > percept.tick:
+                problems.append(
+                    f"message de {message.sender} daté t{message.tick} > t{percept.tick}"
+                )
+        for passage in (context or {}).get("retrieved", ()):
+            available = (passage.get("metadata") or {}).get("available_tick")
+            if available is not None and int(available) > percept.tick:
+                problems.append(
+                    f"passage {passage.get('doc_id')} publié t{available} > t{percept.tick}"
+                )
+        for cause in (self._signal_events.get("smoke"),):
+            if cause is not None and cause.t_prod > percept.tick:
+                problems.append(f"fumée produite t{cause.t_prod} > t{percept.tick}")
+        return problems
 
     def _percept(
         self,
@@ -629,6 +945,8 @@ class Simulation:
                         trace["fallback"] = bool(state.get("fallback"))
                         if trace.get("ok"):
                             self._llm_ok += 1
+                        self._tokens_in += int(trace.get("tokens_in") or 0)
+                        self._tokens_out += int(trace.get("tokens_out") or 0)
             out.append((agent_id, reason, intention, trace, context))
 
         await asyncio.gather(*(one(a, r) for a, r in todo))
@@ -790,11 +1108,38 @@ class Simulation:
             data["llm"] = trace
         if context:
             data.update(context)
+        # C6 — vérifié **avant** l'écriture : une décision fondée sur une
+        # information future est signalée, pas passée sous silence.
+        violations = self._check_temporal(agent_id, percept, context)
+        if violations:
+            self._violations += len(violations)
+            data["temporal_violations"] = violations
+        # D2 — ce que l'interface affiche au clic sur l'agent, sans avoir à
+        # reconstruire depuis trois événements.
+        runtime.last = {
+            "tick": percept.tick,
+            "kind": data["kind"],
+            "trigger": trigger,
+            "reason": intention.reason,
+            # Un agent à règles n'a pas de justification générée : sa
+            # « règle » est la règle, et c'est cela qu'il faut montrer.
+            "rule": intention.reason if runtime.profile.kind == "rules" else None,
+            "intention": intention.to_dict(),
+            "retrieved": [p.get("doc_id") for p in data.get("retrieved", ())],
+            "memory": data.get("memory", ()),
+        }
         cause = self._cause_for(trigger, percept)
         decision = await self._emit(
             percept.tick, EventType.DECISION, data, cause=cause
         )
         self._last_decision[agent_id] = decision
+        for problem in violations:
+            await self._emit(
+                percept.tick,
+                EventType.TEMPORAL_VIOLATION,
+                {"agent_id": agent_id, "reason": problem},
+                cause=decision,
+            )
         await self._emit(
             percept.tick,
             EventType.BELIEF_UPDATED,
@@ -804,6 +1149,11 @@ class Simulation:
 
     async def _diffuse(self, tick: int, positions: dict[AgentId, Point]) -> None:
         """Un agent qui vient de comprendre prévient ses voisins. Une fois."""
+        # A2/B3 — bras « sans communication ». Ce n'est pas un mode dégradé :
+        # c'est le contrôle négatif qui montre que I1 mesure bien une
+        # émergence sociale et pas la ressemblance de réponses d'un modèle.
+        if not self._cfg.communication:
+            return
         for agent_id in sorted(self._agents):
             runtime = self._agents[agent_id]
             if runtime.evacuated or runtime.spoke or runtime.intention is None:
@@ -874,6 +1224,9 @@ class Simulation:
         )
         narrative = await self._narrator.narrate(digest)  # type: ignore[union-attr]
         self._narratives.append(narrative)
+        llm_trace = narrative.llm or {}
+        self._tokens_in += int(llm_trace.get("tokens_in") or 0)
+        self._tokens_out += int(llm_trace.get("tokens_out") or 0)
         await self._emit(
             tick,
             EventType.NARRATIVE,
@@ -944,6 +1297,14 @@ class Simulation:
                     # Ce que l'agent a perçu : « smoke », « announcement »,
                     # « closed:A », « missing_kin ».
                     "perceived": sorted(rt.known_signals),
+                    # D2 — l'inspection d'un agent ne demande plus de
+                    # recoller croyance + dernière décision + mémoire :
+                    # tout est là, dans l'ordre où l'interface l'affiche.
+                    "memory": [
+                        e.to_dict()
+                        for e in self._memory.recall(aid, k=3, tick=tick)
+                    ],
+                    "last_decision": rt.last or None,
                 }
                 for aid, rt in sorted(self._agents.items())
             ],
