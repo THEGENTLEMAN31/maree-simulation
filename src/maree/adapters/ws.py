@@ -91,6 +91,20 @@ class JournalStreamer:
                 data["llm"] = {k: v for k, v in llm.items() if k != "prompt"}
         return {"type": "decision", "tick": event.t_prod, **data}
 
+    @staticmethod
+    def _stamp(event: Event, frame: dict[str, Any]) -> dict[str, Any]:
+        """Ajoute les deux horodatages à toute trame (C3).
+
+        `tick` reste le moment **simulé où l'événement se produit** (c'est
+        ce que le client anime) ; `t_trait` dit quand il a été traité. En
+        synchrone les deux sont égaux, en asynchrone non — et le client qui
+        veut dessiner une latence n'a rien à recalculer.
+        """
+        frame.setdefault("tick", event.t_prod)
+        frame.setdefault("t_prod", event.t_prod)
+        frame["t_trait"] = event.t_trait
+        return frame
+
     async def _frames(self) -> AsyncIterator[dict[str, Any]]:
         """Rejoue le journal, puis attend les événements suivants.
 
@@ -108,54 +122,64 @@ class JournalStreamer:
             for event in events[seen:]:
                 seen += 1
                 if event.type is EventType.SNAPSHOT:
-                    yield {"type": "snapshot", **event.data}
+                    yield self._stamp(event, {"type": "snapshot", **event.data})
                     if delay:
                         await asyncio.sleep(delay)
                 elif event.type is EventType.INDICATORS:
-                    yield {"type": "indicators", **event.data}
+                    yield self._stamp(event, {"type": "indicators", **event.data})
                 elif event.type is EventType.DECISION:
-                    yield self._decision_frame(event)
+                    yield self._stamp(event, self._decision_frame(event))
                 elif event.type is EventType.MESSAGE_SENT:
-                    yield {"type": "message", "tick": event.t_prod, **event.data}
+                    yield self._stamp(event, {"type": "message", **event.data})
                 elif event.type is EventType.MESSAGE_HEARD:
-                    yield {"type": "heard", "tick": event.t_prod, **event.data}
+                    yield self._stamp(event, {"type": "heard", **event.data})
                 elif event.type is EventType.BELIEF_UPDATED:
-                    yield {"type": "belief", "tick": event.t_prod, **event.data}
+                    yield self._stamp(event, {"type": "belief", **event.data})
                 elif event.type is EventType.EVACUATED:
-                    yield {"type": "evacuated", "tick": event.t_prod, **event.data}
+                    yield self._stamp(event, {"type": "evacuated", **event.data})
+                elif event.type is EventType.INCIDENT:
+                    # A4 — un agent a dérivé : le monde continue, mais le
+                    # client peut le montrer au lieu de le cacher.
+                    yield self._stamp(event, {"type": "incident", **event.data})
                 elif event.type is EventType.INJECTION:
                     # D3 — une commande venue du client devient un
                     # événement du journal comme un autre : elle est donc
                     # rejouable, et le client la voit revenir.
-                    yield {"type": "injection", "tick": event.t_prod, **event.data}
+                    yield self._stamp(event, {"type": "injection", **event.data})
                 elif event.type in _WORLD_KINDS:
-                    yield {
-                        "type": "world",
-                        "tick": event.t_prod,
-                        "kind": _WORLD_KINDS[event.type],
-                        **event.data,
-                    }
+                    yield self._stamp(
+                        event,
+                        {
+                            "type": "world",
+                            "kind": _WORLD_KINDS[event.type],
+                            **event.data,
+                        },
+                    )
                 elif event.type is EventType.NARRATIVE:
-                    yield {
-                        "type": "narrative",
-                        "tick": event.t_prod,
-                        "text": event.data.get("text", ""),
-                    }
+                    yield self._stamp(
+                        event,
+                        {
+                            "type": "narrative",
+                            "text": event.data.get("text", ""),
+                        },
+                    )
                 elif event.type is EventType.RUN_ENDED:
-                    yield {"type": "end", **event.data}
+                    yield self._stamp(event, {"type": "end", **event.data})
                     return
                 else:
                     # Aucun événement n'est filtré : ce qui n'a pas de trame
                     # typée passe quand même, enveloppe comprise. Un client
                     # peut donc tout exploiter, y compris ce qui n'existait
                     # pas quand ce code a été écrit.
-                    yield {
-                        "type": "event",
-                        "event": str(event.type),
-                        "tick": event.t_prod,
-                        "seq": event.seq,
-                        "data": event.data,
-                    }
+                    yield self._stamp(
+                        event,
+                        {
+                            "type": "event",
+                            "event": str(event.type),
+                            "seq": event.seq,
+                            "data": event.data,
+                        },
+                    )
 
     def _run_meta(self) -> dict[str, Any]:
         """Métadonnées du run (`run.started`), pour l'en-tête du client."""

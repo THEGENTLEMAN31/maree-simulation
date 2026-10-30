@@ -1,0 +1,92 @@
+# @package _global_
+# ============================================================
+# X10 — deux tailles de population, et le décalage sous charge (C8, C7)
+#
+# C8 demande deux tailles de population **en soutenance** ; C7 demande de
+# mesurer le décalage entre un événement et sa prise en compte, **et son
+# évolution sous charge**. Les deux se mesurent ensemble : la charge, ici,
+# c'est le nombre d'agents.
+#
+# Hypothèse, formulée avant de mesurer : sous charge, le décalage entre la
+# fumée et le premier bloc d'indicateurs qui bouge **augmente**, parce
+# qu'un indicateur est un agrégat — il attend qu'assez d'agents aient
+# bougé, et à 60 agents il en faut plus qu'à 20.
+#
+# Quatre bras, et non deux : deux tailles × deux modes. En synchrone, la
+# barrière fige le monde jusqu'à la dernière réponse, donc le décalage en
+# ticks reste nul quelle que soit la charge — la charge se paie en temps
+# mural, pas en temps simulé. En asynchrone, elle se voit : les appels
+# LLM font la queue derrière `max_concurrency` (4), et le douzième agent
+# attend trois fois plus que le premier. C'est cette comparaison-là qui
+# répond à C7 ; la comparaison des tailles seules répond à C8.
+#
+# Ce que le protocole ne dira pas : que 20 agents « pensent mieux » que
+# 60. La petite population a aussi moins de monde pour créer un goulot,
+# donc un I7 plus court ne prouve rien sur la cognition.
+# ============================================================
+
+experiment:
+  id: X10
+  hypothesis: C8 + C7
+  indicators: [I1_consensus, I3_evacuated, I7_delay, lag_indicator, lag_llm]
+  arms:
+    - name: petite
+      description: 20 agents (7 LLM + 13 règles)
+      population:
+        total: 20
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: famille, count: 1, kind: llm }
+          - { profile: famille, count: 5, kind: rules }
+          - { profile: visiteur, count: 2, kind: llm }
+          - { profile: visiteur, count: 6, kind: rules }
+          - { profile: vendeur, count: 2, kind: rules }
+    - name: petite_async
+      description: 20 agents, chacun agit quand sa réponse arrive
+      run:
+        mode: async
+        tick_delay_s: 0.25
+      population:
+        total: 20
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: famille, count: 1, kind: llm }
+          - { profile: famille, count: 5, kind: rules }
+          - { profile: visiteur, count: 2, kind: llm }
+          - { profile: visiteur, count: 6, kind: rules }
+          - { profile: vendeur, count: 2, kind: rules }
+    - name: grande
+      description: 60 agents (12 LLM + 48 règles, population de référence)
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+    - name: grande_async
+      description: 60 agents, chacun agit quand sa réponse arrive
+      run:
+        mode: async
+        tick_delay_s: 0.25
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }

@@ -85,18 +85,29 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
 
 ### Vague 3 — le temps, le vrai
 
-- [ ] **C4** — mode `async` : les décisions ne sont plus appliquées au tick où
-      elles sont lancées. Deux sous-modes : `simulated` (latence tirée d'une
-      graine → rejouable) et `real` (latence réelle → journalisée, rejouable).
-- [ ] **C3** — `t_prod` = tick de perception figée, `t_trait` = tick
-      d'application ; les deux diffèrent en mode async.
-- [ ] **C7** — distribution `t_trait − t_prod` par type d'événement, sous charge
-      (rafale d'injections, 60 agents LLM).
-- [ ] **C8** — deux tailles de population (20 / 60) en soutenance, comparaison
-      scriptée.
-- [ ] **A4** — détecteur d'incidents : sortie de rôle (formules d'assistant),
-      réponse inexploitable (JSON invalide), absence de réponse. Événement
-      `agent.incident` + compteur par type.
+- [x] **C4** — `run.mode = sync | async`. En asynchrone, chaque agent décide
+      à son rythme et sa décision s'applique **quand la réponse arrive** : la
+      latence est réelle (mesurée), pas tirée d'une graine. La tâche est
+      lancée au tick de la perception, ramassée au tick où elle aboutit ;
+      `t_trait − t_prod` porte la latence. À la clôture, ce qui est encore en
+      vol est drainé puis annulé en `timeout` (A4). Protocole X11.
+- [x] **C3** — `t_prod` (moment où l'événement se produit) et `t_trait`
+      (moment où il est traité) sont distincts dans l'enveloppe **et** dans
+      les trames client. En synchrone ils coïncident (c'est la définition du
+      mode) ; en asynchrone et avec `message_delay_ticks > 0` ils diffèrent,
+      et la différence est journalisée, donc mesurable après coup.
+- [x] **C7** — `maree lag` et `metrics/lag.py` : deux décalages par événement
+      du monde — le premier descendant causal (le monde a été **perçu**) et le
+      premier bloc d'indicateurs qui bouge (le monde a été **mesuré**).
+      Mesuré à 20 et à 60 agents (X10) : c'est la comparaison sous charge.
+- [x] **C8** — deux tailles de population en soutenance : `x10.yaml` joue 20
+      agents (7 LLM + 13 règles) et 60 agents (12 + 48) sur le même scénario,
+      et la comparaison est scriptée (mêmes indicateurs, mêmes graines).
+- [x] **A4** — `agent.incident` avec une cause nommée : `no_response`,
+      `unparseable`, `unknown_action`, `unknown_exit`, `unknown_zone`,
+      `out_of_role`, `timeout`. Le run continue (repli sur les règles), le
+      compteur par cause est dans `run.ended` et dans la CLI. Mesuré sur un
+      run réel : 5 incidents, 2 causes.
 
 ### Vague 4 — le coûteux
 
@@ -108,18 +119,18 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
 - [ ] **F3 / F5** — architecture de données documentée ; requêtes reproductibles
       DuckDB sur les JSONL (aucun Parquet nécessaire).
 
-### État au 2026-10-30 (fin de la vague 2)
+### État au 2026-10-30 (fin de la vague 3)
 
 | Statut | Exigences | Nombre |
 |---|---|---|
-| **Tenu** | A1, A2, A3, A5, A6, B1, B2, B3, B4, C2, C5, C6, D1, D2, D3, E1, E2, E3, E4, F1, F2, F4, F6 | 23 |
-| **Partiel** | C1, C3, F3, F5 | 4 |
-| **Absent** | A4, C4, C7, C8, E5 | 5 |
+| **Tenu** | A1, A2, A3, A4, A5, A6, B1, B2, B3, B4, C1, C2, C3, C4, C5, C6, C7, C8, D1, D2, D3, E1, E2, E3, E4, F1, F2, F4, F6 | 29 |
+| **Partiel** | F3, F5 | 2 |
+| **Absent** | E5 | 1 |
 
-Les cinq absences restantes sont toutes dans les vagues 3 et 4 : le temps
-réel (C3, C4, C7), les incidents (A4), les tailles de population (C8) et
-la répartition des modèles (E5). Les quatre « partiels » le sont pour une
-raison précise, notée dans leur case.
+La vague 3 a fermé le temps (C1, C3, C4, C7, C8) et les incidents (A4).
+Restent la vague 4 : E5 (deux modèles réellement comparés) et les deux
+« partiels » de données (F3 stockages, F5 requêtes analytiques), qui sont
+des documents et non du code.
 
 ---
 
@@ -129,6 +140,7 @@ raison précise, notée dans leur case.
 |---|---|---|---|---|
 | 2026-10-29 | plan écrit | — | 138 passent | point de départ |
 | 2026-10-29 | A5 deux tiers + B4 causalité + F2 RAG journalisé + E3 run versionné + docs corrigées | `vague1` | 149 passent, ruff propre | voir ci-dessous |
+| 2026-10-30 | C4 async + C3 horodatages + A4 incidents + C7 lag + C8 populations + C1 Kafka | `vague3` | 178 passent, ruff propre | X10 (20 runs), X11 (10 runs), Kafka réel (1 002 messages) |
 | 2026-10-30 | D3 injection + D2 justification + C6 cohérence + A1 préhistoire + A2/B3 + E4 coût + F4 schémas + F6 sources | `vague2` | 167 passent, ruff propre | X8 et X9 joués (5 graines) |
 
 ### Mesures de la vague 1

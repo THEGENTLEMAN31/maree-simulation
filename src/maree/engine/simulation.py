@@ -90,8 +90,50 @@ PREHISTORY: dict[str, tuple[tuple[int, str, str, str], ...]] = {
 
 TOPIC_WORLD = "world.events"
 TOPIC_DECISIONS = "agent.decisions"
+TOPIC_SOCIAL = "agent.social"
 TOPIC_NARRATIVE = "narrative.generated"
 TOPIC_METRICS = "metrics.indicators"
+TOPIC_DLQ = "dlq.invalid"
+
+#: C1 — quelle granularité part sur le bus, et quelle granularité reste au
+#: journal. C'est une décision, pas un défaut d'implémentation :
+#:
+#:   * le bus transporte des **faits** (ce qui est arrivé), pas de l'**état**
+#:     (où en est le monde). Un `world.snapshot` pèse 61 % à 89 % des octets
+#:     d'un run (`demo_replay` : 818 Kio sur 1 363 ; `c4_sync_01` : 5 428 Kio
+#:     sur 6 247) et se reconstruit à partir des événements : le publier
+#:     saturerait le broker pour une donnée dérivable ;
+#:   * les croyances, les messages et les décisions sont séparés parce
+#:     qu'ils n'ont ni le même débit ni les mêmes consommateurs : le client
+#:     veut les décisions (2 Hz × 60), un analyste veut les croyances, un
+#:     tableau de bord veut les indicateurs ;
+#:   * les événements de contrôle (`run.started`, `run.ended`) vont avec le
+#:     monde : ils délimitent la fenêtre d'un run, pas un agent ;
+#:   * un événement invalide va dans `dlq.invalid` — c'est une file
+#:     d'erreurs, pas un flux de données.
+#:
+#: Ce qui n'est **pas** publié : `world.snapshot` (état), `tick` (bruit de
+#: boucle). Un consommateur Kafka qui a besoin de l'état le reconstruit, ou
+#: lit le journal — c'est ce que fait `maree serve`.
+TOPIC_FOR: dict[EventType, str] = {
+    EventType.RUN_STARTED: TOPIC_WORLD,
+    EventType.RUN_ENDED: TOPIC_WORLD,
+    EventType.WORLD_SMOKE: TOPIC_WORLD,
+    EventType.ANNOUNCEMENT: TOPIC_WORLD,
+    EventType.EXIT_CLOSED: TOPIC_WORLD,
+    EventType.INJECTION: TOPIC_WORLD,
+    EventType.MEMORY_SEEDED: TOPIC_WORLD,
+    EventType.DECISION: TOPIC_DECISIONS,
+    EventType.EVACUATED: TOPIC_DECISIONS,
+    EventType.INCIDENT: TOPIC_DECISIONS,
+    EventType.TEMPORAL_VIOLATION: TOPIC_DECISIONS,
+    EventType.MESSAGE_SENT: TOPIC_SOCIAL,
+    EventType.MESSAGE_HEARD: TOPIC_SOCIAL,
+    EventType.BELIEF_UPDATED: TOPIC_SOCIAL,
+    EventType.INDICATORS: TOPIC_METRICS,
+    EventType.NARRATIVE: TOPIC_NARRATIVE,
+    EventType.INVALID: TOPIC_DLQ,
+}
 
 
 # ============================================================
@@ -130,6 +172,19 @@ class RunConfig:
     #: D3 — pause réelle entre deux ticks. 0 = aussi vite que possible
     #: (campagnes) ; > 0 = mode démonstration, où un humain peut injecter.
     tick_delay_s: float = 0.0
+    #: C4 — `sync` : tous les agents agissent au même pas de temps, et le
+    #: run attend les réponses. `async` : chaque agent décide à son rythme,
+    #: sa décision s'applique **quand la réponse arrive**, avec la latence
+    #: réelle du modèle. Les deux modes produisent le même journal, mais
+    #: pas les mêmes `t_prod` / `t_trait` (C3).
+    mode: str = "sync"
+    #: C3 — latence de livraison d'un message, en ticks. 0 = le voisin
+    #: entend au tick même (comportement des campagnes X1–X9) ; > 0 = le
+    #: message est publié à t et lu à t + n, comme un mot sur un réseau.
+    message_delay_ticks: int = 0
+    #: C4 — temps réel accordé aux décisions encore en vol à la fin du run
+    #: avant de les annuler et de les compter comme incidents (A4).
+    async_drain_s: float = 5.0
     clocks: Clocks = field(default_factory=Clocks)
 
     def config_hash(self) -> str:
@@ -146,6 +201,8 @@ class RunConfig:
                 "clocks": [self.clocks.physics_dt, self.clocks.cognition_s],
                 "communication": self.communication,
                 "prehistory_days": self.prehistory_days,
+                "mode": self.mode,
+                "message_delay_ticks": self.message_delay_ticks,
             },
             sort_keys=True,
         )
@@ -173,6 +230,12 @@ class RunResult:
     temporal_violations: int = 0
     #: F4 — événements isolés dans `invalid.jsonl`.
     quarantined: int = 0
+    #: A4 — incidents (replis sur les règles) et leur répartition par cause.
+    incidents: int = 0
+    incident_kinds: dict[str, int] = field(default_factory=dict)
+    #: C4 — mode d'exécution, pour que deux runs ne se comparent pas par
+    #: erreur s'ils n'ont pas tourné de la même façon.
+    mode: str = "sync"
 
 
 # ============================================================
@@ -204,6 +267,26 @@ class AgentRuntime:
 
     def best_exit(self) -> ExitId | None:
         return self.beliefs.best()
+
+
+@dataclass(slots=True)
+class _Outcome:
+    """Une décision terminée, en attente d'application (C4).
+
+    Elle transporte la perception qui l'a fondée : en mode asynchrone, la
+    décision est appliquée plusieurs ticks plus tard, et elle doit rester
+    fondée sur ce que l'agent voyait **au moment où il a décidé** — sinon
+    C6 (cohérence temporelle) sauterait, et à juste titre.
+    """
+
+    agent_id: AgentId
+    reason: str
+    intention: Intention
+    trace: dict[str, Any] | None
+    context: dict[str, Any]
+    incident: str | None
+    percept: Percept
+    t_trait: int
 
 
 class Simulation:
@@ -254,6 +337,24 @@ class Simulation:
         self._tokens_out = 0
         self._violations = 0
         self._quarantined = 0
+        #: A4 — incidents par cause. Un compteur global ne dit pas si le
+        #: modèle est muet ou s'il sort de son rôle : les deux se soignent
+        #: différemment.
+        self._incident_kinds: dict[str, int] = {}
+        #: C4 — décisions en vol (mode asynchrone) : agent -> tâche.
+        self._pending: dict[AgentId, asyncio.Task[_Outcome]] = {}
+        #: C4 — plafond de concurrence partagé par les deux modes. Sans lui,
+        #: l'asynchrone lancerait 12 appels d'un coup et `max_concurrency`
+        #: ne voudrait plus rien dire : la file serait dans le routeur, pas
+        #: dans le moteur, et la mesure de charge porterait sur un autre
+        #: système que celui qu'on décrit.
+        self._sem: asyncio.Semaphore | None = None
+        #: Dernières positions connues, pour drainer après la boucle.
+        self._positions: dict[AgentId, Point] = {}
+        #: C3 — messages en transit : (tick de livraison, destinataire,
+        #: message, événement d'envoi). Un message publié à t et lu à t+n
+        #: n'est pas une abstraction : c'est ce que fait un réseau.
+        self._deliveries: list[tuple[int, AgentId, Message, Event]] = []
         #: F6 — premier `seq` non encore référencé par un bloc d'indicateurs.
         self._source_from = 1
         #: D3 — commandes d'injection reçues de l'extérieur, drainées en
@@ -358,6 +459,7 @@ class Simulation:
         data: dict[str, Any],
         *,
         cause: Event | None = None,
+        t_prod: int | None = None,
     ) -> Event:
         """Écrit un événement et le publie.
 
@@ -365,13 +467,21 @@ class Simulation:
         l'a provoqué, et `correlation_id` remonte à la racine. Sans cause
         explicite (instantané, indicateurs agrégés), le champ reste vide —
         prétendre le contraire serait mentir sur la traçabilité.
+
+        `t_prod` (C3) est le moment simulé où l'événement **se produit** ;
+        `t_trait` est celui où il est **traité**. Les deux coïncident quand
+        le monde est synchrone (c'est la définition du mode), et diffèrent
+        dès qu'il y a une latence : un message publié à t3 et lu à t5, une
+        décision demandée à t4 et appliquée à t6. Les confondre effacerait
+        exactement ce que C3 demande de montrer.
         """
         self._seq += 1
+        prod = tick if t_prod is None else t_prod
         if cause is not None:
             event = cause.child(
                 seq=self._seq,
                 type=type_,
-                t_prod=tick,
+                t_prod=prod,
                 t_trait=tick,
                 t_real=time.monotonic() - self._t0,
                 data=data,
@@ -381,7 +491,7 @@ class Simulation:
                 seq=self._seq,
                 run_id=self._cfg.run_id,
                 type=type_,
-                t_prod=tick,
+                t_prod=prod,
                 t_trait=tick,
                 t_real=time.monotonic() - self._t0,
                 data=data,
@@ -406,12 +516,12 @@ class Simulation:
                 data={"type": str(type_), "problems": problems},
             )
         self._journal.append(event)
-        topic = {
-            EventType.DECISION: TOPIC_DECISIONS,
-            EventType.EVACUATED: TOPIC_DECISIONS,
-            EventType.NARRATIVE: TOPIC_NARRATIVE,
-            EventType.INDICATORS: TOPIC_METRICS,
-        }.get(type_, TOPIC_WORLD)
+        # C1 — la granularité est déclarée une fois, dans `TOPIC_FOR`, et
+        # documentée avec elle. Un type absent de la table ne part pas sur
+        # le bus (c'est le cas de l'instantané : c'est de l'état).
+        topic = TOPIC_FOR.get(event.type)
+        if topic is None:
+            return event
         # Le bus est une diffusion, pas une persistance (décision 1) : un
         # broker mort ne doit pas tuer un run rejouable. L'échec est compté
         # et visible, jamais silencieux.
@@ -517,8 +627,17 @@ class Simulation:
                     {"profile": p.profile, "count": p.count, "kind": p.kind}
                     for p in cfg.population
                 ],
+                # C4/C3 — un client doit savoir s'il regarde un monde
+                # synchrone ou asynchrone : les trames ne se lisent pas de
+                # la même façon, et deux runs ne se comparent pas.
+                "mode": cfg.mode,
+                "communication": cfg.communication,
+                "prehistory_days": cfg.prehistory_days,
+                "message_delay_ticks": cfg.message_delay_ticks,
             },
         )
+        async_mode = cfg.mode == "async"
+        self._sem = asyncio.Semaphore(max(1, cfg.max_concurrency))
         self._spawn()
         if cfg.prehistory_days:
             await self._seed_prehistory()
@@ -530,6 +649,7 @@ class Simulation:
             for _ in range(cfg.clocks.steps_per_tick):
                 self._physics.step()
             positions = self._physics.positions()
+            self._positions = positions
             evacuated = self._physics.evacuated()
 
             for agent_id, runtime in self._agents.items():
@@ -561,6 +681,10 @@ class Simulation:
             for agent_id in sorted(percepts):
                 runtime = self._agents[agent_id]
                 percept = percepts[agent_id]
+                # C4 — en asynchrone, un agent qui attend déjà sa réponse ne
+                # redemande rien : il agit quand elle arrive, pas avant.
+                if agent_id in self._pending:
+                    continue
                 trigger = should_decide(
                     percept,
                     last_decision_tick=runtime.last_decision_tick,
@@ -572,19 +696,36 @@ class Simulation:
                 if trigger:
                     todo.append((agent_id, trigger.reason))
 
-            # --- 5. décisions (concurrentes, appliquées dans l'ordre) ---
-            results = await self._decide_all(todo, percepts)
+            # --- 5. décisions ------------------------------------
+            if async_mode:
+                # C4 — pas de barrière : on lance, on ramasse ce qui est
+                # arrivé. Une décision demandée à t et rendue à t+k est
+                # appliquée à t+k, avec sa latence réelle.
+                self._launch(todo, percepts, tick)
+                results = self._collect(tick)
+            else:
+                results = await self._decide_all(todo, percepts)
 
-            for agent_id, reason, intention, trace, context in results:
+            for outcome in results:
                 await self._apply(
-                    agent_id,
-                    intention,
-                    trace,
-                    percepts[agent_id],
+                    outcome.agent_id,
+                    outcome.intention,
+                    outcome.trace,
+                    outcome.percept,
                     positions,
-                    trigger=reason,
-                    context=context,
+                    trigger=outcome.reason,
+                    context=outcome.context,
+                    t_trait=outcome.t_trait,
                 )
+                if outcome.incident:
+                    # A4 — l'incident est tracé **après** la décision qu'il a
+                    # provoquée : il la cause, il ne la remplace pas.
+                    await self._incident(
+                        outcome.agent_id,
+                        outcome.incident,
+                        outcome.trace,
+                        outcome.t_trait,
+                    )
 
             # --- 6. messages et mémoire --------------------------
             await self._diffuse(tick, positions)
@@ -622,8 +763,23 @@ class Simulation:
 
             if self._all_out():
                 break
-            if cfg.tick_delay_s:
-                await asyncio.sleep(cfg.tick_delay_s)
+            delay = cfg.tick_delay_s
+            if async_mode and not delay:
+                # Une horloge asynchrone qui tournerait plus vite que le
+                # modèle ne verrait jamais arriver une réponse : la latence
+                # en ticks serait infinie. 0,25 s par tick (40× le temps
+                # réel) laisse une réponse de 3 s arriver au bout de 12
+                # ticks — c'est mesuré, pas inventé.
+                delay = 0.25
+            if delay:
+                await asyncio.sleep(delay)
+
+        if self._pending:
+            # C4/A4 — les décisions encore en vol à la fin du run : on leur
+            # laisse `async_drain_s`, puis on les annule et on les compte
+            # comme incidents (`timeout`). Un agent muet ne bloque pas la
+            # clôture, et son silence est tracé.
+            await self._drain_pending(tick, self._positions)
 
         duration = time.monotonic() - self._t0
         await self._emit(
@@ -638,6 +794,9 @@ class Simulation:
                 "duration_s": round(duration, 3),
                 "temporal_violations": self._violations,
                 "quarantined": self._quarantined,
+                "incidents": sum(self._incident_kinds.values()),
+                "incident_kinds": dict(self._incident_kinds),
+                "mode": cfg.mode,
                 "bus_failures": self._bus_failures,
                 "bus_error": self._last_bus_error,
                 "evacuated": sum(1 for a in self._agents.values() if a.evacuated),
@@ -657,6 +816,9 @@ class Simulation:
             tokens_out=self._tokens_out,
             temporal_violations=self._violations,
             quarantined=self._quarantined,
+            incidents=sum(self._incident_kinds.values()),
+            incident_kinds=dict(self._incident_kinds),
+            mode=cfg.mode,
             duration_s=duration,
         )
 
@@ -674,6 +836,10 @@ class Simulation:
     async def _world_events(self, tick: int) -> None:
         cfg = self._cfg
         await self._drain_injections(tick)
+        # C3 — les messages arrivés à échéance entrent dans la perception
+        # **avant** qu'elle soit construite : un message livré au tick t est
+        # vu au tick t, pas un tick plus tard.
+        await self._deliver(tick)
         if tick == cfg.smoke_tick and not self._smoke_active:
             self._smoke_active = True
             self._signal(tick)
@@ -814,9 +980,30 @@ class Simulation:
                 problems.append(
                     f"passage {passage.get('doc_id')} publié t{available} > t{percept.tick}"
                 )
-        for cause in (self._signal_events.get("smoke"),):
+        # Le signal ne compte que s'il a **effectivement** fondé la
+        # décision : une décision de t1 qui ne voit pas la fumée n'est pas
+        # « fondée sur la fumée de t10 ». Comparer l'état courant du monde
+        # au lieu de l'état perçu faisait apparaître des violations
+        # fantômes dès que le mode asynchrone appliquait une vieille
+        # décision après coup — mesuré : 12 violations dans
+        # `c4_async_01`, toutes sur des décisions antérieures à la fumée.
+        if percept.smoke_visible:
+            cause = self._signal_events.get("smoke")
             if cause is not None and cause.t_prod > percept.tick:
                 problems.append(f"fumée produite t{cause.t_prod} > t{percept.tick}")
+        if percept.announcement is not None:
+            cause = self._signal_events.get("announcement")
+            if cause is not None and cause.t_prod > percept.tick:
+                problems.append(f"annonce produite t{cause.t_prod} > t{percept.tick}")
+        runtime = self._agents.get(agent_id)
+        if runtime is not None and any(
+            signal.startswith("closed:") for signal in runtime.known_signals
+        ):
+            cause = self._signal_events.get("exit_closed")
+            if cause is not None and cause.t_prod > percept.tick:
+                problems.append(
+                    f"fermeture produite t{cause.t_prod} > t{percept.tick}"
+                )
         return problems
 
     def _percept(
@@ -903,10 +1090,8 @@ class Simulation:
 
     async def _decide_all(
         self, todo: list[tuple[AgentId, str]], percepts: dict[AgentId, Percept]
-    ) -> list[
-        tuple[AgentId, str, Intention, dict[str, Any] | None, dict[str, Any]]
-    ]:
-        """Décisions concurrentes, mais **appliquées** dans l'ordre canonique.
+    ) -> list[_Outcome]:
+        """C4 mode synchrone : toutes les décisions du tick, puis on applique.
 
         Le `contexte` (passages retrouvés, souvenirs rappelés) est journalisé
         avec la décision : sans lui, F2 (« montrez ce qui a été retrouvé »)
@@ -914,43 +1099,178 @@ class Simulation:
         décision dans l'interface.
         """
         semaphore = asyncio.Semaphore(self._cfg.max_concurrency)
-        out: list[
-            tuple[AgentId, str, Intention, dict[str, Any] | None, dict[str, Any]]
-        ] = []
 
-        async def one(agent_id: AgentId, reason: str) -> None:
-            runtime = self._agents[agent_id]
-            percept = percepts[agent_id]
+        async def one(agent_id: AgentId, reason: str) -> _Outcome:
             async with semaphore:
-                context: dict[str, Any] = {}
-                if runtime.profile.kind == "rules":
-                    intention = rules_decide(
-                        percept, self._plan, profile=runtime.profile.id
-                    )
-                    trace = None
-                else:
-                    intention, state = await self._graph.decide(
-                        agent_id=agent_id,
-                        profile=runtime.profile,
-                        percept=percept,
-                        trigger=reason,
-                    )
-                    trace = state.get("llm")
-                    if state.get("passages"):
-                        context["retrieved"] = state["passages"]
-                    if state.get("memories"):
-                        context["memory"] = state["memories"]
-                    self._llm_calls += 1
-                    if trace:
-                        trace["fallback"] = bool(state.get("fallback"))
-                        if trace.get("ok"):
-                            self._llm_ok += 1
-                        self._tokens_in += int(trace.get("tokens_in") or 0)
-                        self._tokens_out += int(trace.get("tokens_out") or 0)
-            out.append((agent_id, reason, intention, trace, context))
+                return await self._one_decision(agent_id, reason, percepts[agent_id])
 
-        await asyncio.gather(*(one(a, r) for a, r in todo))
-        return sorted(out, key=lambda x: x[0])
+        out = await asyncio.gather(*(one(a, r) for a, r in todo))
+        # Ordre canonique : `agent_id` croissant, jamais l'ordre d'arrivée.
+        return sorted(out, key=lambda o: o.agent_id)
+
+    async def _one_decision(
+        self, agent_id: AgentId, reason: str, percept: Percept
+    ) -> _Outcome:
+        """Une décision, isolée de son ordonnancement (C4).
+
+        Le mode synchrone l'appelle dans un `gather`, le mode asynchrone dans
+        une tâche de fond : la décision elle-même ne sait pas laquelle, et
+        c'est ce qui rend les deux modes comparables — mêmes prompts, mêmes
+        graines, même validation.
+        """
+        runtime = self._agents[agent_id]
+        context: dict[str, Any] = {}
+        incident: str | None = None
+        if runtime.profile.kind == "rules":
+            intention = rules_decide(percept, self._plan, profile=runtime.profile.id)
+            trace = None
+        else:
+            intention, state = await self._graph.decide(
+                agent_id=agent_id,
+                profile=runtime.profile,
+                percept=percept,
+                trigger=reason,
+            )
+            trace = state.get("llm")
+            if state.get("passages"):
+                context["retrieved"] = state["passages"]
+            if state.get("memories"):
+                context["memory"] = state["memories"]
+            self._llm_calls += 1
+            if trace:
+                trace["fallback"] = bool(state.get("fallback"))
+                if trace.get("ok"):
+                    self._llm_ok += 1
+                self._tokens_in += int(trace.get("tokens_in") or 0)
+                self._tokens_out += int(trace.get("tokens_out") or 0)
+            if state.get("fallback"):
+                incident = str(state.get("fallback_reason") or "unknown")
+        return _Outcome(
+            agent_id=agent_id,
+            reason=reason,
+            intention=intention,
+            trace=trace,
+            context=context,
+            incident=incident,
+            percept=percept,
+            t_trait=percept.tick,
+        )
+
+    # ---- C4 mode asynchrone -----------------------------------
+    def _launch(
+        self,
+        todo: list[tuple[AgentId, str]],
+        percepts: dict[AgentId, Percept],
+        tick: int,
+    ) -> None:
+        """Lance les décisions du tick sans les attendre."""
+        sem = self._sem
+
+        async def guarded(
+            agent_id: AgentId, reason: str, percept: Percept
+        ) -> _Outcome:
+            assert sem is not None
+            async with sem:
+                return await self._one_decision(agent_id, reason, percept)
+
+        for agent_id, reason in todo:
+            percept = percepts[agent_id]
+            task = asyncio.create_task(guarded(agent_id, reason, percept))
+            self._pending[agent_id] = task
+
+    def _collect(self, tick: int) -> list[_Outcome]:
+        """Ramasse les décisions arrivées depuis le dernier tick.
+
+        `t_trait` est le tick où l'on ramasse, `t_prod` celui de la
+        perception : c'est exactement l'écart que C3 demande de porter, et
+        il est mesuré (durée réelle de l'appel), pas simulé.
+        """
+        out: list[_Outcome] = []
+        for agent_id in sorted(self._pending):
+            task = self._pending[agent_id]
+            if not task.done():
+                continue
+            del self._pending[agent_id]
+            outcome = task.result()
+            outcome.t_trait = tick
+            out.append(outcome)
+        return out
+
+    async def _drain_pending(
+        self, tick: int, positions: dict[AgentId, Point]
+    ) -> None:
+        """Ce qui est encore en vol à la clôture : on attend, puis on annule."""
+        tasks = list(self._pending.values())
+        done, not_done = await asyncio.wait(
+            tasks, timeout=self._cfg.async_drain_s
+        )
+        for task in done:
+            outcome = task.result()
+            outcome.t_trait = tick
+            await self._apply(
+                outcome.agent_id,
+                outcome.intention,
+                outcome.trace,
+                outcome.percept,
+                positions,
+                trigger=outcome.reason,
+                context=outcome.context,
+                t_trait=tick,
+            )
+            if outcome.incident:
+                await self._incident(
+                    outcome.agent_id, outcome.incident, outcome.trace, tick
+                )
+        for task in not_done:
+            task.cancel()
+            agent_id = next(
+                (a for a, t in self._pending.items() if t is task), None
+            )
+            if agent_id is None:
+                continue
+            await self._incident(
+                agent_id,
+                "timeout",
+                {"error": f"pas de réponse en {self._cfg.async_drain_s} s"},
+                tick,
+            )
+        self._pending.clear()
+
+    async def _incident(
+        self,
+        agent_id: AgentId,
+        kind: str,
+        trace: dict[str, Any] | None,
+        tick: int,
+    ) -> None:
+        """A4 — un agent a dérivé ; le monde continue, l'incident est tracé.
+
+        Trois dérives, trois causes distinctes : le modèle ne répond pas
+        (`no_response`), répond quelque chose d'inexploitable
+        (`unparseable`, `unknown_action`) ou répond hors de son rôle
+        (`out_of_role`, `unknown_exit`). Le repli sur les règles est la
+        même mécanique dans les trois cas, mais les confondre dans un seul
+        compteur rendrait le diagnostic impossible.
+        """
+        self._incident_kinds[kind] = self._incident_kinds.get(kind, 0) + 1
+        trace = trace or {}
+        await self._emit(
+            tick,
+            EventType.INCIDENT,
+            {
+                "agent_id": agent_id,
+                "kind": kind,
+                "detail": (
+                    trace.get("error")
+                    or str(trace.get("raw_output") or "")[:200]
+                    or ""
+                ),
+                "requested_model": trace.get("requested_model"),
+                "model": trace.get("model"),
+                "fallback": True,
+            },
+            cause=self._last_decision.get(agent_id),
+        )
 
     # ---- causalité (B4) ---------------------------------------
     def _cause_for(self, trigger: str, percept: Percept) -> Event | None:
@@ -983,6 +1303,7 @@ class Simulation:
         *,
         trigger: str,
         context: dict[str, Any] | None = None,
+        t_trait: int | None = None,
     ) -> None:
         runtime = self._agents[agent_id]
         runtime.intention = intention
@@ -1129,8 +1450,13 @@ class Simulation:
             "memory": data.get("memory", ()),
         }
         cause = self._cause_for(trigger, percept)
+        # C3 : la décision est **produite** au tick de la perception, et
+        # **traitée** au tick où la réponse est arrivée. En mode synchrone
+        # les deux sont égaux ; en mode asynchrone l'écart est la latence.
+        trait = percept.tick if t_trait is None else t_trait
+        data["lag_ticks"] = trait - percept.tick
         decision = await self._emit(
-            percept.tick, EventType.DECISION, data, cause=cause
+            trait, EventType.DECISION, data, cause=cause, t_prod=percept.tick
         )
         self._last_decision[agent_id] = decision
         for problem in violations:
@@ -1186,30 +1512,59 @@ class Simulation:
                 cause=self._last_decision.get(agent_id),
             )
             self._message_events[(agent_id, tick)] = sent
+            due = tick + max(0, self._cfg.message_delay_ticks)
             for other in voisins:
                 target = self._agents[other]
                 if target.evacuated:
                     continue
-                target.pending.append(
-                    Message(sender=agent_id, content=content, tick=tick, claim=claim)
+                message = Message(
+                    sender=agent_id, content=content, tick=tick, claim=claim
                 )
-                target.known_messages.add(f"{agent_id}:{tick}")
-                self._memory.remember(
-                    other,
-                    Episode(
-                        tick=tick,
-                        kind="entendu",
-                        content=f"{agent_id} dit : {content}",
-                        source=agent_id,
-                        salience=0.7,
-                    ),
-                )
-                await self._emit(
-                    tick,
-                    EventType.MESSAGE_HEARD,
-                    {"agent_id": other, "from": agent_id, "content": content},
-                    cause=sent,
-                )
+                if due <= tick:
+                    await self._deliver_one(tick, other, message, sent)
+                else:
+                    self._deliveries.append((due, other, message, sent))
+
+    async def _deliver(self, tick: int) -> None:
+        """C3 — remet les messages dont l'échéance est arrivée."""
+        if not self._deliveries:
+            return
+        restant: list[tuple[int, AgentId, Message, Event]] = []
+        for due, other, message, sent in self._deliveries:
+            if due <= tick:
+                await self._deliver_one(tick, other, message, sent)
+            else:
+                restant.append((due, other, message, sent))
+        self._deliveries = restant
+
+    async def _deliver_one(
+        self, tick: int, other: AgentId, message: Message, sent: Event
+    ) -> None:
+        target = self._agents[other]
+        if target.evacuated:
+            return
+        target.pending.append(message)
+        target.known_messages.add(f"{message.sender}:{message.tick}")
+        self._memory.remember(
+            other,
+            Episode(
+                tick=tick,
+                kind="entendu",
+                content=f"{message.sender} dit : {message.content}",
+                source=message.sender,
+                salience=0.7,
+            ),
+        )
+        # C3 : le message a été **produit** à `sent.t_prod` et il est
+        # **traité** ici. L'écart est la latence de livraison, portée par
+        # l'enveloppe — un client peut la lire sans rien recalculer.
+        await self._emit(
+            tick,
+            EventType.MESSAGE_HEARD,
+            {"agent_id": other, "from": message.sender, "content": message.content},
+            cause=sent,
+            t_prod=sent.t_prod,
+        )
 
     async def _narrate(
         self, ind: metrics.Indicators, states: list[metrics.AgentState], tick: int

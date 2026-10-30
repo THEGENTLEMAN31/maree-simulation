@@ -118,6 +118,30 @@ rejouable de bout en bout.
   d'un tick serait vue par certains agents et pas d'autres. `submit()` ne
   fait que mettre en file ; `_drain_injections` journalise
   `control.injection` **avant** l'événement qu'elle provoque.
+- **Un mode asynchrone révèle les vérifications qui lisent l'état courant
+  au lieu de l'état perçu.** `_check_temporal` (C6) comparait
+  `self._signal_events["smoke"].t_prod` à `percept.tick` : en synchrone,
+  la décision est appliquée dans le tick où elle est perçue, donc les deux
+  coïncident et le bug reste invisible. En asynchrone, une décision de t1
+  appliquée à t12 voyait la fumée de t10 et se déclarait en violation —
+  12 violations fantômes dans `c4_async_01`. Corrigé : on ne vérifie un
+  signal que si l'agent l'a **perçu** (`smoke_visible`, `announcement`,
+  `closed:`). Toute vérification causale doit lire la perception, jamais
+  le monde.
+- **Une latence réelle n'a de sens en ticks que si l'horloge est cadencée.**
+  En asynchrone, la tâche est lancée au tick de la perception et ramassée
+  au tick où elle aboutit ; `tick_delay_s` (0,25 s par défaut dans ce
+  mode) fixe le rapport : 3 s de LLM = 12 ticks. Sans cadence, la boucle
+  tournerait plus vite que le modèle et aucune réponse n'arriverait
+  jamais. Ce n'est pas une latence inventée : c'est la latence mesurée,
+  convertie par une cadence déclarée.
+- **Un repli sur les règles sans cause nommée n'est pas un incident.**
+  `graph._validate` renvoyait `fallback: true` sans dire pourquoi. A4
+  exige « tracé et dénombré » : la cause (`no_response`, `unparseable`,
+  `unknown_exit`, `out_of_role`, …) est maintenant portée jusqu'à
+  `agent.incident`, et `out_of_role` est distinct de `unknown_exit` — un
+  visiteur qui nomme B ne se trompe pas de vocabulaire, il parle d'un lieu
+  qu'il ne connaît pas.
 - **`runs/` dans `.gitignore` interdit toute exception enfant.** Git ne
   descend pas dans un répertoire exclu : `!runs/demo_replay/events.jsonl`
   ne marche que si le motif parent est `runs/*`, pas `runs/`. C'est ce qui
@@ -320,6 +344,11 @@ rejouable de bout en bout.
 | Chaîne causale (B4) | **820 / 1 023** événements avec `causation_id`, 160 chaînes | run `demo_replay` |
 | Récupération (F2) | P@1 **0,417**, P@3 **0,750**, MRR **0,569** sur 24 requêtes annotées | `eval/rag_queries.yaml` |
 | Rejeu E3 | `ok: true`, 49/49 décisions concordantes, 3 replis annoncés | `maree replay --run-id demo_replay` |
+| Protocole X10, 4 bras × 5 graines | `lag_llm` 0 (sync) → 8,0 (20 agents async) → 15,0 (60 async) ; `lag_indicator` 1,5 → 5,0 → 8,0 | `experiment_x10` |
+| Protocole X11, 2 bras × 5 graines | sync I3 0,95 / I7 460 s / lag 0 ; async 0,92 / 580 s / lag médian 9, max 19 | `experiment_x11` |
+| Petit modèle contre grand, sous charge | `lag_ticks` 11 (petit) contre 12 (grand) : la file mange la différence | `experiment_x11` |
+| C1, Redpanda réel | **1 002 messages** sur 4 topics pour un run de 1 023 événements (21 instantanés exclus) | `scripts/kafka_check.py` |
+| A4, incidents réels | 8 incidents / 2 causes en async 60 agents, 3 en sync ; run allé au bout | `c4_async_02`, `c4_sync_01` |
 
 **Le KV cache de 4 slots tient** : 1 980 Mo sur 4 096, 2,1 Go libres.
 Le repli `parallel=2` n'est pas nécessaire.
@@ -343,6 +372,8 @@ godot --path godot/project    # client
 uv run maree replay           # rejeu du dernier run
 uv run maree replay --run-id demo_replay   # le run versionné (E3)
 uv run maree trace --run-id demo_replay --indicator I1_consensus  # B4
+uv run maree lag --run-id demo_replay          # C7 : monde -> perception -> mesure
+uv run maree run run.mode=async bus.backend=memory   # C4 : chacun à son rythme
 uv run maree experiment --name x1 --seeds 3
 ```
 

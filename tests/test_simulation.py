@@ -13,6 +13,7 @@ appelle le LLM 60 fois par tick.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from pathlib import Path
 
@@ -166,7 +167,11 @@ async def test_run_se_termine_et_journalise(tmp_path: Path) -> None:
     assert "run.ended" in types
     assert "metrics.indicators" in types
     assert [e.seq for e in events] == sorted(e.seq for e in events)
-    assert len(bus.published) == len(events)
+    # C1 — le bus porte les faits, pas l'état : tout est publié **sauf**
+    # les instantanés (`world.snapshot`), qui se reconstruisent.
+    published = {e.seq for _, e in bus.published}
+    assert published == {e.seq for e in events if str(e.type) != "world.snapshot"}
+    assert all(topic for topic, _ in bus.published)
 
 
 async def test_tous_les_agents_finissent_par_sortir(tmp_path: Path) -> None:
@@ -545,3 +550,245 @@ async def test_aucune_violation_temporelle(tmp_path: Path) -> None:
     result, journal, _, _ = await _run(tmp_path, "c6")
     assert result.temporal_violations == 0
     assert not [e for e in journal.read("c6") if str(e.type) == "temporal.violation"]
+
+
+class ScriptedLLM:
+    """Un modèle qui répond ce qu'on lui dit de répondre — A4."""
+
+    def __init__(self, text: str = "", *, ok: bool = True, error: str | None = None):
+        self.text = text
+        self.ok = ok
+        self.error = error
+        self.calls = 0
+
+    async def chat(self, messages, *, seed: int, **kwargs) -> LLMResult:
+        self.calls += 1
+        return LLMResult(
+            text=self.text if self.ok else "",
+            prompt="…",
+            seed=seed,
+            model="factice",
+            ok=self.ok,
+            error=self.error,
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def _incidents(journal, run_id: str):
+    return [e for e in journal.read(run_id) if str(e.type) == "agent.incident"]
+
+
+async def test_un_modele_qui_divague_est_trace_et_le_run_continue(
+    tmp_path: Path,
+) -> None:
+    """A4 — une réponse inexploitable n'arrête rien, et laisse une trace."""
+    result, journal, _, llm = await _run(
+        tmp_path,
+        "a4g",
+        llm=ScriptedLLM("je ne sais pas, je regarde le ciel"),
+        population=(
+            PopulationEntry("visiteur", 2, "llm"),
+            PopulationEntry("habitue", 3, "rules"),
+        ),
+    )
+    assert llm.calls > 0
+    incidents = await _incidents(journal, "a4g")
+    assert incidents, "un repli silencieux n'est pas un incident tracé"
+    assert {i.data["kind"] for i in incidents} == {"unparseable"}
+    assert all(i.data["agent_id"].startswith("A") for i in incidents)
+    assert result.incidents == len(incidents)
+    assert result.incident_kinds == {"unparseable": len(incidents)}
+    # Le monde continue : l'évacuation a bien lieu, par les règles.
+    assert result.indicators
+    assert result.indicators[-1].counts["evacuated"] > 0
+
+
+async def test_un_modele_qui_invente_une_sortie_est_un_incident(
+    tmp_path: Path,
+) -> None:
+    """A4 — « Z » n'existe pas : c'est une dérive, pas un silence."""
+    result, journal, _, _ = await _run(
+        tmp_path,
+        "a4z",
+        llm=ScriptedLLM('{"action": "go_exit", "target": "Z", "confidence": 0.8}'),
+        population=(
+            PopulationEntry("visiteur", 2, "llm"),
+            PopulationEntry("habitue", 2, "rules"),
+        ),
+    )
+    incidents = await _incidents(journal, "a4z")
+    assert {i.data["kind"] for i in incidents} == {"unknown_exit"}
+    assert result.incident_kinds == {"unknown_exit": len(incidents)}
+
+
+async def test_un_modele_hors_de_son_role_est_un_incident_distinct(
+    tmp_path: Path,
+) -> None:
+    """A4 — un visiteur qui nomme B sort de son rôle, il ne se trompe pas de mot.
+
+    La distinction compte : `unknown_exit` accuse le modèle, `out_of_role`
+    accuse le prompt (le profil ne connaît que A). Les deux se corrigent
+    différemment, donc ils ne partagent pas le même compteur.
+    """
+    result, journal, _, _ = await _run(
+        tmp_path,
+        "a4r",
+        llm=ScriptedLLM('{"action": "go_exit", "target": "B", "confidence": 0.8}'),
+        population=(
+            PopulationEntry("visiteur", 2, "llm"),
+            PopulationEntry("habitue", 2, "rules"),
+        ),
+    )
+    incidents = await _incidents(journal, "a4r")
+    assert {i.data["kind"] for i in incidents} == {"out_of_role"}
+    assert result.incident_kinds == {"out_of_role": len(incidents)}
+
+
+async def test_un_modele_muet_n_est_pas_un_modele_qui_divague(
+    tmp_path: Path,
+) -> None:
+    """A4 — pas de réponse et réponse inexploitable sont deux incidents."""
+    result, journal, _, _ = await _run(
+        tmp_path,
+        "a4m",
+        llm=ScriptedLLM("", ok=False, error="TimeoutError: 120s"),
+        population=(
+            PopulationEntry("visiteur", 2, "llm"),
+            PopulationEntry("habitue", 2, "rules"),
+        ),
+    )
+    incidents = await _incidents(journal, "a4m")
+    assert {i.data["kind"] for i in incidents} == {"no_response"}
+    assert result.llm_ok == 0
+    assert result.incident_kinds == {"no_response": len(incidents)}
+    assert all("TimeoutError" in i.data["detail"] for i in incidents)
+    assert result.indicators, "un serveur muet ne tue pas le run"
+
+
+class SlowLLM:
+    """Un modèle qui met du temps — C4 : la latence est réelle, pas inventée."""
+
+    def __init__(self, delay: float = 0.2, text: str | None = None) -> None:
+        self.delay = delay
+        self.text = text or '{"action": "go_exit", "target": "A", "confidence": 0.8}'
+        self.calls = 0
+
+    async def chat(self, messages, *, seed: int, **kwargs) -> LLMResult:
+        self.calls += 1
+        await asyncio.sleep(self.delay)
+        return LLMResult(
+            text=self.text, prompt="…", seed=seed, model="lent", ok=True
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_c3_un_message_publie_a_t_est_lu_a_t_plus_n(tmp_path: Path) -> None:
+    """C3 — le moment de production et celui du traitement sont distincts.
+
+    Sans cette distinction, `t_prod` et `t_trait` seraient le même champ
+    recopié deux fois : le journal ne pourrait pas dire qu'un message a
+    dormi deux ticks avant d'être lu.
+    """
+    _, journal, _, _ = await _run(
+        tmp_path,
+        "c3",
+        llm=SlowLLM(delay=0.0),
+        message_delay_ticks=2,
+        population=(
+            PopulationEntry("securite", 1, "llm"),
+            PopulationEntry("visiteur", 2, "llm"),
+            PopulationEntry("habitue", 4, "rules"),
+        ),
+    )
+    events = journal.read("c3")
+    heard = [e for e in events if str(e.type) == "agent.message.heard"]
+    assert heard, "aucun message livré : le test ne prouve rien"
+    assert all(e.t_trait - e.t_prod == 2 for e in heard), [
+        (e.t_prod, e.t_trait) for e in heard
+    ]
+    sent = {e.id: e for e in events if str(e.type) == "agent.message.sent"}
+    for event in heard:
+        assert event.causation_id in sent
+        assert sent[event.causation_id].t_prod == event.t_prod
+    # En mode synchrone, les décisions n'ont aucun décalage.
+    decisions = [e for e in events if str(e.type) == "agent.decision"]
+    assert all(e.t_prod == e.t_trait for e in decisions)
+
+
+async def test_c4_asynchrone_applique_la_decision_quand_elle_arrive(
+    tmp_path: Path,
+) -> None:
+    """C4 — en asynchrone, la décision porte la latence réelle du modèle."""
+    result, journal, _, _llm = await _run(
+        tmp_path,
+        "c4a",
+        llm=SlowLLM(delay=0.25),
+        mode="async",
+        tick_delay_s=0.05,
+        population=(
+            PopulationEntry("visiteur", 3, "llm"),
+            PopulationEntry("habitue", 3, "rules"),
+        ),
+    )
+    assert result.mode == "async"
+    events = journal.read("c4a")
+    decisions = [e for e in events if str(e.type) == "agent.decision"]
+    assert decisions
+    lagged = [e for e in decisions if e.t_trait > e.t_prod]
+    assert lagged, "aucune décision décalée : le mode asynchrone n'en est pas un"
+    assert all(e.data["lag_ticks"] == e.t_trait - e.t_prod for e in lagged)
+    # La latence observée colle à la latence réelle du faux modèle.
+    assert max(e.data["lag_ticks"] for e in lagged) >= 2
+
+
+async def test_c4_asynchrone_ne_bloque_pas_le_monde(tmp_path: Path) -> None:
+    """C4 — un modèle lent ne fige pas la physique ni les indicateurs."""
+    result, journal, _, _ = await _run(
+        tmp_path,
+        "c4b",
+        llm=SlowLLM(delay=0.3),
+        mode="async",
+        tick_delay_s=0.02,
+        ticks=30,
+        population=(
+            PopulationEntry("visiteur", 2, "llm"),
+            PopulationEntry("habitue", 4, "rules"),
+        ),
+    )
+    blocks = [e for e in journal.read("c4b") if str(e.type) == "metrics.indicators"]
+    # Le monde avance à chaque tick, indépendamment des réponses en vol.
+    assert len(blocks) >= 10
+    assert result.indicators[-1].counts["evacuated"] > 0
+
+
+async def test_c6_asynchrone_ne_cree_pas_de_violation_fantome(
+    tmp_path: Path,
+) -> None:
+    """C6 × C4 — une décision appliquée en retard ne cite pas un futur.
+
+    Régression réelle : `_check_temporal` comparait l'état **courant** du
+    monde au lieu de l'état **perçu**. En synchrone, les deux coïncident
+    donc le bug restait invisible ; en asynchrone, une décision de t1
+    appliquée à t12 voyait la fumée de t10 et se déclarait en violation.
+    Mesuré sur `c4_async_01` : 12 violations fantômes.
+    """
+    result, journal, _, _ = await _run(
+        tmp_path,
+        "c6a",
+        llm=SlowLLM(delay=0.15),
+        mode="async",
+        tick_delay_s=0.02,
+        ticks=30,
+        population=(
+            PopulationEntry("visiteur", 3, "llm"),
+            PopulationEntry("habitue", 3, "rules"),
+        ),
+    )
+    assert result.temporal_violations == 0
+    assert not [
+        e for e in journal.read("c6a") if str(e.type) == "temporal.violation"
+    ]

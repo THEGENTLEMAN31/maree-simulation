@@ -33,3 +33,11 @@ prehistory_days: 0
 # D3 — pause reelle entre deux ticks. 0 = campagne (aussi vite que
 # possible) ; `maree live --tick-ms 600` la surcharge pour la demo.
 tick_delay_s: 0.0
+
+# C4 — sync = tous les agents au même pas de temps ; async = chacun agit
+# quand sa réponse arrive (latence réelle du modèle).
+mode: sync
+
+# C3 — latence de livraison d'un message, en ticks. 0 = le voisin entend
+# au tick même (campagnes X1–X9) ; 2 = un mot met 20 s simulées à passer.
+message_delay_ticks: 0

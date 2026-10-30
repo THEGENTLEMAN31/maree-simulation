@@ -100,6 +100,10 @@ def _run_config(cfg: DictConfig, run_id: str):
         # D3 — cadence de démonstration. 0 en campagne (aussi vite que
         # possible), > 0 en `maree live` pour qu'un humain puisse injecter.
         tick_delay_s=float(run.get("tick_delay_s", 0.0)),
+        # C4/C3 — deux modes, deux façons de dater les événements. Ce sont
+        # des champs de configuration : un bras d'expérience, pas un `if`.
+        mode=str(run.get("mode", "sync")),
+        message_delay_ticks=int(run.get("message_delay_ticks", 0)),
         clocks=clocks,
     )
 
@@ -199,6 +203,8 @@ def _echo_result(result) -> None:
                 "tokens_out": result.tokens_out,
                 "temporal_violations": result.temporal_violations,
                 "quarantined": result.quarantined,
+                "incidents": result.incidents,
+                "incident_kinds": result.incident_kinds,
                 "duration_s": round(result.duration_s, 1),
                 "evacuated": last.counts.get("evacuated") if last else 0,
                 "total": last.counts.get("agents") if last else 0,
@@ -217,6 +223,18 @@ def _echo_result(result) -> None:
             "\nATTENTION — aucun appel LLM n'a abouti : toutes les décisions "
             "sont des replis sur les règles. Ce run n'est pas un run hybride.",
             fg=typer.colors.RED,
+            err=True,
+        )
+    if result.incidents:
+        # A4 — le run a continué (c'est l'exigence), mais on ne laisse pas
+        # croire que tout s'est bien passé : le détail est dans le journal.
+        detail = ", ".join(
+            f"{kind} × {n}" for kind, n in sorted(result.incident_kinds.items())
+        )
+        typer.secho(
+            f"\n{result.incidents} incident(s) d'agent, repli sur les règles : "
+            f"{detail}. Détail dans `agent.incident`.",
+            fg=typer.colors.YELLOW,
             err=True,
         )
 
@@ -364,6 +382,61 @@ def trace(
 
 
 @app.command()
+def lag(
+    run_id: str = typer.Option(None, help="identifiant du run (défaut : le plus récent)"),
+    runs: str = typer.Option("runs", help="répertoire des runs"),
+    as_json: bool = typer.Option(False, "--json", help="sortie machine"),
+) -> None:
+    """Décalage entre un événement du monde et sa prise en compte (C7).
+
+    Deux décalages, pas un : le premier descendant causal (le monde a été
+    **perçu**) et le premier bloc d'indicateurs qui bouge (le monde a été
+    **mesuré**). Un indicateur est un agrégat : il attend que la foule ait
+    bougé, donc il retarde toujours plus que la cognition.
+    """
+    from maree.adapters.journal.jsonl import JsonlJournal
+    from maree.metrics.lag import lags, summary
+
+    journal = JsonlJournal(runs)
+    target = run_id or (journal.runs()[-1] if journal.runs() else None)
+    if not target:
+        raise typer.BadParameter("aucun run dans le journal")
+    found = lags(journal.read(target))
+    result = summary(found)
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {
+                    "run_id": target,
+                    "summary": result,
+                    "events": [item.to_dict() for item in found],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    typer.echo(f"run {target} — {result['events']} événement(s) du monde")
+    for item in found:
+        def _t(value: int | None) -> str:
+            return "—" if value is None else str(value)
+
+        typer.echo(
+            f"  t{item.tick:>3} {item.type:<22} "
+            f"réagit {_t(item.effect_ticks)} tick(s), "
+            f"compris (LLM) {_t(item.llm_ticks)} tick(s), "
+            f"mesuré {_t(item.indicator_ticks)} tick(s), "
+            f"{item.agents} agent(s) touché(s)"
+        )
+    typer.echo(
+        f"  médiane : réagit {result['effect_ticks_median']} tick(s), "
+        f"compris {result['llm_ticks_median']} tick(s), "
+        f"mesuré {result['indicator_ticks_median']} tick(s) ; "
+        f"{result['never_measured']} jamais mesuré(s)"
+    )
+
+
+@app.command()
 def experiment(
     name: str = typer.Option(..., help="protocole : x1, x2, … x7"),
     seeds: int = typer.Option(3, help="nombre de graines par bras (≥ 5 en production)"),
@@ -407,6 +480,18 @@ def experiment(
             from maree.domain.events import EventType as _T
 
             _events = _J(str(cfg.paths.runs)).read(run_id)
+            # C7 — le décalage se mesure sur le journal, pas sur le moteur :
+            # c'est la même fonction que `maree lag`, donc les chiffres de
+            # la campagne et ceux de la commande ne peuvent pas diverger.
+            from maree.metrics.lag import lags as _lags
+            from maree.metrics.lag import summary as _lag_summary
+
+            _lag = _lag_summary(_lags(_events))
+            _decision_lags = [
+                int(e.data.get("lag_ticks") or 0)
+                for e in _events
+                if e.type is _T.DECISION
+            ]
             rows.append(
                 {
                     "arm": arm.name,
@@ -425,7 +510,23 @@ def experiment(
                     "tokens_out": result.tokens_out,
                     "temporal_violations": result.temporal_violations,
                     "quarantined": result.quarantined,
+                    "incidents": result.incidents,
+                    "incident_kinds": result.incident_kinds,
                     "messages": sum(1 for e in _events if e.type is _T.MESSAGE_SENT),
+                    "mode": result.mode,
+                    # C4 — latence de décision en ticks (0 en synchrone).
+                    "lag_ticks_median": (
+                        sorted(_decision_lags)[len(_decision_lags) // 2]
+                        if _decision_lags
+                        else 0
+                    ),
+                    "lag_ticks_max": max(_decision_lags, default=0),
+                    # C7 — monde -> première conséquence, monde -> indicateur.
+                    "lag_effect": _lag["effect_ticks_median"],
+                    "lag_llm": _lag["llm_ticks_median"],
+                    "lag_llm_max": _lag["llm_ticks_max"],
+                    "lag_indicator": _lag["indicator_ticks_median"],
+                    "lag_never_measured": _lag["never_measured"],
                     "wall_s": round(result.duration_s, 1),
                 }
             )

@@ -57,6 +57,9 @@ class AgentState(TypedDict, total=False):
     llm: dict[str, Any]
     #: Vrai si l'intention finale vient des règles et non du modèle.
     fallback: bool
+    #: A4 — cause du repli (`no_response`, `unparseable`, `unknown_action`,
+    #: `unknown_exit`, `unknown_zone`, `unknown_agent`, `out_of_role`).
+    fallback_reason: str
     #: Tier de capacité du profil (« big » / « small », A5) et nom du
     #: modèle concret résolu pour ce run. `None` = modèle par défaut de
     #: l'adaptateur.
@@ -214,16 +217,28 @@ class DecisionGraph:
         Si le modèle propose une sortie qui n'existe pas, ou une action
         inconnue, on replie sur les règles. Le repli est journalisé, jamais
         silencieux (décision 7).
+
+        A4 exige de **tracer et dénombrer** chaque incident : le repli porte
+        donc une cause nommée (`fallback_reason`), que le moteur transforme
+        en `agent.incident`. Sans elle, « le système continue » serait vrai
+        mais invérifiable — on ne saurait pas distinguer un modèle qui n'a
+        pas répondu d'un modèle qui a répondu hors de son rôle.
         """
         parsed = state.get("intention") or {}
-        intention = self._to_intention(parsed, state)
+        intention, why = self._to_intention(parsed, state)
         if intention is None:
+            llm = state.get("llm") or {}
+            # Un appel sans réponse n'a pas « mal répondu » : il n'a pas
+            # répondu. Confondre les deux ferait passer un serveur éteint
+            # pour un modèle qui divague.
+            reason = "no_response" if llm.get("ok") is False else why
             intention = rules_decide(
                 _percept_from_state(state), self._plan, profile=state["profile"]
             )
             state = {
                 **state,
                 "fallback": True,
+                "fallback_reason": reason,
                 "reasoning": f"[repli regles] {intention.reason}",
             }
         return {**state, "intention": intention.to_dict()}
@@ -324,11 +339,20 @@ class DecisionGraph:
 
     def _to_intention(
         self, parsed: dict[str, Any], state: AgentState
-    ) -> Intention | None:
+    ) -> tuple[Intention | None, str]:
+        """Intention valide, ou `None` **et** la cause nommée (A4).
+
+        La cause n'est pas un détail de journal : c'est ce qui permet de
+        dire si le modèle s'est trompé de vocabulaire (`unknown_action`),
+        a inventé une sortie (`unknown_exit`) ou a parlé d'une sortie que
+        son profil ne connaît pas (`out_of_role` — « sortir de son rôle »).
+        """
+        if not parsed:
+            return None, "unparseable"
         try:
             kind = IntentionKind(parsed.get("action", ""))
         except ValueError:
-            return None
+            return None, "unknown_action"
         target = parsed.get("target")
         # Le LLM écrit parfois `"target": "null"` (la chaîne), ou une cible
         # qui ne veut rien dire pour l'action choisie. Sans ce nettoyage,
@@ -343,16 +367,16 @@ class DecisionGraph:
         # alors à une fermeture inexistante, ou se figeait sur place.
         if kind in {IntentionKind.GO_EXIT, IntentionKind.GUIDE}:
             if target not in self._plan.exits:
-                return None
+                return None, "unknown_exit"
         elif kind is IntentionKind.GO_ZONE:
             if target not in self._plan.zones:
-                return None
+                return None, "unknown_zone"
         elif kind is IntentionKind.FOLLOW:
             if target in self._plan.exits:
                 # « suivre la foule vers C » : c'est une sortie, pas un agent.
                 kind = IntentionKind.GO_EXIT
             elif not (isinstance(target, str) and target.startswith("A")):
-                return None
+                return None, "unknown_agent"
         elif kind is IntentionKind.SEARCH:
             target = None  # chercher un proche ne vise personne de précis
         elif kind is IntentionKind.STAY:
@@ -369,17 +393,23 @@ class DecisionGraph:
             from maree.agents.profiles import get_profile
 
             if not get_profile(state["profile"]).knows(str(target)):
-                return None
+                # A4 : « sort de son rôle ». Le visiteur qui nomme B ne se
+                # trompe pas de vocabulaire — il parle d'un lieu qu'il ne
+                # connaît pas. C'est un incident distinct.
+                return None, "out_of_role"
         try:
             confidence = float(parsed.get("confidence", 0.0))
         except (TypeError, ValueError):
             confidence = 0.0
-        return Intention(
-            kind=kind,
-            target=target,
-            reason=str(parsed.get("reason", ""))[:200],
-            tick=state["tick"],
-            confidence=max(0.0, min(1.0, confidence)),
+        return (
+            Intention(
+                kind=kind,
+                target=target,
+                reason=str(parsed.get("reason", ""))[:200],
+                tick=state["tick"],
+                confidence=max(0.0, min(1.0, confidence)),
+            ),
+            "ok",
         )
 
 

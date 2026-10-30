@@ -70,3 +70,21 @@ def test_les_types_critiques_ont_un_schema() -> None:
         EventType.INVALID,
     ):
         assert type_ in SCHEMAS
+
+
+def test_c1_chaque_type_declare_sa_destination_ou_son_exclusion() -> None:
+    """C1 — la granularité du bus est une décision explicite, pas un défaut.
+
+    Tout type d'événement est soit publié sur un topic nommé, soit exclu
+    volontairement. Un type oublié partirait silencieusement sur un topic
+    par défaut — c'est exactement ce que la table doit empêcher.
+    """
+    from maree.domain.events import EventType
+    from maree.engine.simulation import TOPIC_FOR
+
+    exclus = {EventType.SNAPSHOT, EventType.TICK}
+    assert set(TOPIC_FOR) | exclus == set(EventType)
+    assert not set(TOPIC_FOR) & exclus
+    # Aucun topic vide, et les trois familles sont distinctes.
+    assert all(topic for topic in TOPIC_FOR.values())
+    assert len({TOPIC_FOR[t] for t in TOPIC_FOR}) >= 4

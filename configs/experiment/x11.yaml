@@ -1,0 +1,40 @@
+# @package _global_
+# ============================================================
+# X11 — synchrone ou asynchrone ? (C4, et la question de MARÉE)
+#
+# En mode synchrone, tous les agents perçoivent le même instant T et le
+# run attend les réponses : la décision d'un agent lent bloque tout le
+# monde, mais personne ne décide sur une perception périmée.
+#
+# En mode asynchrone, chacun décide à son rythme et sa décision s'applique
+# **quand la réponse arrive** (latence réelle du modèle, en ticks). Un
+# agent rapide bouge pendant qu'un agent lent réfléchit encore.
+#
+# La question de MARÉE, posée avant de mesurer : « en mode asynchrone, les
+# visiteurs qui réfléchissent vite atteignent-ils les sorties avant les
+# autres, et la carte mentale collective en est-elle changée ? »
+#
+# Hypothèse : I3 (part évacuée) ne change guère — la physique ne dépend
+# pas de l'ordre des décisions — mais I7 (délai) **augmente** en
+# asynchrone, parce que les agents lents sortent plus tard, et le dernier
+# sorti fixe I7. Le coût mural, lui, baisse : le run n'attend plus le plus
+# lent à chaque tick.
+#
+# `lag_ticks_*` est la mesure directe de C4 : 0 en synchrone par
+# construction, > 0 en asynchrone, et la valeur est la latence réelle.
+# ============================================================
+
+experiment:
+  id: X11
+  hypothesis: C4
+  indicators: [I1_consensus, I3_evacuated, I7_delay, lag_ticks_median, lag_ticks_max]
+  arms:
+    - name: sync
+      description: tous les agents au même pas de temps, le run attend
+      run:
+        mode: sync
+    - name: async
+      description: chacun agit quand sa réponse arrive (latence réelle)
+      run:
+        mode: async
+        tick_delay_s: 0.25

@@ -48,6 +48,7 @@ Pour un tick donné, l'ordre est celui du journal :
 ```
 world (fumée / annonce / fermeture)
 decision × n
+incident × n            (A4 — un agent a dérivé, le monde continue)
 belief × n
 message × n
 heard × n
@@ -76,6 +77,56 @@ puisse dire ce que l'agent savait avant t0.
 enveloppe comprise. Un client peut donc tout exploiter, y compris ce qui
 n'existait pas quand ce document a été écrit.
 
+### Deux horodatages, et ce qu'ils veulent dire (C3)
+
+Chaque trame porte `t_prod` et `t_trait` :
+
+| champ | sens |
+|---|---|
+| `t_prod` | le tick où l'événement **se produit** dans le monde |
+| `t_trait` | le tick où le système le **traite** (l'écrit) |
+| `t_real` | secondes réelles depuis le début du run (journal seulement) |
+
+En mode synchrone, les deux coïncident : c'est la définition du mode.
+En mode asynchrone, ou avec une latence de livraison de messages, ils
+diffèrent — et c'est cette différence qui est intéressante :
+
+```json
+{"type": "heard", "tick": 12, "t_prod": 10, "t_trait": 12,
+ "from": "A03", "content": "il faut sortir par la sortie B"}
+```
+
+Ce message a été **dit** à t10 et **lu** à t12. Un client qui anime le
+flux n'a rien à faire de spécial ; un client qui affiche une chronologie
+peut dessiner la latence. `decision` porte en plus `lag_ticks` (le
+nombre de ticks entre la perception et l'application) : c'est la latence
+réelle du modèle convertie en temps simulé, 0 en synchrone.
+
+### Un agent peut dériver (A4)
+
+`incident` est émis **après** la décision qu'il a provoquée : le monde a
+continué, avec un repli sur les règles.
+
+```json
+{"type": "incident", "tick": 14,
+ "agent_id": "A07", "kind": "out_of_role",
+ "detail": "{\"action\": \"go_exit\", \"target\": \"B\"}",
+ "fallback": true}
+```
+
+| `kind` | ce qui s'est passé |
+|---|---|
+| `no_response` | le modèle n'a pas répondu (timeout, serveur éteint) |
+| `unparseable` | il a répondu, mais rien d'exploitable |
+| `unknown_action` | une action qui n'existe pas |
+| `unknown_exit` / `unknown_zone` | une cible qui n'existe pas dans le plan |
+| `out_of_role` | une cible réelle que **ce profil** ne connaît pas |
+| `timeout` | (asynchrone) pas de réponse avant la clôture |
+
+Un client peut les ignorer : la décision de repli est dans `decision`,
+avec `llm.fallback: true`. Mais les afficher est ce qui distingue « le
+système a tenu » de « le système a menti ».
+
 ---
 
 ## 4. Les trames
@@ -97,7 +148,11 @@ valide à copier tel quel._
       {"profile": "securite", "count": 4, "kind": "rules"},
       {"profile": "famille", "count": 16, "kind": "rules"},
       {"profile": "visiteur", "count": 28, "kind": "rules"}
-    ]
+    ],
+    "mode": "sync",
+    "communication": true,
+    "prehistory_days": 0,
+    "message_delay_ticks": 0
   },
   "live": false,
   "plan": {
@@ -127,6 +182,9 @@ Il vaut `false` pour un run rejoué : on ne modifie pas un passé.
 `run` donne la graine, le hash de configuration et la population réelle :
 de quoi afficher un en-tête honnête (« graine 7, 60 agents, 12 LLM /
 48 règles ») et vérifier qu'un run correspond à la config qu'on croit.
+`mode` (`sync` / `async`) et `message_delay_ticks` disent comment lire les
+deux horodatages de chaque trame (voir §3) : un client qui affiche une
+latence doit savoir si le run en produit.
 
 `walkable` est le domaine marchable, `obstacles` en sont les **trous**.
 Une zone peut porter `"hidden": true` (la Ruelle Z8) : elle existe pour la
