@@ -305,6 +305,12 @@ class Simulation:
         bus: EventBus,
         narrator: Chroniqueur | None = None,
         models: dict[str, str] | None = None,
+        #: F3 — l'état courant a son propre domicile : un fichier remplacé à
+        #: chaque instantané (`state.json`), pas le journal. `None` = mode
+        #: mémoire seule (tests, rejeu).
+        state_store: Any | None = None,
+        #: E5 — protocole fermé pour le tier « small » (voir `DecisionGraph`).
+        small_closed: bool = True,
     ) -> None:
         self._cfg = config
         self._plan = plan
@@ -315,12 +321,14 @@ class Simulation:
         self._journal = journal
         self._bus = bus
         self._narrator = narrator
+        self._state_store = state_store
         self._graph = DecisionGraph(
             llm=llm,
             retriever=retriever,
             memory=memory,
             plan=plan,
             models=models,
+            small_closed=small_closed,
         )
         self._rng = random.Random(config.seed)
         self._seq = journal.last_seq(config.run_id)
@@ -362,6 +370,10 @@ class Simulation:
         #: est perçue au tick suivant, jamais au milieu d'une perception.
         self._inbox: list[dict[str, Any]] = []
         self._bus_failures = 0
+        #: F3 — un `state.json` non écrit (disque plein, permission) est
+        #: compté plutôt qu'avalé : le journal reste complet, mais le run
+        #: dit qu'il n'a pas pu publier son état courant.
+        self._state_failures = 0
         self._last_bus_error: str | None = None
         self._t0 = time.monotonic()
         #: Instant (s simulées) du premier signal de danger et du dernier
@@ -452,6 +464,23 @@ class Simulation:
                     )
 
     # ---- journal ----------------------------------------------
+    async def _write_state(self, snapshot: dict[str, Any]) -> None:
+        """F3 — l'état courant sort du journal et va dans son propre fichier.
+
+        Le journal garde les instantanés (il est la source de vérité, et
+        le rejeu en a besoin) ; le magasin d'état ne garde **que le
+        dernier**, ce que le journal ne sait pas faire sans le relire.
+        """
+        if self._state_store is None:
+            return
+        try:
+            self._state_store.save(self._cfg.run_id, snapshot)
+        except Exception:
+            # Un état non écrit n'arrête pas une simulation : le journal
+            # reste complet, `maree state` renvoie vers lui, et le compteur
+            # de fin de run le dit.
+            self._state_failures += 1
+
     async def _emit(
         self,
         tick: int,
@@ -641,7 +670,9 @@ class Simulation:
         self._spawn()
         if cfg.prehistory_days:
             await self._seed_prehistory()
-        await self._emit(0, EventType.SNAPSHOT, self._snapshot(0))
+        snapshot = self._snapshot(0)
+        await self._write_state(snapshot)
+        await self._emit(0, EventType.SNAPSHOT, snapshot)
 
         tick = 0
         for tick in range(1, cfg.max_ticks + 1):
@@ -755,7 +786,9 @@ class Simulation:
                 tick, EventType.INDICATORS, payload
             )
             self._source_from = self._last_indicators.seq + 1
-            await self._emit(tick, EventType.SNAPSHOT, self._snapshot(tick))
+            snapshot = self._snapshot(tick)
+            await self._write_state(snapshot)
+            await self._emit(tick, EventType.SNAPSHOT, snapshot)
 
             # --- 8. chroniqueur ----------------------------------
             if self._narrator and self._narrator.due(tick) and not self._all_out():
@@ -798,6 +831,7 @@ class Simulation:
                 "incident_kinds": dict(self._incident_kinds),
                 "mode": cfg.mode,
                 "bus_failures": self._bus_failures,
+                "state_failures": self._state_failures,
                 "bus_error": self._last_bus_error,
                 "evacuated": sum(1 for a in self._agents.values() if a.evacuated),
                 "total": len(self._agents),

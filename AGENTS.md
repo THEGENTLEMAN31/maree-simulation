@@ -223,6 +223,44 @@ rejouable de bout en bout.
   transformait un `GUIDE` de tick 1 en « il faut sortir par… » ; tout
   message reçu valant danger, la foule sortait avant la fumée. On ne
   parle que si l'on a perçu quelque chose.
+- **Un petit modèle ne raisonne pas, il suit la forme du prompt.** Quatre
+  formats ont été essayés sur `qwen3-0-6b` (0,6 Md), et trois échouent :
+  - JSON à vocabulaire ouvert → `{"action":"search","confidence":0.0}`, le
+    gabarit recopié, jamais une sortie (55 décisions sur 55) ;
+  - **liste de mots-clés** → il choisit **la première option**, quel que
+    soit le contexte. `SORTIR A` en tête → les visiteurs évacuent au tick
+    3, **avant la fumée de t10** ; `RESTER` en tête → personne ne part
+    jamais. Ce n'est pas du hasard, c'est de la position ;
+  - question binaire `OUI/NON` → instable : la réponse dépend de la
+    formulation du prompt système et vire au OUI par défaut.
+  Ce qui marche : une **règle écrite** et deux drapeaux (`Fumée visible :
+  oui/non`, `Annonce d'évacuation : oui/non`). Mesuré 6 essais par cas
+  avec la persona réelle : `calme` → RESTER 6/6, `fumée` → SORTIR 6/6,
+  `annonce` → SORTIR 2/6 (limite consignée, pas corrigée).
+  **Corollaire à assumer** : le tier « small » *applique* une politique,
+  le tier « big » la *juge*. Et le prompt système du petit modèle ne doit
+  pas contenir le contrat JSON du grand (`Profile.persona` le retire) :
+  les deux consignes mêlées le faisaient répondre OUI à t1, sans fumée.
+  Les chiffres X10/X11 de la vague 3 sont **faux pour cette raison** et
+  ont été refaits ; `llm.small_protocol: open` rejoue le premier défaut.
+
+### Stockage et requêtes
+
+- **DuckDB + `read_json_auto(union_by_name=true)` sur des JSONL
+  hétérogènes, c'est un piège silencieux.** `data` change de forme à
+  chaque type d'événement ; l'inférence finit par typer `data` en JSON
+  structuré et `json_extract` échoue (`Malformed JSON … Input: "llm"`) ou
+  renvoie des valeurs entre guillemets. `queries/_base.sql` lit donc
+  **ligne par ligne** (`read_csv(columns={'line':'VARCHAR'}, delim='',
+  quote='', escape='', ignore_errors=true)`) et laisse les requêtes
+  extraire ce qu'elles veulent.
+- **`max()` sur des chaînes classe « 90.0 » au-dessus de « 220.0 ».** Le
+  `CAST(… AS DOUBLE)` doit être **à l'intérieur** du `max`, sinon I7
+  ment sans erreur. Un test le garde.
+- **`state.json` est atomique et ne garde que la dernière valeur.** Un
+  client peut lire pendant que le run écrit : sans `os.replace`, il verrait
+  un JSON tronqué. Et « le dernier run » se trie par `mtime`, pas par nom
+  (les identifiants contiennent une graine et un hachage).
 
 ### Corpus RAG
 
@@ -344,9 +382,13 @@ rejouable de bout en bout.
 | Chaîne causale (B4) | **820 / 1 023** événements avec `causation_id`, 160 chaînes | run `demo_replay` |
 | Récupération (F2) | P@1 **0,417**, P@3 **0,750**, MRR **0,569** sur 24 requêtes annotées | `eval/rag_queries.yaml` |
 | Rejeu E3 | `ok: true`, 49/49 décisions concordantes, 3 replis annoncés | `maree replay --run-id demo_replay` |
-| Protocole X10, 4 bras × 5 graines | `lag_llm` 0 (sync) → 8,0 (20 agents async) → 15,0 (60 async) ; `lag_indicator` 1,5 → 5,0 → 8,0 | `experiment_x10` |
-| Protocole X11, 2 bras × 5 graines | sync I3 0,95 / I7 460 s / lag 0 ; async 0,92 / 580 s / lag médian 9, max 19 | `experiment_x11` |
-| Petit modèle contre grand, sous charge | `lag_ticks` 11 (petit) contre 12 (grand) : la file mange la différence | `experiment_x11` |
+| Protocole X10, 4 bras × 5 graines | `lag_llm` 0 (sync) → **5,5** (20 agents async) → **8,0** (60 async) ; `lag_indicator` 1,5 → 3,5 → 2,5 | `experiment_x10` |
+| Protocole X11, 2 bras × 5 graines | sync I3 1,00 / I7 220 s / lag 0 ; async **0,98 / 470 s** / lag médian 5, max 12 | `experiment_x11` |
+| Protocole X12 (E5), 4 bras × 5 graines | `tous_grand` 50 appels, 21 619 jetons, I3 1,00, I7 150 s ; `deux_tiers` 48 / **14 698 (−32 %)** / 1,00 / 220 s ; `protocole_seul` 42 / 12 857 (−41 %) / 1,00 / 110 s ; `petit_json_ouvert` 79 / 39 161 (+81 %) / 0,95 / 330 s | `experiment_x12` |
+| F3, état courant | `state.json` **70 581 octets** contre 1 777 302 de journal (77 % d'instantanés) ; `maree state` 0,40 s | `f3_state_01` |
+| F5, requêtes reproductibles | **449 970 événements, 451 runs, 3,4 s** sur 1,2 Go de JSONL | `maree query runs` |
+| Petit modèle, 4 formats | JSON ouvert : `search` 55/55 ; liste : **1re option** 100 % ; oui/non : instable ; **règle + drapeaux** : calme 6/6, fumée 6/6, annonce 2/6 | essais directs sur `qwen3-0-6b` |
+| Petit modèle contre grand, sous charge | `lag_ticks` 5 (petit) contre 6 à 8,5 (grand) : la file mange l'écart de vitesse | `experiment_x11` |
 | C1, Redpanda réel | **1 002 messages** sur 4 topics pour un run de 1 023 événements (21 instantanés exclus) | `scripts/kafka_check.py` |
 | A4, incidents réels | 8 incidents / 2 causes en async 60 agents, 3 en sync ; run allé au bout | `c4_async_02`, `c4_sync_01` |
 
@@ -441,11 +483,13 @@ moteur.
   (X1 ambigu, X2, X4) : lire I3 et I7 avec. La campagne du 2026-10-28
   est conservée dans `runs/experiment_x*_avant_correctif.json` — elle
   mesurait un modèle où un visiteur LLM pouvait nommer B.
-- **Le LLM n'aide pas les visiteurs** : en X4 `llm_60`, 17 à 23
-  visiteurs sur 24 restent piégés, contre 0 à 8 en tout-règles. Le
-  « 60/60 » de la campagne précédente était l'artefact de la fuite de
-  connaissance. À expliquer (déclencheurs, `search`, messages reçus) :
-  c'est la question ouverte la plus intéressante du modèle.
+- **Le LLM n'aidait pas les visiteurs avec le protocole ouvert** : en X4
+  `llm_60`, 17 à 23 visiteurs sur 24 restaient piégés, contre 0 à 8 en
+  tout-règles (le « 60/60 » de la campagne précédente était l'artefact de
+  la fuite de connaissance). Avec la politique explicite de la vague 4,
+  ils sortent : X12 `deux_tiers` évacue 1,00 à 60 agents. Ce qui reste
+  ouvert n'est donc plus « pourquoi ils restent » mais **« ce qu'ils
+  perdent »** : le petit modèle n'écoute qu'à moitié les annonces (2/6).
 - **La connaissance est statique** : la garde s'appuie sur
   `Profile.knows`, comme `_known_open` pour les règles. Un message qui
   dit « B est libre » n'ajoute pas B au savoir d'un visiteur. À trancher

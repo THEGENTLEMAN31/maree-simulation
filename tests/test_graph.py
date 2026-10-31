@@ -322,3 +322,49 @@ async def test_a5_sans_mapping_un_seul_modele(plan: Plan) -> None:
         agent_id="A01", profile=get_profile("visiteur"), percept=_percept(), trigger="annonce"
     )
     assert llm.models == [None]
+
+
+def test_a5_le_petit_modele_applique_une_politique_explicite() -> None:
+    """A5/E5 — le tier « small » applique une règle ; il ne la juge pas.
+
+    Trois formats ont été essayés sur le vrai serveur (6 essais par cas,
+    persona réelle) : le JSON ouvert donne `search` avec une confiance de 0 ;
+    une liste de mots-clés donne **toujours la première option** (RESTER en
+    tête → RESTER même avec de la fumée ; SORTIR A en tête → évacuation au
+    tick 3, avant tout danger) ; une règle écrite avec des drapeaux oui/non
+    donne RESTER 6/6 au calme et SORTIR 6/6 avec de la fumée. L'annonce
+    n'est suivie que 2 fois sur 6 — limite consignée, pas corrigée.
+    """
+    from maree.agents.parsing import parse_choice
+
+    exits = ["A", "B"]
+    assert parse_choice("SORTIR", known_exits=exits) == {
+        "action": "go_exit",
+        "target": "A",
+        "confidence": 0.6,
+        "reason": "SORTIR",
+    }
+    assert parse_choice("**sortir**", known_exits=exits)["action"] == "go_exit"
+    assert parse_choice("RESTER", known_exits=exits)["action"] == "stay"
+    # « je ne veux pas sortir » est un refus, pas un départ.
+    assert parse_choice("Je ne veux pas sortir.", known_exits=exits)["action"] == "stay"
+    # Vouloir partir sans savoir par où, c'est chercher.
+    assert parse_choice("SORTIR", known_exits=[])["action"] == "search"
+    # Ni l'un ni l'autre : incident nommé (A4), pas intention inventée.
+    assert parse_choice("je ne sais pas", known_exits=exits) is None
+    assert parse_choice("", known_exits=exits) is None
+
+
+def test_a5_le_prompt_du_petit_modele_porte_la_regle_et_les_drapeaux() -> None:
+    """Ce que voit le petit modèle : la règle, et deux drapeaux oui/non.
+
+    Le prompt système ne doit pas contenir le contrat JSON du grand modèle
+    (`Profile.persona` le retire) : mêlé à la règle, il faisait répondre
+    OUI à t1, sans fumée — les agents sortaient au tick 3.
+    """
+    from maree.agents.profiles import get_profile
+
+    for profile_id in ("visiteur", "vendeur"):
+        persona = get_profile(profile_id).persona
+        assert "JSON" not in persona
+        assert "action" not in persona

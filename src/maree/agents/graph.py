@@ -29,7 +29,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from maree.agents.parsing import parse_decision
+from maree.agents.parsing import parse_choice, parse_decision
 from maree.agents.profiles import Profile
 from maree.agents.rules import rules_decide
 from maree.agents.triggers import Percept
@@ -79,6 +79,7 @@ class DecisionGraph:
         plan: Plan,
         max_tokens: int = 256,
         models: Mapping[str, str] | None = None,
+        small_closed: bool = True,
     ) -> None:
         self._llm = llm
         self._retriever = retriever
@@ -88,6 +89,13 @@ class DecisionGraph:
         #: Tier (« big » / « small ») -> nom de modèle. Vide = un seul
         #: modèle pour tout le monde (`llm.model`, comportement d'avant A5).
         self._models = dict(models or {})
+        #: E5 — le tier « small » répond en langage fermé. Mettre `False`
+        #: donne au petit modèle le même JSON ouvert qu'au grand : c'est le
+        #: bras témoin qui sépare l'effet du **modèle** de l'effet du
+        #: **protocole**. Mesuré : sans lui, le 0,6 Md répond `search` avec
+        #: une confiance de 0, les visiteurs se font piéger, et le bras
+        #: « deux tiers » consomme *plus* d'appels que la référence.
+        self._small_closed = small_closed
         self._compiled = self._build()
 
     # ---- construction -----------------------------------------
@@ -173,17 +181,35 @@ class DecisionGraph:
         }
 
     async def _decide(self, state: AgentState) -> AgentState:
-        prompt = self._build_prompt(state)
+        # A5/E5 — les deux tiers ne reçoivent pas la même consigne, et ce
+        # n'est pas un détail de prompt : c'est la condition pour que le
+        # petit modèle serve à quelque chose. Un 0,6 Md à qui l'on demande
+        # un JSON à vocabulaire ouvert répond `search` avec une confiance
+        # de 0 et recopie son prompt (mesuré sur 55 décisions) ; à qui
+        # l'on écrit la règle et donne deux drapeaux oui/non, il répond
+        # juste (calme 6/6, fumée 6/6, annonce 2/6 — mesuré).
+        small = (
+            state.get("tier") == "small"
+            and bool(self._models)
+            and self._small_closed
+        )
+        if small:
+            prompt = self._build_choice_prompt(state)
+            system = self._choice_system(state)
+        else:
+            prompt = self._build_prompt(state)
+            system = self._system_for(state)
         result = await self._llm.chat(
-            [
-                ChatMessage("system", self._system_for(state)),
-                ChatMessage("user", prompt),
-            ],
+            [ChatMessage("system", system), ChatMessage("user", prompt)],
             seed=self._seed_for(state),
             model=state.get("model"),
-            max_tokens=self._max_tokens,
+            max_tokens=48 if small else self._max_tokens,
         )
-        parsed = parse_decision(result.text)
+        parsed = (
+            parse_choice(result.text, known_exits=self._known_exits(state))
+            if small
+            else parse_decision(result.text)
+        )
         return {
             **state,
             "intention": parsed,
@@ -293,6 +319,52 @@ class DecisionGraph:
         for m in percept.get("messages", []):
             bits.append(m.get("content", ""))
         return " ".join(bits)[:400]
+
+    def _known_exits(self, state: AgentState) -> list[str]:
+        """Sorties que ce profil connaît **et** qui sont ouvertes.
+
+        Proposer une sortie inconnue au petit modèle reviendrait à lui
+        fabriquer l'erreur `out_of_role` qu'A4 compte. On ne lui montre que
+        ce qu'il a le droit de choisir.
+        """
+        from maree.agents.profiles import get_profile
+
+        profile = get_profile(state["profile"])
+        percept = state["percept"]
+        return [
+            exit_id
+            for exit_id in sorted(percept.get("exits_open") or [])
+            if profile.knows(exit_id)
+        ]
+
+    def _choice_system(self, state: AgentState) -> str:
+        from maree.agents.profiles import get_profile
+
+        return (
+            get_profile(state["profile"]).persona
+            + "\nRègle : si la fumée est visible, tu sors. Si une annonce "
+            "dit d'évacuer, tu sors. Sinon, tu restes sur place."
+            "\nRéponds par un seul mot : SORTIR ou RESTER."
+        )
+
+    def _build_choice_prompt(self, state: AgentState) -> str:
+        """Le même monde, mais une question fermée (tier « small »)."""
+        percept = state["percept"]
+        exits = self._known_exits(state)
+        lines = [
+            f"Tick {state['tick']}. Tu es en {percept.get('zone') or 'esplanade'}.",
+            f"Fumée visible : {'oui' if percept.get('smoke_visible') else 'non'}.",
+            "Annonce d'évacuation : "
+            f"{'oui' if percept.get('announcement') else 'non'}.",
+        ]
+        if percept.get("announcement"):
+            lines.append(f"Annonce entendue : « {percept['announcement'][:120]} »")
+        lines.append(
+            "Sorties que tu connais et qui sont ouvertes : "
+            + (", ".join(exits) if exits else "aucune")
+        )
+        lines.append("Que fais-tu ?")
+        return "\n".join(lines)
 
     def _build_prompt(self, state: AgentState) -> str:
         percept = state["percept"]

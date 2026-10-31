@@ -42,6 +42,17 @@ class Profile:
     priorities: tuple[str, ...]
     system_prompt: str
 
+    @property
+    def persona(self) -> str:
+        """Le rôle seul, **sans** le contrat de sortie JSON.
+
+        Le tier « small » ne répond pas en JSON : lui envoyer un prompt
+        système qui dit « réponds UNIQUEMENT par un objet JSON » puis «
+        réponds OUI ou NON » le laisse choisir la première consigne venue
+        — mesuré : il répondait OUI à t1, sans fumée, et sortait au tick 3.
+        """
+        return self.system_prompt.removeprefix(_COMMUN).strip()
+
     def knows(self, exit_id: ExitId) -> bool:
         return self.knows_exits is None or exit_id in self.knows_exits
 

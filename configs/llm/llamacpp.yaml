@@ -32,3 +32,12 @@ max_tokens: 256
 
 #: Nombre d'appels simultanés. Doit rester <= `parallel` du preset.
 max_concurrency: 4
+#: E5 — protocole de décision du tier « small ». `closed` (défaut) lui
+#: donne une **politique explicite** (règle écrite + drapeaux
+#: `Fumée visible : oui/non`, `Annonce d'évacuation : oui/non`) et attend
+#: un seul mot, `SORTIR` ou `RESTER` ; `open` lui donne le même JSON
+#: qu'au grand modèle, ce qui **échoue** : le 0,6 Md répond `search` avec
+#: une confiance de 0 et recopie son prompt. Le mode `open` n'existe que
+#: pour le bras témoin de E5, qui sépare l'effet du modèle de l'effet du
+#: protocole.
+small_protocol: closed

@@ -112,35 +112,63 @@ ne mesure que le premier croit que la foule réagit en un tick.
 
 ### Mesuré (X10, 5 graines par bras)
 
-| bras | `lag_effect` | `lag_llm` | `lag_indicator` | appels | mural |
-|---|---:|---:|---:|---:|---:|
-| petite, **sync** | 0,0 | **0,0** | 1,5 | 60 | 23 s |
-| petite, **async** | 0,5 | **8,0** | 5,0 | 47 | 19 s |
-| grande, **sync** | 0,0 | **0,0** | 1,5 | 86 | 28 s |
-| grande, **async** | 1,0 | **15,0** | 8,0 | 61 | 21 s |
+> **Chiffres refaits le 2026-10-30 à 16 h.** Les valeurs publiées avec la
+> vague 3 mesuraient un **défaut**, pas un modèle : le tier « small »
+> recevait le JSON à vocabulaire ouvert, auquel un modèle de 0,6 Md ne
+> répond jamais autre chose que `search` (confiance 0). Ses six agents
+> cherchaient indéfiniment et redécidaient à chaque filet, ce qui gonflait
+> les appels et écrasait I3. Depuis, le petit modèle reçoit une liste
+> fermée (`agents/parsing.py::parse_choice`). Les anciens chiffres sont
+> conservés plus bas pour mémoire ; ceux qui font foi sont ceux-ci.
 
-Trois lectures, dont une qui contredit l'hypothèse de départ.
+| bras | `lag_effect` | `lag_llm` | `lag_indicator` | appels | mural | I3 | I7 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| petite, **sync** | 0,0 | **0,0** | 1,5 | 37 | 17,4 s | 0,95 | 110 s |
+| petite, **async** | 2,0 | **5,5** | 3,5 | 43 | 18,7 s | 0,90 | 210 s |
+| grande, **sync** | 0,0 | **0,0** | 1,5 | 48 | 12,6 s | 1,00 | 220 s |
+| grande, **async** | 0,5 | **8,0** | 2,5 | 57 | 15,9 s | 1,00 | 340 s |
 
 **1. En synchrone, le décalage est nul — et c'est la barrière qui le cache.**
 `lag_llm = 0` dans les deux bras synchrones, à 20 comme à 60 agents. Ce
 n'est pas que les LLM répondent instantanément : c'est que le run
 **attend** la réponse avant de passer au tick suivant. La charge ne
-disparaît pas, elle se paie ailleurs — en temps mural (28 s contre 23 s)
-et en appels (86 contre 60).
+disparaît pas, elle se paie ailleurs, en temps mural et en durée de run.
 
-**2. En asynchrone, le décalage double quand la population triple.**
-`lag_llm` passe de 8,0 à 15,0 ticks et `lag_indicator` de 5,0 à 8,0. La
-file derrière `max_concurrency = 4` s'allonge : le douzième agent attend
-trois fois plus que le premier. **C7 est vérifié** : le décalage évolue
-sous charge, et il évolue dans le sens prévu.
+**2. En asynchrone, le décalage croît avec la population : 5,5 → 8,0
+ticks.** La file derrière `max_concurrency = 4` s'allonge. C'est la
+prédiction de C7, et elle tient.
 
-**3. `lag_indicator` ne bouge pas avec la population en synchrone**
+**3. `lag_indicator` reste petit (1,5 → 2,5)** : le signal de fumée est
+perçu par toute la place au même tick, donc l'agrégat bouge presque
+aussitôt. Ce n'est pas un agrégat qui attend la foule, c'est une foule qui
+réagit en bloc.
+
+**4. I7 paie l'asynchrone dans les deux populations** : 110 → 210 s (20
+agents) et 220 → 340 s (60). Une décision fondée sur la perception de t
+s'applique 5 à 8 ticks plus tard ; entre-temps la foule a bougé. C'est
+l'effet robuste de ce protocole, et il ne dépend pas de la taille.
+
+**4. `lag_indicator` ne bouge pas avec la population en synchrone**
 (1,5 tick dans les deux cas), alors que l'hypothèse annonçait une hausse.
-La raison est mesurable : le rayon de fumée (15 m) couvre la place, donc
-48 agents à règles voient le signal au même tick et l'agrégat bouge
-tout de suite. Ce n'est pas un agrégat qui attend la foule, c'est une
-foule qui réagit en bloc. L'hypothèse était fausse, et elle est
-consignée telle quelle.
+Le rayon de fumée (15 m) couvre la place : les agents à règles voient le
+signal au même tick et l'agrégat bouge tout de suite. Ce n'est pas un
+agrégat qui attend la foule, c'est une foule qui réagit en bloc.
+
+<details>
+<summary>Chiffres de la vague 3, mesurés avant la correction du petit
+modèle (conservés pour la comparaison)</summary>
+
+| bras | `lag_llm` | `lag_indicator` | appels | mural |
+|---|---:|---:|---:|---:|
+| petite, sync | 0,0 | 1,5 | 60 | 23 s |
+| petite, async | 8,0 | 5,0 | 47 | 19 s |
+| grande, sync | 0,0 | 1,5 | 86 | 28 s |
+| grande, async | 15,0 | 8,0 | 61 | 21 s |
+
+L'écart est net : 86 appels à 60 agents contre 28 après correction. Le
+« décalage qui double » était l'empreinte d'un modèle qui tournait à vide.
+
+</details>
 
 ---
 
@@ -205,31 +233,30 @@ Kafka ci-dessus a produit 1 002 messages sans erreur.
 
 ## C8 — deux tailles de population
 
-| médiane (n = 5) | 20 agents | 60 agents | lecture |
+| médiane (n = 5, asynchrone) | 20 agents | 60 agents | lecture |
 |---|---:|---:|---|
 | I1 consensus | 0,99 | 0,99 | identique |
-| I3 évacués | **0,85** | **0,95** | 3 piégés dans les deux cas |
-| I7 délai dernier sorti | 210 s | **390 s** | la densité ralentit |
-| appels LLM | 60 | 86 | 7 LLM contre 12 |
-| mural | 23 s | 28 s | |
+| I3 évacués | **0,90** | **1,00** | 1 à 3 piégés sur 20, aucun sur 60 |
+| I7 délai dernier sorti | 210 s | **340 s** | la densité ralentit |
+| appels LLM | 43 | 57 | 7 LLM contre 12 |
+| mural | 18,7 s | 15,9 s | la file, pas la foule |
 
-**Le nombre de piégés ne dépend pas de la taille.** Médiane de 3 dans les
-deux populations, avec des profils mélangés (visiteurs et habitués) :
-c'est une propriété du **savoir** des agents et du scénario, pas de la
-densité. I3, qui est une *part*, baisse donc mécaniquement à 20 agents
-(3/20 = 15 %) sans que rien d'autre n'ait changé. Afficher I3 seul
-laisserait croire que la petite foule évacue moins bien ; c'est faux, et
-c'est le genre d'artefact que C8 sert à voir.
+**À 20 agents, I3 est plus bas — et ce n'est pas la foule qui évacue plus
+mal.** Un à trois agents restent piégés sur vingt, ce qui vaut 5 à 15 % ;
+à 60 agents, les mêmes profils piégés pèsent moins d'un pour cent. I3 est
+une *part* : la comparer entre deux tailles sans regarder le **nombre**
+d'évacués ferait croire à un effet de densité qui n'existe pas. C'est
+exactement l'artefact que C8 sert à voir.
 
-**Ce qui change vraiment, c'est le temps** : I7 passe de 210 à 390 s
-presque triplement de la population. Le moteur physique (JuPedSim) paie
-la densité, pas la cognition.
+**Ce qui change vraiment, c'est le temps** : I7 passe de 210 à 340 s. Le
+moteur physique (JuPedSim) paie la densité, pas la cognition — les appels
+LLM n'augmentent que de 43 à 57 alors que la population triple.
 
-**Réserve honnête** : 19 des 20 runs X10 atteignent `max_ticks = 72`.
-I3 est donc censuré — les agents restants ne sortiront jamais, et le
-chiffre mesure « ce qui est sorti avant la coupure ». Les comparaisons
-ci-dessus portent sur des runs tous censurés, donc restent valables
-entre elles ; elles ne disent pas combien de temps il aurait fallu.
+**Réserve honnête** : dans les deux bras asynchrones, un à trois agents ne
+sortent pas avant `max_ticks = 72`. I3 mesure donc « ce qui est sorti
+avant la coupure ». Les comparaisons portent sur des runs tous censurés
+de la même façon, donc restent valables entre elles ; elles ne disent pas
+combien de temps il aurait fallu.
 
 ---
 
@@ -239,25 +266,26 @@ Même scénario, même population (60 agents, 12 LLM + 48 règles), 5 graines.
 
 | médiane (n = 5) | `sync` | `async` |
 |---|---:|---:|
-| I1 consensus | 0,99 | 0,99 |
-| I3 évacués | **0,95** | **0,92** |
-| I7 dernier sorti | 460 s | **580 s** |
-| `lag_ticks` médian | **0** | **9** |
-| `lag_ticks` max | **0** | **19** (≈ 190 s simulées) |
-| appels LLM | 91 | 61 |
-| mural | 30 s | 21 s |
+| I1 consensus | 0,98 | 0,99 |
+| I3 évacués | **1,00** | **0,98** |
+| I7 dernier sorti | 220 s | **470 s** |
+| `lag_ticks` médian | **0** | **5** |
+| `lag_ticks` max | **0** | **12** (≈ 120 s simulées) |
+| appels LLM | 47 | 60 |
+| mural | 12,7 s | 20,4 s |
 
 **L'asynchrone dégrade l'évacuation, et c'est un résultat, pas un défaut.**
-I3 baisse de 3 points, I7 monte de 120 s. La raison est mécanique : une
-décision fondée sur la perception de t est appliquée à t+19 ; entre les
-deux, la foule a bougé et la cible choisie peut être plus loin, ou
-encombrée. Le mode « réaliste » est le moins efficace — c'est exactement
-ce qu'un modèle qui suppose la simultanéité ne peut pas voir.
+I7 double (220 → 470 s) et I3 perd deux points. La raison est mécanique :
+une décision fondée sur la perception de t est appliquée jusqu'à 12 ticks
+plus tard ; entre les deux, la foule a bougé et la cible choisie peut être
+plus loin, ou encombrée. Le mode « réaliste » est le moins efficace —
+c'est exactement ce qu'un modèle qui suppose la simultanéité ne peut pas
+voir.
 
-**L'asynchrone coûte moins d'appels** (61 contre 91) : un agent qui attend
-sa réponse ne redemande rien, et les agents déjà sortis ne décident plus.
-Le run est aussi plus rapide en mural (21 s contre 30 s) : on n'attend
-plus le plus lent à chaque tick, on attend le prochain tick.
+**L'asynchrone coûte aussi plus cher en appels** (60 contre 47) et en
+temps mural (20,4 s contre 12,7 s) : les agents qui attendent une réponse
+continuent de percevoir des signaux et redécident au tick suivant, et le
+run dure plus longtemps. C'est le prix de ne pas figer le monde.
 
 ### La question de MARÉE : les rapides sortent-ils devant ?
 
@@ -269,25 +297,32 @@ Agents **LLM seulement** (les 48 agents à règles décident en 0 tick et
 
 | profil | modèle | `lag_ticks` médian | sorti, `sync` | sorti, `async` |
 |---|---|---:|---:|---:|
-| visiteur | petit | **11** | t40 | **t65,5** |
-| vendeur | petit | 12 | t31 | t68 |
-| sécurité | grand | 12 | t17 | t39 |
-| habitué | grand | 12 | t20 | t52 |
-| famille | grand | 12 | t15 | t39,5 |
+| visiteur | petit | **5** | t15,5 | **t25** |
+| vendeur | petit | **5** | t29,5 | t44 |
+| sécurité | grand | 7 | t19 | t35 |
+| habitué | grand | 6 | t20 | t37 |
+| famille | grand | 8,5 | t12,5 | t29 |
 
-**Réponse : non.** Le petit modèle est bien plus rapide — 11 ticks contre
-12, soit ~10 s simulées, et la différence est stable (192 décisions
-contre 124) — mais cette avance de **un tick** ne pèse rien devant les
-**25 ticks** qui séparent la sortie d'un visiteur de celle d'un habitué.
-Ce qui fait sortir tôt, ce n'est pas la vitesse de réflexion, c'est le
-**savoir** : les visiteurs ne connaissent que la sortie A, et ils la
-cherchent.
+**Réponse : à moitié.** Le petit modèle réagit bien plus vite — 5 ticks
+contre 7 à 8,5, soit 20 à 35 s simulées, sur 162 décisions contre 144 —
+mais cette avance ne décide pas de qui sort devant :
+
+- la **famille** (grand modèle) sort la première, à t12,5 / t29 : elle est
+  placée près des sorties et son proche est à côté d'elle ;
+- le **visiteur** (petit modèle) suit de près, à t15,5 / t25 : il réagit
+  vite, mais ne connaît qu'une sortie ;
+- le **vendeur** (petit modèle) sort **dernier**, à t29,5 / t44, alors
+  qu'il est le plus rapide : son profil protège son stand avant de partir.
+
+Autrement dit, **le profil décide de l'ordre, la taille du modèle décide
+de la réaction**. Les 20 ticks qui séparent un vendeur d'une famille
+viennent de ce qu'ils priorisent, pas de leur vitesse de réflexion.
 
 Sous charge, la latence est de toute façon dominée par la file
-(`max_concurrency = 4`) et non par le modèle : 11 contre 12 ticks, alors
-que le même petit modèle répond en ~1 s contre ~2,8 s pour le grand quand
-il est seul. **La file mange la différence entre les modèles** — c'est
-une observation gênante pour un dispositif qui prétend router par
+(`max_concurrency = 4`) et non par le modèle : 5 contre 8 ticks, alors
+que le même petit modèle répond en ~0,4 s contre ~2,8 s pour le grand
+quand il est seul. **La file mange la différence entre les modèles** —
+c'est une observation gênante pour un dispositif qui prétend router par
 difficulté, et elle est consignée telle quelle.
 
 **Réserve** : 4 graines sur 5 atteignent `max_ticks = 72` en asynchrone.

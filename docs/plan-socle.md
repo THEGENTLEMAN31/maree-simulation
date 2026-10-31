@@ -111,26 +111,43 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
 
 ### Vague 4 — le coûteux
 
-- [ ] **C1 / O3** — pont Kafka : `frame_for(event)` extrait de `ws.py`,
-      `maree serve --source kafka`, réordonnancement par `seq`, publication
-      **best-effort** (un broker mort ne tue plus le run), `group_id` unique.
-- [ ] **E5** — protocole `mixte` (deux tailles) contre `tous_grand`, à apport
-      comparable : I1/I2/I3/I7 + appels + tokens + taux de repli.
-- [ ] **F3 / F5** — architecture de données documentée ; requêtes reproductibles
-      DuckDB sur les JSONL (aucun Parquet nécessaire).
+- [x] **A5 / E5** — le tier « small » reçoit une **politique explicite**
+      (règle + drapeaux oui/non), parce qu'un modèle de 0,6 Md suit la
+      forme du prompt et non son contenu. Protocole X12 en plan 2×2 :
+      taille du modèle × protocole (JSON ouvert / politique), 4 bras ×
+      5 graines. La référence est « tous les agents sur le plus grand
+      modèle » ; `llm.small_protocol: open` rejoue le défaut.
+- [x] **F3** — `adapters/state.py::JsonStateStore` : l'état courant a son
+      fichier (`state.json`, écriture atomique, dernière valeur seule),
+      distinct du flux d'événements. `maree state`. Le raisonnement et les
+      volumes mesurés sont dans `docs/stockage.md`.
+- [x] **F5** — `queries/*.sql` + `maree query` : DuckDB lit les JSONL
+      ligne par ligne (aucune inférence de schéma, aucun Parquet), les
+      requêtes sont versionnées avec le code.
+- [ ] **C1 / O3 — pont Kafka côté client** (`maree serve --source kafka`).
+      C1 est tenu (1 002 messages vérifiés sur un Redpanda réel) ; ce pont
+      est un confort pour le client Godot, pas une exigence. Non fait, et
+      c'est dit.
 
-### État au 2026-10-30 (fin de la vague 3)
+### État au 2026-10-31 (fin de la vague 4)
 
 | Statut | Exigences | Nombre |
 |---|---|---|
-| **Tenu** | A1, A2, A3, A4, A5, A6, B1, B2, B3, B4, C1, C2, C3, C4, C5, C6, C7, C8, D1, D2, D3, E1, E2, E3, E4, F1, F2, F4, F6 | 29 |
-| **Partiel** | F3, F5 | 2 |
-| **Absent** | E5 | 1 |
+| **Tenu** | les 32 | **32** |
+| **Partiel** | — | 0 |
+| **Absent** | — | 0 |
 
-La vague 3 a fermé le temps (C1, C3, C4, C7, C8) et les incidents (A4).
-Restent la vague 4 : E5 (deux modèles réellement comparés) et les deux
-« partiels » de données (F3 stockages, F5 requêtes analytiques), qui sont
-des documents et non du code.
+Les trois dernières sont tombées ensemble, et pas comme prévu : E5
+supposait qu'un petit modèle saurait décider « en plus petit ». Il ne
+sait pas — il suit la première option de la liste, ou la dernière consigne
+du prompt. Le levier de sobriété existe quand même, mais il faut lui
+donner une **politique explicite** au lieu d'une question ouverte, et le
+dire : le petit modèle applique, le grand juge.
+
+Deux réserves restent écrites noir sur blanc plutôt que masquées :
+`maree serve --source kafka` n'existe pas (C1 est tenu sans lui), et
+l'énergie n'est pas re-mesurée par bras dans X12 (E4 l'a mesurée une
+fois).
 
 ---
 
@@ -142,6 +159,7 @@ des documents et non du code.
 | 2026-10-29 | A5 deux tiers + B4 causalité + F2 RAG journalisé + E3 run versionné + docs corrigées | `vague1` | 149 passent, ruff propre | voir ci-dessous |
 | 2026-10-30 | C4 async + C3 horodatages + A4 incidents + C7 lag + C8 populations + C1 Kafka | `vague3` | 178 passent, ruff propre | X10 (20 runs), X11 (10 runs), Kafka réel (1 002 messages) |
 | 2026-10-30 | D3 injection + D2 justification + C6 cohérence + A1 préhistoire + A2/B3 + E4 coût + F4 schémas + F6 sources | `vague2` | 167 passent, ruff propre | X8 et X9 joués (5 graines) |
+| 2026-10-31 | E5 politique du petit modèle + F3 état courant + F5 requêtes SQL | `vague4` | 186 passent, ruff propre | X12 (4 bras × 5), X10 et X11 refaits après correction du petit modèle |
 
 ### Mesures de la vague 1
 
@@ -195,6 +213,33 @@ des documents et non du code.
 - **Deux tiers (A5)** : conteneur recréé avec `--models-max 3` ; mesuré
   24 appels `gemma4-e2b` + 73 `qwen3-0-6b`, 0 repli, 2 691 MiB / 4 096.
 
+### Mesures de la vague 4
+
+- **E5 (X12, 4 bras × 5 graines, médianes)** : `tous_grand` 50 appels /
+  21 619 jetons / I3 1,00 / I7 150 s / 21,4 s mural ; `deux_tiers` 48 /
+  **14 698 (−32 %)** / 1,00 / 220 s / 12,4 s ; `protocole_seul` 42 /
+  12 857 (−41 %) / 1,00 / **110 s** / 13,9 s ; `petit_json_ouvert` 79 /
+  39 161 (+81 %) / 0,95 / 330 s / 27,1 s. Le gain est réel (−32 % de
+  jetons, −42 % de mural, I3 identique) mais **il vient du protocole, pas
+  de la taille du modèle** : `protocole_seul` fait mieux avec le grand
+  modèle. Le petit coûte 70 s d'I7 (annonces suivies 2 fois sur 6).
+- **A5, quatre formats essayés** sur `qwen3-0-6b` : JSON ouvert →
+  `search` 55/55 ; liste de mots-clés → **toujours la première option** ;
+  question binaire → instable ; **règle + drapeaux oui/non** → calme 6/6,
+  fumée 6/6, annonce 2/6. Retenu tel quel, limite consignée.
+- **F3** : `state.json` pèse **70 581 octets** là où le journal du même run
+  en pèse 1 777 302, dont **77 % d'instantanés** ; `maree state` le lit en
+  0,40 s.
+- **F5** : **449 970 événements, 451 runs, 3,4 s** pour la requête la plus
+  large (1,2 Go de JSONL), sans serveur ni Parquet.
+- **X10 refait** : `lag_llm` 0 (sync) → 5,5 (20 agents) → **8,0** (60) ;
+  `lag_indicator` 1,5 → 3,5 → 2,5. La prédiction de C7 tient.
+- **X11 refait** : sync I3 1,00 / I7 220 s / lag 0 ; async **0,98 /
+  470 s** / lag médian 5, max 12 / 60 appels contre 47.
+- **La question de MARÉE, re-mesurée** : le petit modèle réagit en 5 ticks
+  contre 6 à 8,5, mais l'ordre de sortie suit le **profil** — la famille
+  (grand) sort à t12,5, le vendeur (petit, le plus rapide) à t29,5.
+
 ---
 
 ## 4. Décisions prises en autonomie
@@ -202,9 +247,10 @@ des documents et non du code.
 1. **Pas de Parquet.** DuckDB lit les JSONL nativement (`read_json_auto`) :
    ajouter un format serait un coût sans bénéfice. F3 documente les quatre
    stockages réels, F5 fournit des requêtes `.sql` reproductibles.
-2. **Petit modèle = `qwen3-0.6b`**, grand = `gemma4-e2b`. Écart de taille 3,3×,
+2. **Petit modèle = `qwen3-0-6b`**, grand = `gemma4-e2b`. Écart de taille 3,3×,
    défendable. Le petit est attribué aux profils dont la décision est simple
-   (`visiteur`, `vendeur`), jamais selon une catégorie sociale.
+   (`visiteur`, `vendeur`), jamais selon une catégorie sociale. Le nom est
+   celui **annoncé** par le routeur (il normalise les points en tirets).
 3. **Deux sous-modes asynchrones.** `simulated` garde E2 (runs reproductibles) ;
    `real` satisfait C4 à la lettre. Les deux sont journalisés, donc rejouables.
 4. **Kafka hors du chemin de mesure.** `bus.backend=memory` reste la règle des

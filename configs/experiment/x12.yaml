@@ -1,0 +1,118 @@
+# @package _global_
+# ============================================================
+# X12 — la répartition des modèles est-elle un levier de sobriété ? (E5)
+#
+# E5 demande une chose précise, et une seule : **démontrer le gain par
+# rapport à une configuration où tous les agents utilisent le plus grand
+# modèle, à apport comparable**. Trois mots comptent :
+#
+#   « gain »        appels, jetons, temps mural ;
+#   « apport »      I3 (part évacuée) et I7 (délai) ne doivent pas
+#                   s'effondrer — sinon on a économisé en faisant moins ;
+#   « comparable »  même population, même scénario, mêmes graines.
+#
+# Population : la population de référence (60 agents, 12 LLM), dont **six
+# de tier « big » et six de tier « small »** — parité exacte, donc le bras
+# « tous grand » fait passer la moitié des décisions du petit modèle au
+# grand. Prendre 24 LLM rendrait le gain plus spectaculaire mais ferait
+# diverger les deux bras : les visiteurs LLM se font piéger, ils
+# redécident, et « moins d'appels » deviendrait faux (mesuré sur un essai
+# à 24 LLM : 199 appels en deux tiers contre 101 en tous grand, pour
+# 0,83 contre 0,97 évacués — l'apport n'était plus comparable).
+#
+# Le levier « agents à règles » (le second que cite E5) est déjà mesuré
+# par X4 : `llm_60` 520 appels et 40/60 sortis, hybride 55/60 pour 44
+# appels. Il n'est pas rejoué ici pour ne pas confondre les deux effets.
+#
+# Quatre bras, plan 2×2 : la **taille du modèle** × le **protocole de
+# décision** (JSON ouvert ou liste fermée). Sans le plan complet, le gain
+# du bras `deux_tiers` ne serait pas attribuable : le protocole fermé fait
+# décider une fois au lieu de quatre, indépendamment du modèle.
+# ============================================================
+
+experiment:
+  id: X12
+  hypothesis: E5
+  indicators: [I3_evacuated, I7_delay, llm_calls, tokens_in, tokens_out]
+  arms:
+    # Référence E5 : les douze agents LLM sur le grand modèle, JSON ouvert.
+    - name: tous_grand
+      description: 12 agents LLM sur gemma4-e2b, protocole JSON ouvert
+      llm:
+        two_tier: false
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    # Le plan 2×2, deuxième case : grand modèle **et** protocole fermé.
+    # Sépare l'effet du protocole de celui de la taille.
+    - name: protocole_seul
+      description: deux tiers sur gemma, protocole fermé pour le tier small
+      llm:
+        two_tier: true
+        small_model: gemma4-e2b
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    # Le levier revendiqué : petit modèle + protocole fermé.
+    - name: deux_tiers
+      description: tiers par rôle et expérience (A5), protocole fermé
+      llm:
+        two_tier: true
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    # Quatrième case, témoin : petit modèle avec le JSON ouvert. Il n'y
+    # arrive pas (`search`, confiance 0, prompt recopié) : les visiteurs se
+    # font piéger, ils redécident, et le bras consomme *plus* d'appels que
+    # la référence pour un apport pire.
+    - name: petit_json_ouvert
+      description: petit modèle sans protocole fermé (témoin E5)
+      llm:
+        two_tier: true
+        small_protocol: open
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }

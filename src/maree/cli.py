@@ -115,6 +115,7 @@ def _build(cfg: DictConfig, run_id: str):
     from maree.adapters.llm import LlamaCppLLM
     from maree.adapters.physics.jupedsim_physics import JuPedSimPhysics
     from maree.adapters.retrieval.faiss_corpus import FaissRetriever
+    from maree.adapters.state import JsonStateStore
     from maree.domain.geometry import Plan
     from maree.engine.simulation import Simulation
     from maree.memory.store import EventSourcedMemory, NullMemory
@@ -180,6 +181,10 @@ def _build(cfg: DictConfig, run_id: str):
         bus=bus,
         narrator=narrator,
         models=models,
+        small_closed=str(cfg.llm.get("small_protocol", "closed")) == "closed",
+        # F3 — le journal est le flux ; l'état courant a son propre
+        # fichier, remplacé à chaque instantané.
+        state_store=JsonStateStore(str(cfg.paths.runs)),
     )
     return simulation, llm, bus
 
@@ -382,6 +387,131 @@ def trace(
 
 
 @app.command()
+def query(
+    name: str = typer.Argument(None, help="requête de queries/ (défaut : liste)"),
+    runs: str = typer.Option("runs", help="répertoire des runs"),
+    sql: str = typer.Option(None, help="requête ad hoc, pour explorer"),
+    as_json: bool = typer.Option(False, "--json", help="sortie machine"),
+) -> None:
+    """L'historique de plusieurs runs, par requêtes reproductibles (F5).
+
+    Les requêtes vivent dans `queries/*.sql`, versionnées avec le code :
+    le rapport et les chiffres de soutenance sortent de la même commande,
+    donc ils ne peuvent pas diverger. DuckDB lit les JSONL nativement —
+    pas d'export, pas de copie, pas de base à tenir à jour.
+    """
+    import duckdb
+
+    from maree.adapters.journal.jsonl import JsonlJournal
+
+    root = Path("queries")
+    available = sorted(p.stem for p in root.glob("*.sql") if p.stem != "_base")
+    if sql is None and not name:
+        typer.echo("requêtes disponibles :")
+        for item in available:
+            typer.echo(f"  {item}")
+        typer.echo("\n  maree query runs")
+        raise typer.Exit(0)
+    if sql is None:
+        if name not in available:
+            raise typer.BadParameter(
+                f"requête inconnue : {name} (disponibles : {', '.join(available)})"
+            )
+        sql = (root / f"{name}.sql").read_text(encoding="utf-8")
+
+    base = (root / "_base.sql").read_text(encoding="utf-8")
+    if str(runs) != "runs":
+        base = base.replace("'runs/*/events.jsonl'", f"'{runs}/*/events.jsonl'")
+    if not JsonlJournal(runs).runs():
+        raise typer.BadParameter(f"aucun run dans {runs}/")
+
+    con = duckdb.connect()
+    try:
+        con.execute(base)
+        result = con.execute(sql)
+        columns = [d[0] for d in result.description]
+        rows = result.fetchall()
+    finally:
+        con.close()
+    if as_json:
+        typer.echo(
+            json.dumps(
+                [dict(zip(columns, row, strict=True)) for row in rows],
+                indent=2,
+                ensure_ascii=False,
+                default=str,
+            )
+        )
+        return
+    widths = [
+        max(len(str(col)), *(len(str(row[i])) for row in rows)) if rows else len(str(col))
+        for i, col in enumerate(columns)
+    ]
+    typer.echo("  ".join(str(c).ljust(w) for c, w in zip(columns, widths, strict=True)))
+    typer.echo("  ".join("-" * w for w in widths))
+    for row in rows:
+        typer.echo(
+            "  ".join(
+                str(value).ljust(width)
+                for value, width in zip(row, widths, strict=True)
+            )
+        )
+    typer.echo(f"\n{len(rows)} ligne(s).")
+
+
+@app.command()
+def state(
+    run_id: str = typer.Option(None, help="identifiant du run (défaut : le plus récent)"),
+    runs: str = typer.Option("runs", help="répertoire des runs"),
+    full: bool = typer.Option(False, help="l'état complet, agents compris"),
+) -> None:
+    """L'état courant du monde, sans relire le journal (F3).
+
+    Un client qui demande « où est tout le monde maintenant ? » n'a pas
+    besoin de l'histoire : ce fichier est remplacé à chaque instantané et
+    tient en quelques dizaines de kilo-octets, là où le journal en pèse
+    plusieurs méga-octets.
+    """
+    from maree.adapters.journal.jsonl import JsonlJournal
+    from maree.adapters.state import JsonStateStore
+
+    store = JsonStateStore(runs)
+    target = run_id or (store.runs()[-1] if store.runs() else None)
+    if not target:
+        target = JsonlJournal(runs).runs()[-1]
+    snapshot = store.load(target)
+    if snapshot is None:
+        typer.secho(
+            f"{target} : pas de state.json — le run est antérieur à F3, ou "
+            "le magasin n'était pas branché. Lire le journal à la place.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        raise typer.Exit(1)
+    if full:
+        typer.echo(json.dumps(snapshot, indent=2, ensure_ascii=False))
+        return
+    agents = snapshot.get("agents") or []
+    counts = {
+        "agents": len(agents),
+        "evacuated": sum(1 for a in agents if a.get("evacuated")),
+        "remaining": sum(1 for a in agents if not a.get("evacuated")),
+    }
+    typer.echo(
+        json.dumps(
+            {
+                "run_id": target,
+                "tick": snapshot.get("tick"),
+                "counts": counts,
+                "agents": len(snapshot.get("agents") or []),
+                "bytes": len(json.dumps(snapshot, ensure_ascii=False)),
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+@app.command()
 def lag(
     run_id: str = typer.Option(None, help="identifiant du run (défaut : le plus récent)"),
     runs: str = typer.Option("runs", help="répertoire des runs"),
@@ -442,7 +572,7 @@ def experiment(
     seeds: int = typer.Option(3, help="nombre de graines par bras (≥ 5 en production)"),
     overrides: list[str] = typer.Argument(None, help="surcharges Hydra"),
 ) -> None:
-    """Exécute un protocole X1–X7 : chaque bras × chaque graine."""
+    """Exécute un protocole de configs/experiment/ : chaque bras × chaque graine."""
     from maree.metrics.indicators import summarise
 
     cfg = _compose([f"+experiment={name}", *(overrides or [])])
@@ -455,7 +585,17 @@ def experiment(
                 OmegaConf.create(
                     {
                         k: OmegaConf.to_container(arm[k], resolve=True)
-                        for k in ("run", "population", "memory", "rag", "narrative")
+                        for k in (
+                            "run",
+                            "population",
+                            "memory",
+                            "rag",
+                            "narrative",
+                            # E5 — l'attribution des modèles est un bras
+                            # d'expérience : sans `llm` ici, `two_tier`
+                            # serait ignoré et les deux bras identiques.
+                            "llm",
+                        )
                         if k in arm
                     }
                 ),
@@ -487,6 +627,23 @@ def experiment(
             from maree.metrics.lag import summary as _lag_summary
 
             _lag = _lag_summary(_lags(_events))
+            # A5/E5 — qui a répondu, sur quel modèle. Un gain de sobriété
+            # n'est démontrable que si l'on sait *quel* modèle a fait le
+            # travail : « 30 % d'appels en moins » sans la répartition ne
+            # prouve rien sur la répartition.
+            _models: dict[str, int] = {}
+            _tiers: dict[str, int] = {}
+            for _e in _events:
+                if _e.type is _T.DECISION:
+                    _llm = _e.data.get("llm") or {}
+                    if not _llm:
+                        continue
+                    _models[str(_llm.get("model"))] = (
+                        _models.get(str(_llm.get("model")), 0) + 1
+                    )
+                    _tiers[str(_llm.get("tier"))] = (
+                        _tiers.get(str(_llm.get("tier")), 0) + 1
+                    )
             _decision_lags = [
                 int(e.data.get("lag_ticks") or 0)
                 for e in _events
@@ -514,6 +671,13 @@ def experiment(
                     "incident_kinds": result.incident_kinds,
                     "messages": sum(1 for e in _events if e.type is _T.MESSAGE_SENT),
                     "mode": result.mode,
+                    "models": _models,
+                    "tiers": _tiers,
+                    "tokens_par_appel": round(
+                        (result.tokens_in + result.tokens_out)
+                        / max(1, result.llm_calls),
+                        1,
+                    ),
                     # C4 — latence de décision en ticks (0 en synchrone).
                     "lag_ticks_median": (
                         sorted(_decision_lags)[len(_decision_lags) // 2]
