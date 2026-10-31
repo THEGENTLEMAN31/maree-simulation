@@ -191,7 +191,10 @@ Une zone peut porter `"hidden": true` (la Ruelle Z8) : elle existe pour la
 physique mais n'est pas une destination annoncée.
 
 `smoke` donne le disque de fumée **prévu** ; c'est `smoke_active` dans
-l'instantané qui dit s'il est déjà là.
+l'instantané qui dit s'il est déjà là. La géométrie **réellement active**
+est dans `snapshot.smoke` (voir plus bas) : une injection peut déplacer
+la fumée et changer son rayon, donc la config n'est pas la source de
+vérité une fois le run commencé.
 
 > Le plan vient de la configuration courante (`configs/world/`), pas du
 > journal. Un run et sa diffusion doivent donc utiliser le même fichier
@@ -339,6 +342,8 @@ C'est un **fait physique**, pas une décision. Un agent peut décider
   "sim_time": "1:40",
   "exits_open": ["A", "B", "C"],
   "smoke_active": true,
+  "smoke": {"position": [44.0, 15.0], "radius": 15.0, "tick": 10},
+  "announcement": "Évacuation. Rejoignez la sortie nord.",
   "density_grid": [
     {"x": 8.0, "y": 33.0, "n": 1},
     {"x": 31.0, "y": 18.0, "n": 3}
@@ -388,6 +393,8 @@ C'est un **fait physique**, pas une décision. Un agent peut décider
 |---|---|
 | `exits_open` | sorties **réellement** ouvertes (fait physique) |
 | `smoke_active` | la fumée est là (état, pas seulement l'événement t10) |
+| `smoke` | géométrie active : `position` en mètres, `radius`, `tick` d'apparition. `{}` avant la fumée. C'est **elle** qu'on dessine, pas la config : une injection peut la déplacer |
+| `announcement` | texte de l'annonce courante, `null` avant. Un client qui se connecte après t18 doit pouvoir l'afficher |
 | `density_grid` | cellules **occupées** : origine en mètres + effectif `n` ; densité = `n / cell²` (cellule de 1 m) |
 | `belief` | sortie crue la plus sûre (argmax) |
 | `beliefs` | table complète ; un agent peut n'en connaître que deux (profil) |
@@ -406,6 +413,13 @@ justification est dans `reason`.
 
 `pos` est un point par tick. Pour une animation fluide, **interpoler**
 entre deux instantanés ; ne pas sauter.
+
+**Taille** : ~29 Ko au premier tick, **~70 Ko** à 60 agents avec la
+mémoire et les croyances complètes. C'est le piège vécu côté Godot : le
+tampon entrant de `WebSocketPeer` vaut 64 Kio par défaut et le client se
+déconnectait au milieu du run, à la première trame plus grosse que lui.
+Tout client doit accepter des trames de 100 Ko (un serveur mandaté peut
+aussi découper ; ici on ne le fait pas).
 
 ### `indicators` — les sept mesures
 
@@ -590,9 +604,10 @@ plutôt que de faire croire que le monde a bougé tout seul.
 | `agents[].kind` | distinguer les 12 LLM des 48 règles |
 | `agents[].kin` | lien fin entre proches |
 | `agents[].intention` | flèche vers `intention_target` |
+| `agents[].perceived` + `last_decision` + `memory` | panneau D2 : mémoire, justification, règle appliquée |
 | `agents[].perceived` | pictogramme « a vu la fumée » |
 | `density_grid` | carte de chaleur (`n` par cellule de 1 m) |
-| `world kind=smoke` + `smoke_active` | disque de fumée |
+| `world kind=smoke` + `snapshot.smoke` | disque de fumée (géométrie active) |
 | `message` | arc émetteur → `to`, qui s'efface |
 | `decision` | panneau « pourquoi » : `trigger`, `reason`, `kind` |
 | `indicators` | 7 jauges + barres empilées `by_belief` |
@@ -665,3 +680,29 @@ complète, `event` porte tout le journal, `--prompts` porte le prompt LLM.
 Si vraiment il manque quelque chose, c'est un **ajout au moteur** (un
 champ dans l'instantané ou une trame), pas un bricolage côté client : le
 client ne calcule pas, il dessine.
+
+---
+
+## 7. Ce que fait le client livré (référence)
+
+`godot/project/scripts/main.gd` implémente le contrat ci-dessus. Il sert
+de **référence exécutable** : si une trame change, ce fichier casse et
+`make godot-test` le dit.
+
+| exigence | où c'est tenu dans le client |
+|---|---|
+| D1 — scène lisible | plan, obstacles, sorties vertes/rouges, points colorés par croyance, goulots (`density_grid`), écart agent par agent (anneau orange sur une sortie crue fermée), légende |
+| D2 — inspection | sélection au clic ; panneau de droite : intention, croyance, **perçus**, **dernière décision** (`trigger`, `reason`, `rule`, passages retenus), **mémoire** (3 épisodes, `J-3` pour la préhistoire) |
+| D3 — injection | bouton « Injecter », champ d'annonce, sélecteur de sortie, « Fumée ici » (au dernier clic) ; `ack`/`error`/`injection` affichés ; commandes désactivées si `hello.live` est faux, avec la raison |
+| B2 — indicateur à l'écran | I1, I2, I3, I5, I6, I7 en clair sous l'en-tête |
+
+Deux variables d'environnement, pour les captures et les démonstrations :
+
+```bash
+MAREE_SELECT=A13        # présélectionne un agent (panneau D2 rempli)
+MAREE_SCREENSHOT=/tmp/capture.png MAREE_SCREENSHOT_QUIT=1   # capture puis quitte
+MAREE_DEBUG=1           # une ligne d'état toutes les 2 s
+```
+
+Le panneau d'injection se replie (bouton en haut à gauche) : sur un écran
+de 800×480 il couvrirait la moitié du plan.

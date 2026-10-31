@@ -87,6 +87,9 @@ serve:  ## diffuse le dernier run en WebSocket (pour Godot)
 godot:  ## lance le client de visualisation
 	godot --path godot/project
 
+godot-test:  ## contrat d'affichage (D2/D3) sans serveur ni GPU
+	godot --headless --path godot/project --script res://tests/test_client.gd
+
 experiments:  ## protocole X1–X7 (par défaut X1, 3 graines)
 	uv run maree experiment --name x1 --seeds 3
 

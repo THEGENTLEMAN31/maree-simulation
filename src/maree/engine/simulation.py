@@ -335,6 +335,10 @@ class Simulation:
         self._agents: dict[AgentId, AgentRuntime] = {}
         self._exits_open: set[ExitId] = set(plan.exits)
         self._smoke_active = False
+        #: Géométrie de la fumée **active**. Une injection peut la déplacer
+        #: et changer son rayon : on ne peut donc pas relire la config. Un
+        #: client qui arrive après l'événement ne verrait rien sans elle.
+        self._smoke_geom: dict[str, Any] = {}
         self._announcement: str | None = None
         self._events: list[metrics.Indicators] = []
         self._narratives: list[Narrative] = []
@@ -416,18 +420,23 @@ class Simulation:
             match kind:
                 case "smoke":
                     self._smoke_active = True
+                    self._smoke_geom = {
+                        "position": list(
+                            params.get("position") or self._cfg.smoke_position
+                        ),
+                        "radius": float(
+                            params.get("radius") or self._cfg.smoke_radius
+                        ),
+                        "tick": tick,
+                    }
                     self._signal(tick)
                     self._recent.append(f"t{tick} fumée injectée")
                     self._signal_events["smoke"] = await self._emit(
                         tick,
                         EventType.WORLD_SMOKE,
                         {
-                            "position": list(
-                                params.get("position") or self._cfg.smoke_position
-                            ),
-                            "radius": float(
-                                params.get("radius") or self._cfg.smoke_radius
-                            ),
+                            "position": self._smoke_geom["position"],
+                            "radius": self._smoke_geom["radius"],
                         },
                         cause=injection,
                     )
@@ -876,12 +885,20 @@ class Simulation:
         await self._deliver(tick)
         if tick == cfg.smoke_tick and not self._smoke_active:
             self._smoke_active = True
+            self._smoke_geom = {
+                "position": list(cfg.smoke_position),
+                "radius": cfg.smoke_radius,
+                "tick": tick,
+            }
             self._signal(tick)
             self._recent.append(f"t{tick} fumée près de la scène")
             self._signal_events["smoke"] = await self._emit(
                 tick,
                 EventType.WORLD_SMOKE,
-                {"position": list(cfg.smoke_position), "radius": cfg.smoke_radius},
+                {
+                    "position": self._smoke_geom["position"],
+                    "radius": self._smoke_geom["radius"],
+                },
             )
         if cfg.close_exit and tick == cfg.close_tick and cfg.close_exit in self._exits_open:
             self._exits_open.discard(cfg.close_exit)
@@ -1659,8 +1676,14 @@ class Simulation:
             "sim_time": SimClock(tick, self._cfg.clocks).fmt(),
             "exits_open": sorted(self._exits_open),
             # La fumée est un événement ponctuel : un client qui se connecte
-            # après t10 ne la verrait jamais sans cet état.
+            # après t10 ne la verrait jamais sans cet état. `smoke` porte la
+            # géométrie réelle (déplaçable par injection), `smoke_active`
+            # reste le drapeau simple.
             "smoke_active": self._smoke_active,
+            "smoke": dict(self._smoke_geom) if self._smoke_active else {},
+            # Une annonce est aussi un front : le texte courant doit être
+            # lisible par un client qui arrive après coup.
+            "announcement": self._announcement,
             # Grille de densité prête à dessiner (cellules occupées seules).
             "density_grid": metrics.density_cells(active),
             "agents": [

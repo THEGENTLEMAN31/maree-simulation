@@ -105,17 +105,24 @@ class CountingLLM:
 
 
 def _config(
-    run_id: str, *, seed: int = 0, ticks: int = 40, population=None, **extra
+    run_id: str,
+    *,
+    seed: int = 0,
+    ticks: int = 40,
+    population=None,
+    smoke_tick: int = 3,
+    announcement_tick: int | None = 6,
+    **extra,
 ) -> RunConfig:
     return RunConfig(
         run_id=run_id,
         seed=seed,
         max_ticks=ticks,
-        smoke_tick=3,
+        smoke_tick=smoke_tick,
         smoke_position=(44.0, 15.0),
         smoke_radius=15.0,
         close_exit=None,
-        announcement_tick=6,
+        announcement_tick=announcement_tick,
         announcement="Évacuation.",
         population=population
         or (
@@ -129,7 +136,15 @@ def _config(
     )
 
 
-async def _run(tmp_path: Path, run_id: str, *, seed: int = 0, llm=None, **extra):
+async def _run(
+    tmp_path: Path,
+    run_id: str,
+    *,
+    seed: int = 0,
+    llm=None,
+    submit: dict | None = None,
+    **extra,
+):
     plan = Plan.from_dict(
         __import__("yaml").safe_load(
             Path("configs/world/port_aubel.yaml").read_text("utf-8")
@@ -149,6 +164,8 @@ async def _run(tmp_path: Path, run_id: str, *, seed: int = 0, llm=None, **extra)
         bus=bus,
         narrator=None,
     )
+    if submit is not None:
+        simulation.submit(submit)
     result = await simulation.run()
     return result, journal, bus, llm
 
@@ -208,10 +225,13 @@ async def test_l_instantane_porte_la_cognition_pour_l_interface(tmp_path: Path) 
         "sim_time",
         "exits_open",
         "smoke_active",
+        "smoke",
+        "announcement",
         "density_grid",
         "agents",
     }
     assert first["smoke_active"] is False
+    assert first["smoke"] == {}, "pas de géométrie tant que la fumée n'existe pas"
 
     agent = first["agents"][0]
     assert set(agent) >= {
@@ -248,7 +268,44 @@ async def test_la_fumee_reste_visible_dans_les_instantanes(tmp_path: Path) -> No
         e.data for e in journal.read("run_smoke") if str(e.type) == "world.snapshot"
     ]
     assert snaps[0]["smoke_active"] is False
+    assert snaps[0]["smoke"] == {}
     assert any(s["smoke_active"] for s in snaps[1:])
+    # La géométrie suit l'état : c'est elle que le client dessine, et elle
+    # peut différer de la config si l'événement a été injecté.
+    after = next(s for s in snaps[1:] if s["smoke_active"])
+    assert after["smoke"]["radius"] > 0
+    assert len(after["smoke"]["position"]) == 2
+    assert after["smoke"]["tick"] >= 0
+
+
+async def test_une_annonce_injectee_devient_lisible_dans_l_instantane(
+    tmp_path: Path,
+) -> None:
+    """D3 sans client : l'effet d'une injection est dans l'état diffusé.
+
+    C'est ce qui permet à un client qui se connecte après l'annonce de
+    l'afficher, et à un test de vérifier l'injection sans Godot.
+    """
+    _, journal, _, _ = await _run(
+        tmp_path,
+        "run_annonce",
+        announcement_tick=None,
+        submit={
+            "type": "inject",
+            "kind": "announcement",
+            "text": "Évacuation immédiate, sortie B",
+        },
+    )
+    snaps = [
+        e.data for e in journal.read("run_annonce") if str(e.type) == "world.snapshot"
+    ]
+    assert snaps[-1]["announcement"] == "Évacuation immédiate, sortie B"
+    # Journalisée avant d'agir, avec sa source : la chaîne causale reste
+    # lisible même quand c'est l'opérateur qui a déclenché l'événement.
+    injected = [
+        e for e in journal.read("run_annonce") if str(e.type) == "control.injection"
+    ]
+    assert injected and injected[0].data["kind"] == "announcement"
 
 
 async def test_deux_runs_de_meme_graine_sont_identiques(tmp_path: Path) -> None:
