@@ -29,7 +29,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from maree.agents.parsing import parse_choice, parse_decision
+from maree.agents.parsing import detect_posture, parse_choice, parse_decision
 from maree.agents.profiles import Profile
 from maree.agents.rules import rules_decide
 from maree.agents.triggers import Percept
@@ -52,6 +52,10 @@ class AgentState(TypedDict, total=False):
     memories: list[dict[str, Any]]
     beliefs: dict[str, Any]
     passages: list[dict[str, Any]]
+    #: Q5 — la question posée au corpus. LangGraph ne propage que les
+    #: canaux déclarés : sans cette ligne, `query` était calculé puis
+    #: perdu, et `rag.suspect` sortait avec une question vide.
+    query: str
     intention: dict[str, Any] | None
     reasoning: str
     llm: dict[str, Any]
@@ -60,6 +64,10 @@ class AgentState(TypedDict, total=False):
     #: A4 — cause du repli (`no_response`, `unparseable`, `unknown_action`,
     #: `unknown_exit`, `unknown_zone`, `unknown_agent`, `out_of_role`).
     fallback_reason: str
+    #: O2 — dérive de posture (`prudent_assistant`), distincte du repli :
+    #: l'intention est valide, la manière ne l'est pas.
+    posture: str
+    posture_phrase: str
     #: Tier de capacité du profil (« big » / « small », A5) et nom du
     #: modèle concret résolu pour ce run. `None` = modèle par défaut de
     #: l'adaptateur.
@@ -169,6 +177,10 @@ class DecisionGraph:
         )
         return {
             **state,
+            # La question posée au corpus est conservée : sans elle, un
+            # `rag.suspect` (Q5) dirait « ce passage est mauvais » sans
+            # pouvoir dire à quelle question il était censé répondre.
+            "query": query,
             "passages": [
                 {
                     "doc_id": p.doc_id,
@@ -252,6 +264,14 @@ class DecisionGraph:
         """
         parsed = state.get("intention") or {}
         intention, why = self._to_intention(parsed, state)
+        # O2 — la posture d'assistant prudent est une dérive **distincte**
+        # du repli : l'intention est valide, c'est la manière qui dérive.
+        # On la marque sans replier, sinon on la confondrait avec une
+        # réponse inexploitable.
+        raw = str((state.get("llm") or {}).get("raw_output") or "")
+        posture = detect_posture(raw)
+        if posture:
+            state = {**state, "posture": "prudent_assistant", "posture_phrase": posture}
         if intention is None:
             llm = state.get("llm") or {}
             # Un appel sans réponse n'a pas « mal répondu » : il n'a pas

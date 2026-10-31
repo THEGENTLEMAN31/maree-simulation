@@ -126,6 +126,7 @@ TOPIC_FOR: dict[EventType, str] = {
     EventType.DECISION: TOPIC_DECISIONS,
     EventType.EVACUATED: TOPIC_DECISIONS,
     EventType.INCIDENT: TOPIC_DECISIONS,
+    EventType.RAG_SUSPECT: TOPIC_DECISIONS,
     EventType.TEMPORAL_VIOLATION: TOPIC_DECISIONS,
     EventType.MESSAGE_SENT: TOPIC_SOCIAL,
     EventType.MESSAGE_HEARD: TOPIC_SOCIAL,
@@ -185,6 +186,12 @@ class RunConfig:
     #: C4 — temps réel accordé aux décisions encore en vol à la fin du run
     #: avant de les annuler et de les compter comme incidents (A4).
     async_drain_s: float = 5.0
+    #: Q5 — seuil de « récupération douteuse ». Calibré sur 6 245 décisions
+    #: mesurées (X1–X12) : le quartile bas des scores de tête vaut 0,174,
+    #: la médiane 0,229. Sous 0,17, le meilleur passage ne répond
+    #: probablement pas à la question — et le système le **dit** au lieu de
+    #: le taire. Ce n'est pas un jugement de pertinence, c'est un drapeau.
+    rag_suspect_score: float = 0.17
     clocks: Clocks = field(default_factory=Clocks)
 
     def config_hash(self) -> str:
@@ -203,6 +210,7 @@ class RunConfig:
                 "prehistory_days": self.prehistory_days,
                 "mode": self.mode,
                 "message_delay_ticks": self.message_delay_ticks,
+                "rag_suspect_score": self.rag_suspect_score,
             },
             sort_keys=True,
         )
@@ -353,6 +361,7 @@ class Simulation:
         #: modèle est muet ou s'il sort de son rôle : les deux se soignent
         #: différemment.
         self._incident_kinds: dict[str, int] = {}
+        self._rag_suspect = 0
         #: C4 — décisions en vol (mode asynchrone) : agent -> tâche.
         self._pending: dict[AgentId, asyncio.Task[_Outcome]] = {}
         #: C4 — plafond de concurrence partagé par les deux modes. Sans lui,
@@ -765,6 +774,7 @@ class Simulation:
                         outcome.incident,
                         outcome.trace,
                         outcome.t_trait,
+                        fallback=outcome.incident != "prudent_assistant",
                     )
 
             # --- 6. messages et mémoire --------------------------
@@ -838,6 +848,20 @@ class Simulation:
                 "quarantined": self._quarantined,
                 "incidents": sum(self._incident_kinds.values()),
                 "incident_kinds": dict(self._incident_kinds),
+                # O1 — un **taux**, pas un compte absolu : 8 incidents ne
+                # veulent rien dire sans le nombre de décisions LLM qui les
+                # ont produits. Le dénominateur est le nombre d'appels,
+                # parce qu'un incident est par décision.
+                "incident_rate": (
+                    round(sum(self._incident_kinds.values()) / self._llm_calls, 4)
+                    if self._llm_calls
+                    else 0.0
+                ),
+                "incident_rates": {
+                    kind: round(count / self._llm_calls, 4)
+                    for kind, count in sorted(self._incident_kinds.items())
+                },
+                "rag_suspect": self._rag_suspect,
                 "mode": cfg.mode,
                 "bus_failures": self._bus_failures,
                 "state_failures": self._state_failures,
@@ -1187,6 +1211,10 @@ class Simulation:
                 context["retrieved"] = state["passages"]
             if state.get("memories"):
                 context["memory"] = state["memories"]
+            if state.get("query"):
+                # Q5 — la question réellement posée au corpus. Sans elle,
+                # un `rag.suspect` ne serait pas rejouable.
+                context["query"] = state["query"]
             self._llm_calls += 1
             if trace:
                 trace["fallback"] = bool(state.get("fallback"))
@@ -1196,6 +1224,12 @@ class Simulation:
                 self._tokens_out += int(trace.get("tokens_out") or 0)
             if state.get("fallback"):
                 incident = str(state.get("fallback_reason") or "unknown")
+            elif state.get("posture"):
+                # O2 — dérive sans repli : l'intention tient, la posture
+                # non. On la compte, on ne la corrige pas.
+                incident = str(state["posture"])
+                if trace:
+                    trace["posture_phrase"] = state.get("posture_phrase")
         return _Outcome(
             agent_id=agent_id,
             reason=reason,
@@ -1270,7 +1304,11 @@ class Simulation:
             )
             if outcome.incident:
                 await self._incident(
-                    outcome.agent_id, outcome.incident, outcome.trace, tick
+                    outcome.agent_id,
+                    outcome.incident,
+                    outcome.trace,
+                    tick,
+                    fallback=outcome.incident != "prudent_assistant",
                 )
         for task in not_done:
             task.cancel()
@@ -1293,6 +1331,8 @@ class Simulation:
         kind: str,
         trace: dict[str, Any] | None,
         tick: int,
+        *,
+        fallback: bool = True,
     ) -> None:
         """A4 — un agent a dérivé ; le monde continue, l'incident est tracé.
 
@@ -1312,13 +1352,17 @@ class Simulation:
                 "agent_id": agent_id,
                 "kind": kind,
                 "detail": (
-                    trace.get("error")
+                    trace.get("posture_phrase")
+                    or trace.get("error")
                     or str(trace.get("raw_output") or "")[:200]
                     or ""
                 ),
                 "requested_model": trace.get("requested_model"),
                 "model": trace.get("model"),
-                "fallback": True,
+                # Une posture n'est pas un repli : le modèle a répondu, et
+                # sa réponse a été appliquée. Confondre les deux ferait
+                # croire que l'agent n'a rien décidé.
+                "fallback": fallback,
             },
             cause=self._last_decision.get(agent_id),
         )
@@ -1510,6 +1554,30 @@ class Simulation:
             trait, EventType.DECISION, data, cause=cause, t_prod=percept.tick
         )
         self._last_decision[agent_id] = decision
+
+        # Q5 — « récupération douteuse ». Le RAG n'est pas une vérité : si
+        # le meilleur passage est sous le seuil calibré, l'événement est
+        # journalisé. C'est ce qui permet de répondre « comment savez-vous
+        # que ce que le corpus rend est pertinent ? » : on ne le sait pas,
+        # on le signale.
+        retrieved = data.get("retrieved") or ()
+        if runtime.profile.kind != "rules" and retrieved:
+            top = max(float(p.get("score", 0.0) or 0.0) for p in retrieved)
+            if top < self._cfg.rag_suspect_score:
+                self._rag_suspect += 1
+                await self._emit(
+                    percept.tick,
+                    EventType.RAG_SUSPECT,
+                    {
+                        "agent_id": agent_id,
+                        "query": str(context.get("query", "")),
+                        "top_score": round(top, 4),
+                        "doc_id": str(retrieved[0].get("doc_id", "")),
+                        "threshold": self._cfg.rag_suspect_score,
+                    },
+                    cause=decision,
+                )
+
         for problem in violations:
             await self._emit(
                 percept.tick,

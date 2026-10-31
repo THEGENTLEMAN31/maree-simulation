@@ -104,6 +104,7 @@ def _run_config(cfg: DictConfig, run_id: str):
         # des champs de configuration : un bras d'expérience, pas un `if`.
         mode=str(run.get("mode", "sync")),
         message_delay_ticks=int(run.get("message_delay_ticks", 0)),
+        rag_suspect_score=float(cfg.rag.get("suspect_score", 0.17)),
         clocks=clocks,
     )
 
@@ -839,7 +840,7 @@ def live(
 
 @app.command()
 def report(runs: str = typer.Option("runs")) -> None:
-    """Agrège les runs mesurés (I1..I6) en un tableau."""
+    """Agrège les runs mesurés (I1..I7) en un tableau."""
     from maree.adapters.journal.jsonl import JsonlJournal
     from maree.domain.events import EventType
     from maree.metrics.indicators import summarise

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from maree.agents.parsing import parse_decision
+from maree.agents.parsing import detect_posture, parse_decision
 
 
 def test_json_nu() -> None:
@@ -39,3 +39,39 @@ def test_sorties_invalides(text: str) -> None:
 
 def test_json_valide_mais_pas_un_objet() -> None:
     assert parse_decision('["a", "b"]') is None
+
+
+# ------------------------------------------------------------------
+# O2 — la posture d'assistant prudent
+# ------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Je ne peux pas prendre cette décision à votre place.",
+        "En tant qu'assistant, je vous recommande de rester calme.",
+        "Restez calmes et suivez les consignes officielles.",
+        "Il est important de ne pas céder à la panique.",
+        "Dirigez-vous vers la sortie la plus proche.",
+    ],
+)
+def test_posture_detectee(text: str) -> None:
+    assert detect_posture(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        '{"action": "go_exit", "target": "A", "reason": "A est la plus large"}',
+        "SORTIR A",
+        "Je sors par la ruelle des Cordiers, elle est vide.",
+    ],
+)
+def test_posture_non_detectee(text: str) -> None:
+    """Pas de faux positif sur une décision nette.
+
+    Le détecteur est lexical : il ne doit pas transformer une décision
+    normale en dérive. « la sortie la plus proche » sans sortie nommée,
+    en revanche, en est une.
+    """
+    assert detect_posture(text) is None

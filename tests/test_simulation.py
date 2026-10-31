@@ -143,6 +143,7 @@ async def _run(
     seed: int = 0,
     llm=None,
     submit: dict | None = None,
+    retriever=None,
     **extra,
 ):
     plan = Plan.from_dict(
@@ -164,6 +165,18 @@ async def _run(
         bus=bus,
         narrator=None,
     )
+    if retriever is not None:
+        simulation = Simulation(
+            config=_config(run_id, seed=seed, **extra),
+            plan=plan,
+            physics=FakePhysics(plan),
+            llm=llm,
+            retriever=retriever,
+            memory=EventSourcedMemory(n_exits=len(plan.exits)),
+            journal=journal,
+            bus=bus,
+            narrator=None,
+        )
     if submit is not None:
         simulation.submit(submit)
     result = await simulation.run()
@@ -849,3 +862,122 @@ async def test_c6_asynchrone_ne_cree_pas_de_violation_fantome(
     assert not [
         e for e in journal.read("c6a") if str(e.type) == "temporal.violation"
     ]
+
+
+# ------------------------------------------------------------------
+# Q5 / O1 / O2 — ce que le système doit dire de lui-même
+# ------------------------------------------------------------------
+class LowScoreRetriever:
+    """Le corpus ne trouve rien de convaincant (score 0,05)."""
+
+    def __init__(self, score: float) -> None:
+        self.score = score
+        self.queries: list[str] = []
+
+    async def retrieve(self, query, *, profile, tick, k=3, collections=None):
+        self.queries.append(query)
+        from maree.ports import RetrievedPassage
+
+        return [
+            RetrievedPassage(
+                doc_id="plan-sorties#A",
+                text="La sortie A donne sur le Grand Quai.",
+                score=self.score,
+                collection="plans",
+            )
+        ]
+
+
+class DecidingLLM:
+    """Répond une décision valide, une fois."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.calls = 0
+
+    async def chat(self, messages, *, seed, **kwargs):
+        self.calls += 1
+        return LLMResult(
+            text=self.text, prompt="…", seed=seed, model="factice", ok=True
+        )
+
+    async def embed(self, texts):
+        return []
+
+
+async def test_une_recuperation_douteuse_est_journalisee(tmp_path: Path) -> None:
+    """Q5 — le système signale lui-même un passage hors sujet.
+
+    Sans cet événement, « comment savez-vous que le RAG est pertinent ? »
+    n'a pas de réponse vérifiable : on saurait seulement que ça tourne.
+    """
+    retriever = LowScoreRetriever(score=0.05)
+    llm = DecidingLLM('{"action": "go_exit", "target": "B", "confidence": 0.7}')
+    _, journal, _, _ = await _run(
+        tmp_path,
+        "run_rag",
+        llm=llm,
+        retriever=retriever,
+        population=(PopulationEntry("habitue", 2, "llm"),),
+    )
+    events = journal.read("run_rag")
+    suspects = [e for e in events if str(e.type) == "rag.suspect"]
+    assert suspects, "un score 0,05 doit être signalé"
+    assert suspects[0].data["top_score"] == 0.05
+    assert suspects[0].data["threshold"] == 0.17
+    assert suspects[0].data["query"], "la question posée doit être dans l'événement"
+    # Chaîne causale : le soupçon est rattaché à la décision qu'il éclaire.
+    assert suspects[0].causation_id is not None
+
+    ended = next(e for e in events if str(e.type) == "run.ended")
+    assert ended.data["rag_suspect"] == len(suspects)
+
+
+async def test_un_bon_score_ne_declenche_rien(tmp_path: Path) -> None:
+    retriever = LowScoreRetriever(score=0.55)
+    llm = DecidingLLM('{"action": "go_exit", "target": "B", "confidence": 0.7}')
+    _, journal, _, _ = await _run(
+        tmp_path,
+        "run_rag_ok",
+        llm=llm,
+        retriever=retriever,
+        population=(PopulationEntry("habitue", 2, "llm"),),
+    )
+    assert not [e for e in journal.read("run_rag_ok") if str(e.type) == "rag.suspect"]
+
+
+async def test_la_posture_d_assistant_est_un_incident_sans_repli(
+    tmp_path: Path,
+) -> None:
+    """O2 — la dérive est comptée, mais l'agent a bien décidé.
+
+    Confondre posture et repli ferait croire qu'aucune décision n'a été
+    prise : or le modèle a répondu, et sa réponse est appliquée.
+    """
+    # Une décision **valide** dont la raison est une posture d'assistant :
+    # c'est exactement le cas que O2 demande de distinguer d'un repli.
+    llm = DecidingLLM(
+        '{"action": "stay", "target": null, "confidence": 0.4, '
+        '"reason": "En tant qu\'assistant, je vous recommande de rester '
+        'calme et de suivre les consignes."}'
+    )
+    _, journal, _, _ = await _run(
+        tmp_path,
+        "run_posture",
+        llm=llm,
+        population=(PopulationEntry("habitue", 2, "llm"),),
+    )
+    events = journal.read("run_posture")
+    incidents = [e for e in events if str(e.type) == "agent.incident"]
+    posture = [e for e in incidents if e.data["kind"] == "prudent_assistant"]
+    assert posture, "la tournure doit être vue"
+    assert posture[0].data["fallback"] is False
+    assert "assistant" in posture[0].data["detail"]
+
+    ended = next(e for e in events if str(e.type) == "run.ended")
+    assert ended.data["incident_kinds"].get("prudent_assistant")
+    # O1 — un taux, pas un compte : le dénominateur est le nombre d'appels.
+    assert 0.0 < ended.data["incident_rate"] <= 1.0
+    assert ended.data["incident_rate"] == pytest.approx(
+        ended.data["incidents"] / ended.data["llm_calls"], abs=1e-4
+    )

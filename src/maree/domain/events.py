@@ -40,6 +40,10 @@ class EventType(StrEnum):
     #: monde, pas comme une initialisation silencieuse : sans cela, on ne
     #: pourrait pas dire ce que l'agent savait avant t0.
     MEMORY_SEEDED = "memory.seeded"
+    #: Q5 — le meilleur passage retrouvé ne répond pas à la question posée
+    #: (score sous le seuil calibré). Le système le dit au lieu de faire
+    #: comme si le RAG avait toujours raison.
+    RAG_SUSPECT = "rag.suspect"
     # agents
     DECISION = "agent.decision"
     EVACUATED = "agent.evacuated"
@@ -154,6 +158,7 @@ SCHEMAS: dict[EventType, tuple[str, ...]] = {
     EventType.ANNOUNCEMENT: ("text",),
     EventType.INJECTION: ("kind",),
     EventType.MEMORY_SEEDED: ("agents", "days"),
+    EventType.RAG_SUSPECT: ("agent_id", "query", "top_score"),
     EventType.DECISION: ("agent_id", "kind", "trigger", "intention"),
     EventType.EVACUATED: ("agent_id", "kind"),
     EventType.BELIEF_UPDATED: ("agent_id", "beliefs"),

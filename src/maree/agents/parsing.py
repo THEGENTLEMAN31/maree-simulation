@@ -62,6 +62,53 @@ _RESTER = re.compile(
 )
 
 
+#: O2 — la « posture d'assistant prudent ».
+#:
+#: Un modèle aligné sur des consignes de sécurité répond parfois comme un
+#: assistant : il refuse de choisir, rappelle les consignes, recommande le
+#: calme ou renvoie à « la sortie la plus proche » sans en nommer une.
+#: Ce n'est ni une sortie de rôle (il reste poli) ni une réponse
+#: inexploitable (elle se parse) : c'est une dérive distincte, que le
+#: cahier des charges demande de diagnostiquer.
+#:
+#: Détection **lexicale**, donc faillible : elle est documentée comme telle.
+#: Elle sert à compter un phénomène, pas à juger une décision.
+_POSTURE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bje ne (peux|suis) (pas|en mesure)\b", re.I), "refus"),
+    (
+        re.compile(r"\b(en tant qu|je suis)\b[^.]{0,20}\b(ia|assistant|mod[èe]le)\b", re.I),
+        "méta",
+    ),
+    (
+        re.compile(r"\b(restez|gardez)\b[^.]{0,24}\bcalme", re.I),
+        "conseil de calme",
+    ),
+    (
+        re.compile(r"\b(il est|il serait) (important|essentiel|primordial)\b", re.I),
+        "conseil générique",
+    ),
+    (
+        re.compile(r"\bsuivez\b[^.]{0,24}\b(consignes|instructions)\b", re.I),
+        "renvoi aux consignes",
+    ),
+    (
+        re.compile(r"\b(la|une) sortie la plus proche\b", re.I),
+        "cible générique",
+    ),
+)
+
+
+def detect_posture(text: str) -> str | None:
+    """Renvoie la tournure qui trahit une posture d'assistant, sinon None."""
+    if not text:
+        return None
+    for pattern, label in _POSTURE_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return f"{label} : « {match.group(0)[:60]} »"
+    return None
+
+
 def parse_choice(text: str, *, known_exits: list[str]) -> dict[str, Any] | None:
     """Lit la réponse du tier « small » : `SORTIR` ou `RESTER`.
 

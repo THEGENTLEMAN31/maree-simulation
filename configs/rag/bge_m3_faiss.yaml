@@ -17,3 +17,9 @@ min_score: 0.0
 #: profil et les passages disponibles à son tick simulé.
 respect_profile: true
 respect_availability: true
+
+#: Q5 — en dessous de ce score de tête, le meilleur passage ne répond
+#: probablement pas à la question : le moteur journalise `rag.suspect`.
+#: Calibré sur 6 245 décisions (X1–X12) : quartile bas 0,174, médiane
+#: 0,229. C'est un drapeau, pas un filtre — le passage reste utilisé.
+suspect_score: 0.17
