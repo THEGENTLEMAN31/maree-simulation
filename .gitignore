@@ -49,3 +49,9 @@ src/maree/gen/
 # de preuve que le journal suffit à reconstruire un run complet.
 !runs/demo_replay/
 !runs/demo_replay/events.jsonl
+# C8 — la paire 20 / 60 agents de la soutenance. Versionnée pour que la
+# démo ne dépende ni du GPU, ni du serveur LLM, ni de la chance.
+!runs/demo20/
+!runs/demo20/events.jsonl
+!runs/demo60/
+!runs/demo60/events.jsonl

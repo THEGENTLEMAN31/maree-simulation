@@ -23,19 +23,65 @@ se déforme, et parfois piège la foule qui l'a adoptée.
 
 ## Démarrage
 
+### Sans GPU, sans Docker — le chemin le plus court
+
 ```bash
-cp .env.example .env
-make up          # Redpanda + Schema Registry + llama.cpp + simulateur
-make index       # construit l'index RAG (bge-m3, 215 passages)
-make run         # un run de démonstration
-make replay      # rejoue le dernier run depuis le journal
-make serve       # diffuse le run en WebSocket
-make godot       # client de visualisation (Godot 4.4)
+uv sync --all-extras
+make smoke            # run complet, 60 agents à règles, 0 appel LLM
+make test             # toute la suite (physique factice)
+make replay-demo      # rejoue le run versionné (E3), sans LLM
+make replay-pair      # rejoue la paire 20 / 60 agents (C8), sans LLM
 ```
 
-Sans GPU, sans Docker : `uv sync --all-extras && uv run pytest` exécute
-toute la suite de tests (physique factice, population à règles), et
-`make smoke` fait un run complet de 60 agents **sans aucun appel LLM**.
+### Avec le LLM (deux modèles, un serveur llama.cpp)
+
+Le serveur est un conteneur `llama.cpp` qui sert `gemma4-e2b` (grand),
+`qwen3-0-6b` (petit) et `bge-m3` (embeddings). **Le nom du petit modèle
+est `qwen3-0-6b`** : le routeur normalise les points en tirets, et
+`qwen3-0.6b` renvoie 404.
+
+```bash
+make pull-models                    # une fois : télécharge les GGUF
+docker run -d --name maree-llama-cpp --gpus all -p 8080:8080 \
+  -v "$PWD/models:/models" maree/llama-cpp:b11609   # 4 slots, ctx 8192
+make index                          # index RAG (bge-m3, 215 passages)
+```
+
+Puis, **dans chaque shell qui lance un run LLM**, l'URL du conteneur :
+
+```bash
+export MAREE_LLM_URL=http://$(docker inspect maree-llama-cpp \
+  --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):8080/v1
+uv run maree run population=hybrid narrative.enabled=true
+```
+
+L'IP change à chaque recréation du conteneur : la relire, ne pas la
+recopier. `MAREE_LLM_URL` est la seule variable lue par
+`configs/llm/llamacpp.yaml` ; sans elle, le client vise `llama-cpp:8080`,
+tous les appels échouent, et le run **ressemble** à un run normal — la
+CLI crie quand `llm_ok == 0`, et `run.ended` porte le compte.
+
+### Démonstration en direct (injection d'événements)
+
+```bash
+uv run maree live --tick-ms 600     # moteur + WebSocket + file de contrôle
+godot --path godot/project          # client : plan, inspection, injection (D2/D3)
+```
+
+`make godot-test` vérifie le contrat d'affichage sans serveur ni GPU.
+
+### `make up` (Redpanda + llama.cpp + simulateur)
+
+`docker compose up` suppose une image `maree/llama-cpp` construite
+localement et la publication de ports — deux choses qui **n'ont pas
+fonctionné sur la machine de développement** (apt sans réseau pendant le
+build, publication de ports cassée). La procédure réellement utilisée est
+le `docker run` ci-dessus. Les campagnes d'expérience tournent de toute
+façon en `bus.backend=memory` : Redpanda est prouvé par un run dédié
+(C1, 1 002 messages), pas par les mesures.
+
+Sans serveur LLM du tout, `make smoke` fait un run complet de 60 agents
+**sans aucun appel LLM**.
 
 ---
 
@@ -57,13 +103,20 @@ Trois horloges, un seul état du monde.
             └───────┬───────┘
                     ▼
             ┌───────────────┐
-            │ Redpanda      │  → Godot, chroniqueur, indicateurs
-            └───────────────┘
+            │ bus           │  mémoire (campagnes) ou Redpanda (démo)
+            └───────┬───────┘
+                    ▼
+        Godot · chroniqueur · indicateurs
 ```
 
 **Le mouvement n'attend jamais la pensée.** JuPedSim avance à 20 Hz, les
 agents réfléchissent toutes les 10 s simulées, et Godot interpole entre
 deux instantanés. C'est ce découplage qui rend 60 agents tenables.
+
+Le bus n'est **pas** dans le chemin de la mesure : les campagnes
+tournent en `bus.backend=memory` et le rejeu lit le journal. Redpanda
+sert la démonstration temps réel (C1 : 1 002 messages vérifiés sur un
+broker réel).
 
 ### Les trois moteurs
 
@@ -114,12 +167,19 @@ narratif : **le savoir local sauve, l'ignorance piège**.
 | I1 | consensus | part de la croyance majoritaire |
 | I2 | entropie | incertitude moyenne (0 = sûrs, 1 = perdus) |
 | I3 | évacués | part des agents sortis |
-| I4 | temps | durée d'évacuation |
-| I5 | densité max | le goulot, en personnes/m² |
+| I4 | temps | l'horloge : tick × 10 s, **censurée** à `max_ticks` |
+| I5 | densité max | le goulot, en personnes/m² (pic ; sature à 2,0 à 60 agents) |
 | I6 | écart | part des agents croyant en une sortie fermée |
+| I7 | délai | premier signal de danger → dernier sorti, défini sous censure |
 
 I6 est l'indicateur central : la croyance partagée qui sauve à t10 et
-piège à t40.
+piège à t40. I4 dit « quand », I7 dit « combien de temps » : I7 retire le
+temps d'avant-signal, donc il reste comparable entre bras qui ne voient
+pas la fumée au même tick. Lire I3 et I7 ensemble dès qu'une partie de la
+foule ne sort pas — I4 est alors censuré à `max_ticks` et ne mesure plus
+une durée réelle. `metrics.summarise()` prend le **pic** pour I5/I6 et la
+moyenne sur la partie active pour I1/I2 : le dernier tick est dégénéré
+(tout le monde est sorti, tous les indicateurs valent 0).
 
 ---
 
@@ -136,15 +196,37 @@ src/maree/
   narrative/    digest + chroniqueur + validateur
   engine/       boucle à trois horloges, rejeu
   adapters/     JuPedSim, llama.cpp, FAISS, JSONL, Redpanda
-  cli.py        run | index | replay | report
+  cli.py        run | index | replay | trace | query | state | lag |
+                experiment | serve | live | report
 tests/          domaine, cloisonnement, déterminisme, rejeu
 godot/          client de visualisation
 docs/           cadrage, hypothèses, architecture, résultats
 ```
 
+## Commandes
+
+| Commande | Ce qu'elle fait |
+|---|---|
+| `maree run [overrides…]` | un run ; `population=rules_only` pour se passer de LLM |
+| `maree experiment --name x12 --seeds 5` | un protocole de `configs/experiment/` : bras × graines |
+| `maree index` | (re)construit l'index RAG |
+| `maree replay [--run-id …]` | rejoue le journal et vérifie chaque décision |
+| `maree trace --indicator I1_consensus` | remonte d'un saut d'indicateur aux événements qui l'ont causé |
+| `maree query runs` | requête DuckDB versionnée sur les journaux |
+| `maree state` | état courant (`state.json`), sans lire le journal |
+| `maree lag` | monde → perception → mesure, par événement (C7) |
+| `maree serve [--prompts]` | diffuse un run en WebSocket vers Godot |
+| `maree live` | run + diffusion + injections (D3) |
+| `maree report` | tableau agrégé des runs mesurés (I1–I7) |
+
 ## Documentation
 
+- **`docs/resultats/rapport-hybride.md` — le rapport demandé** : partie
+  technique, partie scientifique en mini-article, bilan de sobriété,
+  réponses aux six questions du jury.
 - `docs/architecture-v2.md` — décisions, et ce qu'on a écarté
 - `docs/hypotheses.md` — hypothèses préenregistrées H1..H7
+- `docs/protocol-ui.md` — le contrat d'affichage (trames) pour écrire un autre client
 - `docs/cadrage-maree.md` — cadrage du monde
+- `docs/audit-consigne-2026-10-31.md` — ce qui manquait, et ce qui reste partiel
 - `AGENTS.md` — mémoire de chantier (pièges, mesures, conventions)

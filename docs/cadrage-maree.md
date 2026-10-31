@@ -137,6 +137,8 @@ Le corpus fictif est écrit par le binôme avant la semaine 3 : environ 200 pass
 
 **Qualité de la récupération (F2).** Pour 30 décisions tirées au hasard par type de run, le binôme note chaque passage retrouvé (pertinent ou non), et le rapport donne la précision sur les 3 premiers résultats. Un score de similarité sous un seuil à calibrer déclenche un événement de récupération douteuse : c'est ainsi que le système s'aperçoit d'une information mal retrouvée (question Q5 du jury).
 
+*Corrigé le 2026-10-31.* La promesse est tenue, avec deux écarts assumés. Le seuil n'est plus « à calibrer » : il vaut **0,17**, mesuré sur 6 245 décisions réelles (quartile bas 0,174, médiane 0,229). L'événement existe : `rag.suspect`, avec la question posée, le score du meilleur passage, son identifiant, le seuil, la chaîne causale, et un compteur dans `run.ended`. C'est un **drapeau, pas un filtre** : le passage reste utilisé et la décision reste appliquée, parce qu'un seuil d'embedding n'est pas un oracle — il signale les cas à relire. L'évaluation porte sur 24 requêtes annotées et non sur 30 décisions tirées : P@1 0,417, P@3 0,750, MRR 0,569.
+
 ## Architecture
 
 Le journal Kafka est le seul endroit où l'état du monde s'écrit ; tous les autres composants le lisent ou y publient.
@@ -223,7 +225,9 @@ vérificateur (C6) qui produit un compteur de violations dans `run.ended`.
 
 **Cohérence temporelle (C6).** Un vérificateur parcourt chaque décision et contrôle que tout ce qu'elle cite (perceptions, messages, passages RAG) était disponible à l'instant de la décision : date de production et, pour un message, date d'arrivée inférieures ou égales. Chaque écart devient un événement de violation compté dans I5, et le même vérificateur tourne en test automatique. En mode asynchrone, une décision appliquée sur un état déjà périmé n'est pas une violation : son décalage est mesuré à part (C7).
 
-**Traçabilité d'un indicateur (F6) et inspection d'un agent (D2).** Chaque valeur d'indicateur publiée référence la plage d'offsets Kafka des événements qui l'ont produite (décision 16). Dans Godot, un clic sur un indicateur liste ces événements bruts. Un clic sur un agent affiche sa mémoire, la justification de sa dernière décision et les passages RAG utilisés, ou, pour un agent à règles, son état et la règle appliquée.
+**Traçabilité d'un indicateur (F6) et inspection d'un agent (D2).** Chaque valeur d'indicateur publiée porte `sources` (`from_seq`, `to_seq`, `count`) : la plage des événements qui l'ont produite (décision 16). `maree trace --indicator I1_consensus` remonte ces événements bruts et distingue ceux qui existaient déjà de ceux qui ont fait bouger la valeur. Un clic sur un agent, dans Godot, affiche sa mémoire datée (épisodes de J−3, avec leur déclencheur), la justification de sa dernière décision, la règle appliquée et les passages RAG retrouvés avec leur score ; pour un agent à règles, son état et la règle.
+
+*Corrigé le 2026-10-31.* Le clic sur un **indicateur** n'existe pas dans le client : la remontée se fait par la CLI. L'inspection d'un agent, elle, est livrée et testée (`make godot-test`, trajet complet contre `maree live`).
 
 **Distinguer émergence et ressemblance (B3, O6).** Trois contrôles négatifs répondent à la question du jury « mesurez-vous l'émergence ou la ressemblance des réponses d'un même modèle ? ».
 
@@ -247,7 +251,9 @@ Si I1 monte sans communication, c'est un artefact du modèle, et il faut le rapp
 
 **Règles statistiques.** Au moins 5 runs par configuration, 10 si le budget le permet. Médiane et écart interquartile plutôt que moyenne, test non paramétrique (Mann-Whitney) avec la réserve que n est petit. Chaque run est rejouable depuis le log seul, et un hash des indicateurs vérifie l'identité du rejeu (E2, E3).
 
-**Requêtes reproductibles (F5).** Tous les tableaux et figures du rapport sont produits par des requêtes SQL versionnées dans le dépôt, exécutées sur l'historique en Parquet avec DuckDB. Exemple : comparer I3 sur les 10 runs de X1.
+**Requêtes reproductibles (F5).** Tous les tableaux et figures du rapport sont produits par des requêtes SQL versionnées dans le dépôt, exécutées sur l'historique en **JSONL** avec DuckDB. Exemple : comparer I3 sur les 10 runs de X1.
+
+*Corrigé.* Pas de Parquet : le journal est du JSONL append-only, et DuckDB le lit ligne par ligne (`read_csv(columns={'line':'VARCHAR'}, …)`) plutôt que d'inférer un schéma, parce que `data` change de forme à chaque type d'événement. 449 970 événements sur 451 runs en 3,4 s.
 
 ## Échelle de repli
 
@@ -276,12 +282,14 @@ Seul G3 dépend d'un résultat technique incertain. S'il échoue, le niveau 1 es
 Estimation à confirmer par mesure en semaine 3 : environ 450 appels LLM par run, soit 15 agents LLM × environ 25 décisions déclenchées par des événements, avec au plus une décision toutes les 20 s simulées, plus environ 45 appels pour les jours d'avant (A1).
 
 - **Local (Gemma, environ 50 tokens/s) :** environ 370 appels par run, soit à peu près 18 minutes en séquentiel. À vérifier par mesure.
-- **OpenRouter :** environ 75 appels par run, réservés aux profils à expérience (sécurité, habitués). Sur environ 60 runs (X1 à X3 et X5 à X7, 10 runs chacun), cela fait 4 500 appels, soit 5 jours de quota à étaler. Les quotas des modèles gratuits changent souvent : à vérifier au démarrage.
+- **API distante (OpenRouter ou autre) :** écartée. Le budget VRAM tient deux modèles et les embeddings sur une RTX 3050 ; une API gratuite aurait ajouté une latence réseau de 70 à 500 ms par décision qui aurait vidé C4 et C7 de leur sens, et un quota qui tombe au milieu d'une campagne rend les runs non comparables. Les 6 906 appels de la campagne X1–X7 ont tous abouti en local, sans un seul repli.
 - **Baseline :** aucun appel.
 
 **Levier de sobriété (E5).** Comparer la configuration mixte (petit modèle local plus grand modèle sur les profils clés) à une configuration où tous les agents utilisent le grand modèle, à apport comparable sur I2 et I3.
 
 **Mesure du coût (E4, O7).** Appels, tokens, latence, énergie locale avec CodeCarbon, estimation des appels d'API avec EcoLogits, le tout journalisé par la passerelle LLM.
+
+*Corrigé le 2026-10-31.* Ni CodeCarbon ni EcoLogits ne sont utilisés : **tous les appels sont locaux**, donc la part « API distante » est nulle et EcoLogits n'aurait rien mesuré. L'énergie a été relevée une fois au compteur (`nvidia-smi` plus puissance CPU pendant le run) : **0,46 Wh** pour un run hybride de 31,6 s. Les campagnes rapportent appels, jetons entrée/sortie et temps mural par bras ; l'énergie n'est pas re-mesurée par bras, et c'est écrit ainsi dans le bilan de sobriété.
 
 ## Risques et réponses
 
@@ -319,7 +327,7 @@ Les 32 exigences du cahier des charges (20 du socle, 9 Standard, 3 Excellence) o
 | A2 | Socle | Messages en langage naturel qui mettent à jour la croyance du destinataire | Contrôle « communication désactivée » : I1 chute |
 | A3 | Standard | Profils différenciés | X6 : profils échangés, décisions échangées |
 | A4 | Standard | Dérives typées dans le journal, repli sur règle | Compteurs par type de dérive dans le rapport |
-| A5 | Standard | Gemma local et grand modèle OpenRouter selon rôle et expérience | Table de population, comparaison E5 |
+| A5 | Standard | Deux modèles **locaux** (grand et petit) selon le profil, un troisième pour les embeddings | Table de population, comparaison E5 (X12) |
 | A6 | Standard | 15 agents LLM et 45 agents à règles | Justification de la répartition dans le rapport |
 | B1 | Socle | Carte mentale collective définie en termes observables | Section Question de recherche |
 | B2 | Socle | I1 à I5 calculés pendant le run, affichés à côté de la scène | Démo live |

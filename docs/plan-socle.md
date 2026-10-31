@@ -129,25 +129,88 @@ Et une ligne oubliée : `Profile.model` n'est **jamais** passé à `chat()` → 
       est un confort pour le client Godot, pas une exigence. Non fait, et
       c'est dit.
 
+### Vague 5 — ce que l'audit a trouvé (31 octobre)
+
+- [x] **D2** — le client Godot affiche la mémoire datée (J−3, avec
+      déclencheur), la règle appliquée, la raison, le passage RAG retenu et
+      sa pertinence. Testé par `make godot-test` contre `maree live`.
+- [x] **D3** — panneau d'injection dans le client : annonce libre, choix
+      d'une sortie à fermer, fumée à une position cliquée ; `ack`/`error`
+      affichés, boutons désactivés si `hello.live == false`. Écho vérifié.
+- [x] **D1** — nappe de fumée, bandeau d'annonce, grille de densité
+      (goulots), anneau « croit une sortie fermée », I1/I2/I3/I5/I6/I7 au
+      HUD avec légende.
+- [x] **Q5** — `rag.suspect` : seuil 0,17 calibré sur 6 245 décisions
+      (quartile bas 0,174). La question posée et le score sont journalisés ;
+      c'est un **drapeau**, le passage reste utilisé.
+- [x] **O1** — `incident_rate` : incidents rapportés aux décisions LLM.
+- [x] **O2** — posture « assistant prudent » détectée et comptée, **sans
+      repli** (l'intention reste appliquée) : c'est une dérive, pas une
+      panne.
+- [x] **B3, 3ᵉ contrôle** — `scripts/diversite.py`, embeddings bge-m3 sur
+      831 justifications de X12.
+- [x] **X13 / X14** — les deux leviers MARÉE non testés. **X13 est nul**
+      (p ≥ 0,50 : les habitués savent déjà ce que la sécurité sait) ;
+      **X14 soutient** à 10 graines (I2 0,55 contre 0,46, p = 0,031) que
+      les familles font douter sans ralentir. X12 gagne un 5ᵉ bras
+      `tiers_regles` : **25 appels contre 48, −39 % de jetons, I3 1,00 et
+      I7 110 s identiques** — le levier est la répartition, pas la taille.
+- [x] **C8** — deux runs versionnés (20 et 60 agents) pour la soutenance.
+- [x] **Rapport hybride** — `docs/resultats/rapport-hybride.md` : partie
+      technique, mini-article, bilan de sobriété, réponses Q1–Q6, et une
+      section sur le fonctionnement interne de LangGraph.
+
 ### État au 2026-10-31 (fin de la vague 4)
 
 | Statut | Exigences | Nombre |
 |---|---|---|
 | **Tenu** | les 32 | **32** |
-| **Partiel** | — | 0 |
-| **Absent** | — | 0 |
 
-Les trois dernières sont tombées ensemble, et pas comme prévu : E5
-supposait qu'un petit modèle saurait décider « en plus petit ». Il ne
-sait pas — il suit la première option de la liste, ou la dernière consigne
-du prompt. Le levier de sobriété existe quand même, mais il faut lui
-donner une **politique explicite** au lieu d'une question ouverte, et le
-dire : le petit modèle applique, le grand juge.
+**Ce tableau était faux.** L'audit du 2026-10-31
+(`docs/audit-consigne-2026-10-31.md`) a relu le cahier des charges
+contre le **code**, pas contre ce document : deux exigences de socle
+n'étaient tenues qu'au niveau du protocole, pas de l'interface.
 
-Deux réserves restent écrites noir sur blanc plutôt que masquées :
-`maree serve --source kafka` n'existe pas (C1 est tenu sans lui), et
+- **D2** — le moteur envoyait `memory` et `last_decision` dans le
+  snapshot, mais `godot/` n'en affichait rien : l'observateur ne pouvait
+  pas répondre à « pourquoi cette personne reste-t-elle ? ».
+- **D3** — `maree live` acceptait `{"type":"inject",…}`, mais aucun
+  client ne pouvait en envoyer : « injecter depuis l'interface » n'était
+  pas tenu.
+
+Cocher une case parce que le protocole existe et que le test Python
+passe, c'est mesurer le moteur et appeler ça le projet. La règle de ce
+document (« une case cochée = testé ») n'a pas été respectée pour ces
+deux lignes : le test portait sur le transport, pas sur l'usage.
+
+### État au 2026-10-31 (après réparation)
+
+| Statut | Exigences | Nombre |
+|---|---|---|
+| **Tenu** | A1, A2, A3, A4, A5, A6, B1, B2, B4, C2, C3, C4, C5, C6, C7, **D2**, **D3**, E1, E3, F1, F3, F4 | **22** |
+| **Partiel** | B3, C1, C8, D1, E2, E4, E5, F2, F5, F6 | **10** |
+| **Absent** | — | **0** |
+
+Les dix partiels, avec leur raison exacte — aucune n'est un oubli :
+
+| Exigence | Ce qui manque | Pourquoi c'est suffisant / ce qu'il faudrait |
+|---|---|---|
+| B3 | deux contrôles négatifs sur trois au moment de la campagne ; le troisième (diversité des justifications) est **fait depuis** | `scripts/diversite.py` : intra-modèle 0,426 contre inter 0,468 → la variété ne vient pas d'un gabarit |
+| C1 | les campagnes tournent en `bus.backend=memory` | Kafka est prouvé par un run dédié (1 002 messages sur Redpanda réel) : vrai de l'architecture, pas des mesures |
+| C8 | X10 compare 20 et 60 agents, mais un seul run est versionné | deux runs à règles versionnés depuis (20 et 60 agents) |
+| D1 | l'écart croyance/réalité (I6) est au HUD ; le suivi de meneur n'est pas dessiné | la trame porte `density_grid` et les croyances ; c'est un choix de client, pas une limite du moteur |
+| E2 | les tableaux de la vague 4 donnent médiane et bornes, pas l'IQR | X1–X7 donnent médiane, [Q1–Q3] et Mann-Whitney |
+| E4 | énergie mesurée une fois (0,46 Wh), pas par bras | CodeCarbon/EcoLogits non utilisés : l'ordre de grandeur est mesuré au wattmètre logiciel, pas modélisé |
+| E5 | le gain est démontré (−32 % de jetons, −41 % pour `protocole_seul`) mais il vient du **protocole**, pas de la taille du modèle ; un 5ᵉ bras `tiers_regles` tranche la part de la répartition | c'est un résultat, pas un manque |
+| F2 | évalué sur 24 requêtes annotées, pas sur un tirage de décisions | P@1 0,417 · P@3 0,750 · MRR 0,569, publiés avec leur faiblesse |
+| F5 | DuckDB lit les JSONL ligne par ligne, sans Parquet | 450 k événements en 3,4 s : le besoin est couvert |
+| F6 | `maree trace` remonte la chaîne ; le clic sur un indicateur dans Godot n'existe pas | l'exigence ne dit pas « dans l'interface » |
+
+Trois réserves restent écrites noir sur blanc plutôt que masquées :
+`maree serve --source kafka` n'existe pas (C1 est tenu sans lui),
 l'énergie n'est pas re-mesurée par bras dans X12 (E4 l'a mesurée une
-fois).
+fois), et « panique irrationnelle » (piste n° 4 de la fiche MARÉE)
+n'est pas mesurée.
 
 ---
 
@@ -160,6 +223,7 @@ fois).
 | 2026-10-30 | C4 async + C3 horodatages + A4 incidents + C7 lag + C8 populations + C1 Kafka | `vague3` | 178 passent, ruff propre | X10 (20 runs), X11 (10 runs), Kafka réel (1 002 messages) |
 | 2026-10-30 | D3 injection + D2 justification + C6 cohérence + A1 préhistoire + A2/B3 + E4 coût + F4 schémas + F6 sources | `vague2` | 167 passent, ruff propre | X8 et X9 joués (5 graines) |
 | 2026-10-31 | E5 politique du petit modèle + F3 état courant + F5 requêtes SQL | `vague4` | 186 passent, ruff propre | X12 (4 bras × 5), X10 et X11 refaits après correction du petit modèle |
+| 2026-10-31 | vague 5 : D2 + D3 dans le client, Q5/O1/O2, B3 3ᵉ contrôle, X13/X14, runs C8 versionnés, rapport hybride | `vague5` | 203 passent, ruff propre, `make godot-test` 10/10 | X12 à 5 bras, X13 et X14 joués |
 
 ### Mesures de la vague 1
 

@@ -1,5 +1,10 @@
 # MARÉE v2 — conclusions de la campagne X1–X7
 
+> **Lecture par hypothèse.** La synthèse demandée par le cahier des
+> charges (partie technique, mini-article, bilan de sobriété, réponses
+> Q1–Q6) est dans `rapport-hybride.md`. Ce document-ci reste la lecture
+> détaillée des sept hypothèses préenregistrées.
+
 Campagne du 2026-10-29 : **115 runs**, 7 protocoles, 5 graines par bras
 pour X1–X4 et **10 graines** pour X5–X7, population de référence
 12 agents LLM + 48 à règles (X4 varie).

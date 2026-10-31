@@ -35,7 +35,10 @@ from typing import Any
 
 from scipy.stats import mannwhitneyu
 
-PROTOCOLS = ("x1", "x2", "x3", "x4", "x5", "x6", "x7")
+PROTOCOLS = (
+    "x1", "x2", "x3", "x4", "x5", "x6", "x7",
+    "x8", "x9", "x10", "x11", "x12", "x13", "x14",
+)
 
 #: Nom d'indicateur du protocole -> (clé de ligne, libellé, définition).
 INDICATORS: dict[str, tuple[str, str, str]] = {
@@ -287,11 +290,19 @@ def render(rows: dict[str, list[dict[str, Any]]], runs: Path) -> str:
 
         # Tests : premier bras contre les autres, sur chaque indicateur.
         if len(arms) >= 2 and proto_rows:
-            add("### Tests (Mann-Whitney, premier bras contre les autres)\n")
+            # Par défaut : premier bras contre les autres. Un protocole dont
+            # les bras ne mesurent pas le même monde (X13 : `demo` et `e2e`)
+            # déclare ses paires avec `compare: [[a, b], …]` — comparer un
+            # bras `demo` à un bras `e2e` produirait des p-values
+            # significatives qui ne disent rien d'autre que « les scénarios
+            # diffèrent ».
+            pairs = [tuple(p) for p in spec.get("compare", [])] or [
+                (arms[0], other) for other in arms[1:]
+            ]
+            add("### Tests (Mann-Whitney)\n")
             add("| indicateur | comparaison | p |")
             add("|---|---|---|")
-            ref = arms[0]
-            for other in arms[1:]:
+            for ref, other in pairs:
                 for name in spec.get("indicators", []):
                     key = INDICATORS.get(name, (name, name, ""))[0]
                     a = column(proto_rows, key, infos, ref)

@@ -94,6 +94,29 @@ experiment:
           - { profile: vendeur, count: 2, kind: llm }
           - { profile: vendeur, count: 2, kind: rules }
 
+    # Le second levier que cite E5 : **la répartition entre agents LLM et
+    # agents à règles**. Même population, mêmes profils, même scénario ;
+    # les six agents de tier « small » passent aux règles. Si ce bras
+    # consomme moins que `deux_tiers` sans perdre d'apport, alors le vrai
+    # levier n'est pas la taille du modèle mais le choix de qui pense.
+    - name: tiers_regles
+      description: 6 grands LLM et 54 agents à règles (levier de répartition)
+      llm:
+        two_tier: false
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: rules }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: rules }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
     # Quatrième case, témoin : petit modèle avec le JSON ouvert. Il n'y
     # arrive pas (`search`, confiance 0, prompt recopié) : les visiteurs se
     # font piéger, ils redécident, et le bras consomme *plus* d'appels que

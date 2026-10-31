@@ -1,0 +1,100 @@
+# @package _global_
+# ============================================================
+# X13 — la présence visible de agents de sécurité change-t-elle la sortie ?
+#
+# Levier de la fiche MARÉE resté non testé : « nombre et visibilité des
+# agents de sécurité ». Un agent de sécurité ne se contente pas de sortir :
+# il oriente, il parle, il est cru (profil `securite`, tier « big »,
+# collections `consignes_securite` + `plan_signaletique`).
+#
+# Deux bras, même population totale, même répartition LLM/règles, même
+# scénario — seule change l'identité de quatre agents (2 LLM + 2 règles),
+# qui passent de `securite` à `visiteur`. Comparer deux effectifs totaux
+# différents mesurerait la foule, pas la sécurité.
+#
+# Deux scénarios, et il le faut. Dans `demo`, aucune issue ne ferme : un
+# visiteur qui ne connaît que A sort aussi bien qu'un habitué, donc
+# l'information détenue par la sécurité ne peut rien changer — le premier
+# essai l'a confirmé (I7 220 s des deux côtés). Le scénario `e2e` ferme A à
+# t14 : là, savoir que B existe vaut la sortie, et un agent de sécurité qui
+# guide vaut quelque chose. Les quatre bras se lisent deux par deux, jamais
+# entre scénarios.
+#
+# Lecture attendue : si la sécurité informe, I3 doit monter et I7 baisser
+# dans `e2e`, et rien ne doit bouger dans `demo` (contrôle).
+# ============================================================
+
+experiment:
+  id: X13
+  hypothesis: A3
+  indicators: [I1_consensus, I2_entropy, I3_evacuated, I7_delay]
+  # Les quatre bras ne mesurent pas le même monde : comparer un bras
+  # `demo` à un bras `e2e` donnerait un p significatif qui ne dirait rien
+  # de la sécurité. On déclare les paires.
+  compare:
+    - [avec_securite, sans_securite]
+    - [avec_securite_piege, sans_securite_piege]
+  arms:
+    - name: avec_securite
+      description: population de référence (4 agents de sécurité)
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    - name: sans_securite
+      description: les quatre agents de sécurité deviennent des visiteurs
+      population:
+        total: 60
+        entries:
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 6, kind: llm }
+          - { profile: visiteur, count: 26, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    - name: avec_securite_piege
+      description: population de référence, scénario où A ferme à t14
+      run:
+        name: e2e
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    - name: sans_securite_piege
+      description: les quatre agents de sécurité deviennent des visiteurs, A ferme
+      run:
+        name: e2e
+      population:
+        total: 60
+        entries:
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 6, kind: llm }
+          - { profile: visiteur, count: 26, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }

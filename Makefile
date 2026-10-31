@@ -81,6 +81,16 @@ replay:  ## rejeu E3 du dernier run
 replay-demo:  ## rejoue le run versionné sans aucun appel LLM (E3)
 	uv run maree replay --run-id demo_replay
 
+demo-pair:  ## régénère la paire versionnée 20 / 60 agents (C8)
+	uv run maree run run_id=demo20 population=demo20 bus.backend=memory narrative.enabled=false
+	uv run maree run run_id=demo60 population=demo60 bus.backend=memory narrative.enabled=false
+	uv run maree replay --run-id demo20
+	uv run maree replay --run-id demo60
+
+replay-pair:  ## rejoue la paire 20 / 60 sans GPU (C8)
+	uv run maree replay --run-id demo20
+	uv run maree replay --run-id demo60
+
 serve:  ## diffuse le dernier run en WebSocket (pour Godot)
 	uv run maree serve
 

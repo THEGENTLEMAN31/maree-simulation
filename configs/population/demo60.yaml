@@ -1,0 +1,16 @@
+# ============================================================
+# Population « démonstration 60 agents » — C8, moitié grande.
+#
+# Variante de `rules_only` qui porte son propre nom : le journal versionné
+# doit dire de quelle population il vient, et le rejeu doit retrouver la
+# même configuration sans dépendre d'un défaut qui peut changer.
+# Composions identiques en proportions à `demo20` (×3).
+# ============================================================
+total: 60
+
+entries:
+  - { profile: securite, count: 4, kind: rules }
+  - { profile: habitue, count: 9, kind: rules }
+  - { profile: famille, count: 15, kind: rules }
+  - { profile: visiteur, count: 27, kind: rules }
+  - { profile: vendeur, count: 5, kind: rules }

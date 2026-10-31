@@ -1,0 +1,54 @@
+# @package _global_
+# ============================================================
+# X14 — la proportion de groupes familiaux change-t-elle l'évacuation ?
+#
+# Second levier de la fiche MARÉE resté non testé : « proportion de groupes
+# familiaux et d'individus seuls ». Un agent `famille` a un proche
+# (`kin`) : il attend, il cherche, il revient. C'est le seul profil dont
+# la décision dépend d'un autre agent — et le sujet parle de panique et de
+# solidarité, donc de ça.
+#
+# Deux bras : 16 agents `famille` (la référence, 27 %) contre zéro. Les
+# seize deviennent des visiteurs : même effectif, même répartition
+# LLM/règles, même scénario. Le reste est identique.
+#
+# Lecture attendue : sans familles, I3 monte plus tôt et I7 baisse (moins
+# d'attente) ; avec familles, I2 (entropie) devrait rester plus haut plus
+# longtemps. Si rien ne bouge, le profil `famille` ne sert à rien et il
+# faut le dire.
+# ============================================================
+
+experiment:
+  id: X14
+  hypothesis: A3
+  indicators: [I1_consensus, I2_entropy, I3_evacuated, I7_delay]
+  arms:
+    - name: avec_familles
+      description: population de référence (16 agents famille)
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: famille, count: 2, kind: llm }
+          - { profile: famille, count: 14, kind: rules }
+          - { profile: visiteur, count: 4, kind: llm }
+          - { profile: visiteur, count: 24, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }
+
+    - name: sans_familles
+      description: les seize agents famille deviennent des visiteurs seuls
+      population:
+        total: 60
+        entries:
+          - { profile: securite, count: 2, kind: llm }
+          - { profile: securite, count: 2, kind: rules }
+          - { profile: habitue, count: 2, kind: llm }
+          - { profile: habitue, count: 6, kind: rules }
+          - { profile: visiteur, count: 6, kind: llm }
+          - { profile: visiteur, count: 38, kind: rules }
+          - { profile: vendeur, count: 2, kind: llm }
+          - { profile: vendeur, count: 2, kind: rules }

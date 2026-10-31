@@ -157,6 +157,29 @@ rejouable de bout en bout.
 - **Un `run_id` explicite déjà journalisé était accepté** : le journal étant
   en append, deux runs se retrouvaient dans le même `events.jsonl` avec un
   `seq` continu. `maree run` refuse maintenant un `run_id` déjà présent.
+- **LangGraph ne propage que les canaux déclarés dans le `TypedDict`.** Un
+  nœud qui renvoie une clé absente du schéma ne plante pas : la valeur est
+  simplement perdue à la sortie du nœud. `query` était calculé dans
+  `retrieve` puis effacé, et `rag.suspect` sortait avec une question vide.
+  Toute donnée qui traverse deux nœuds doit figurer dans `AgentState`.
+- **L'inspection d'un agent et l'injection d'événements ne se testent pas
+  en Python.** D2 et D3 étaient « tenus » côté protocole et absents du
+  client : le test vérifiait le transport, pas l'usage. Un test de client
+  (`make godot-test`) fait le trajet complet — connexion, `hello`,
+  snapshot, `ack`, écho d'injection, persistance — contre `maree live`.
+- **Le tampon d'entrée de `WebSocketPeer` vaut 64 Kio**, contre des
+  instantanés de ~70 Ko à 60 agents : le client se déconnecte au milieu du
+  run, sans erreur visible. Porté à 8 Mio. Tout client doit accepter
+  100 Ko par trame.
+- **Le corpus d'annonces contient douze variantes contradictoires**, toutes
+  disponibles à partir de t10 : une décision qui interroge `annonces/`
+  reçoit trois consignes nommant des sorties différentes (478 décisions
+  sur 565 en X12). Le percept porte la vraie annonce à part, et le seuil de
+  `rag.suspect` (0,17) ne voit rien — le score est bon (0,29). À filtrer
+  par le texte diffusé si l'on veut un modèle propre ; consigné en Q5.
+- **L'inspection d'un indicateur n'est pas un clic.** `sources` porte la
+  plage de `seq` et `maree trace` remonte la chaîne ; Godot ne le fait pas.
+  C'est écrit dans `docs/cadrage-maree.md` plutôt que promis.
 - **Le dernier tick d'indicateurs est dégénéré** : tout le monde est
   sorti, donc I1/I2/I5/I6 valent 0. Utiliser `metrics.summarise()` (pic
   pour I5/I6, moyenne sur la partie **active** pour I1/I2) et non
@@ -384,7 +407,13 @@ rejouable de bout en bout.
 | Rejeu E3 | `ok: true`, 49/49 décisions concordantes, 3 replis annoncés | `maree replay --run-id demo_replay` |
 | Protocole X10, 4 bras × 5 graines | `lag_llm` 0 (sync) → **5,5** (20 agents async) → **8,0** (60 async) ; `lag_indicator` 1,5 → 3,5 → 2,5 | `experiment_x10` |
 | Protocole X11, 2 bras × 5 graines | sync I3 1,00 / I7 220 s / lag 0 ; async **0,98 / 470 s** / lag médian 5, max 12 | `experiment_x11` |
-| Protocole X12 (E5), 4 bras × 5 graines | `tous_grand` 50 appels, 21 619 jetons, I3 1,00, I7 150 s ; `deux_tiers` 48 / **14 698 (−32 %)** / 1,00 / 220 s ; `protocole_seul` 42 / 12 857 (−41 %) / 1,00 / 110 s ; `petit_json_ouvert` 79 / 39 161 (+81 %) / 0,95 / 330 s | `experiment_x12` |
+| Protocole X12 (E5), 5 bras × 5 graines | `tous_grand` 48 appels, 20 456 jetons, I3 1,00, I7 110 s ; `tiers_regles` **25 / 12 385 (−39 %) / 1,00 / 110 s** ; `protocole_seul` 45 / 14 847 (−27 %) / 1,00 / 160 s ; `deux_tiers` 47 / 14 027 (−31 %) / 1,00 / 220 s ; `petit_json_ouvert` 83 / 42 376 (+107 %) / 0,95 / 390 s | `experiment_x12` |
+| Protocole X13 (sécurité), 4 bras × 5 | **rien de significatif** : I3 0,92/0,90, I7 270/250 s, p ≥ 0,50 — les habitués savent déjà ce que la sécurité sait | `experiment_x13` |
+| Protocole X14 (familles), 2 bras × **10 graines** | I2 **0,55 [0,53–0,77] contre 0,46 [0,42–0,69]**, p = 0,031 ; I3 1,00 / I7 220-225 s : les familles font douter, pas ralentir | `experiment_x14` |
+| O2, posture « assistant prudent » | **62 cas sur 1 287 appels X12 (4,8 %)**, tous « cible générique : la sortie la plus proche », `fallback=false` | journaux X12 |
+| Q5, récupération douteuse | **115 `rag.suspect`** sur 25 runs X12 (tous en ont un) ; le seuil 0,17 ne voit **pas** les annonces contradictoires (478 décisions sur 565) | `experiment_x12` |
+| B3, 3ᵉ contrôle (diversité) | intra-modèle **0,425**, inter-modèle **0,467**, rapport 0,91 sur 950 justifications X12 (450 775 paires) | `scripts/diversite.py` |
+| C8, paire versionnée | `demo20` 200 s, 20/20 ; `demo60` 200 s, 60/60 ; I7 100 s des deux côtés, rejeu `ok: true` | `make replay-pair` |
 | F3, état courant | `state.json` **70 581 octets** contre 1 777 302 de journal (77 % d'instantanés) ; `maree state` 0,40 s | `f3_state_01` |
 | F5, requêtes reproductibles | **449 970 événements, 451 runs, 3,4 s** sur 1,2 Go de JSONL | `maree query runs` |
 | Petit modèle, 4 formats | JSON ouvert : `search` 55/55 ; liste : **1re option** 100 % ; oui/non : instable ; **règle + drapeaux** : calme 6/6, fumée 6/6, annonce 2/6 | essais directs sur `qwen3-0-6b` |
@@ -494,6 +523,16 @@ moteur.
   `Profile.knows`, comme `_known_open` pour les règles. Un message qui
   dit « B est libre » n'ajoute pas B au savoir d'un visiteur. À trancher
   si l'on veut un modèle où l'on apprend la géographie par ouï-dire.
+- **Le corpus d'annonces rend des variantes contradictoires** : douze
+  annonces nommant des sorties différentes, toutes disponibles dès t10.
+  Une décision qui interroge `annonces/` en reçoit trois qui se
+  contredisent (478 sur 565 en X12). Le percept porte la vraie annonce à
+  part, donc le dégât est borné, mais un modèle peut préférer ses
+  « souvenirs ». Le seuil `rag.suspect` (0,17) ne voit rien — le score
+  est bon (0,29). À filtrer sur le texte réellement diffusé.
+- **Le rapport hybride existe** : `docs/resultats/rapport-hybride.md`
+  assemble partie technique, mini-article, bilan de sobriété et réponses
+  Q1–Q6. Les autres documents sont des notes ; celui-là se lit seul.
 - **Le suivi d'agent** vise la position du meneur au moment de la
   décision, pas en continu.
 - **La fermeture d'issue** redirige vers un point d'arrêt, ce n'est pas

@@ -59,6 +59,31 @@ def _new_run_id(seed: int) -> str:
     return f"run_{stamp}_{seed}_{secrets.token_hex(2)}"
 
 
+def _run_group(name: str) -> dict[str, Any]:
+    """Le contenu d'un groupe Hydra `run/<name>.yaml`.
+
+    Un bras d'expérience écrivait `run: {name: e2e}` en croyant choisir le
+    scénario. Hydra ne relit pas un groupe après la composition : `name`
+    atterrissait dans `cfg.run`, où **personne** ne le lit, et le scénario
+    `demo` restait en place. Quatre bras mesuraient alors le même monde
+    sans qu'aucun chiffre ne le signale (X13, 31 octobre). On résout donc
+    le groupe explicitement, et le bras peut surcharger ce qu'il veut.
+    """
+    path = Path("configs/run") / f"{name}.yaml"
+    if not path.exists():
+        raise typer.BadParameter(f"scénario de run inconnu : {name!r} ({path})")
+    return dict(OmegaConf.to_container(OmegaConf.load(path), resolve=True) or {})
+
+
+def _arm_run(arm: Any) -> dict[str, Any] | None:
+    """Le bloc `run` d'un bras, groupe résolu puis surchargé par le bras."""
+    if "run" not in arm:
+        return None
+    overrides = dict(OmegaConf.to_container(arm["run"], resolve=True) or {})
+    name = overrides.pop("name", None)
+    return {**(_run_group(str(name)) if name else {}), **overrides}
+
+
 def _run_config(cfg: DictConfig, run_id: str):
     from maree.agents.profiles import PROFILES
     from maree.domain.clock import Clocks
@@ -587,7 +612,6 @@ def experiment(
                     {
                         k: OmegaConf.to_container(arm[k], resolve=True)
                         for k in (
-                            "run",
                             "population",
                             "memory",
                             "rag",
@@ -599,6 +623,10 @@ def experiment(
                         )
                         if k in arm
                     }
+                    # `run` passe par `_arm_run` : un `run: {name: e2e}`
+                    # doit charger le scénario, pas seulement poser une clé
+                    # que personne ne lit.
+                    | ({"run": _arm_run(arm)} if "run" in arm else {})
                 ),
                 OmegaConf.create({"seed": seed}),
             )

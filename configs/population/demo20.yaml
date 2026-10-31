@@ -1,0 +1,21 @@
+# ============================================================
+# Population « démonstration 20 agents » — C8, moitié petite.
+#
+# Même composition que `population/rules_only.yaml` (proportions des cinq
+# profils), réduite à 20 agents et sans aucun appel LLM : c'est la moitié
+# petite de la comparaison de tailles de population, et elle doit tourner
+# sur n'importe quelle machine, à la soutenance, sans GPU ni serveur.
+#
+# Pourquoi à règles des deux côtés : comparer 20 et 60 agents avec deux
+# populations différentes (règles contre LLM) mesurerait le type d'agent,
+# pas la charge. Le journal versionné `runs/demo20` et `runs/demo60` fait
+# la paire.
+# ============================================================
+total: 20
+
+entries:
+  - { profile: securite, count: 2, kind: rules }
+  - { profile: habitue, count: 3, kind: rules }
+  - { profile: famille, count: 5, kind: rules }
+  - { profile: visiteur, count: 9, kind: rules }
+  - { profile: vendeur, count: 1, kind: rules }

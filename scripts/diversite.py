@@ -103,12 +103,10 @@ def describe(values: list[float]) -> str:
     if not values:
         return "—"
     ordered = sorted(values)
-    return "n=%d  moyenne %.3f  médiane %.3f  [%.3f – %.3f]" % (
-        len(values),
-        statistics.fmean(values),
-        statistics.median(values),
-        ordered[0],
-        ordered[-1],
+    return (
+        f"n={len(values)}  moyenne {statistics.fmean(values):.3f}  "
+        f"médiane {statistics.median(values):.3f}  "
+        f"[{ordered[0]:.3f} – {ordered[-1]:.3f}]"
     )
 
 

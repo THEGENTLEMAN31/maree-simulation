@@ -4,10 +4,10 @@ Rapport généré par `scripts/rapport_experiences.py` à partir des
 `runs/experiment_x*.json` et des journaux JSONL. Aucun chiffre n'est
 écrit à la main.
 
-- **115 runs** mesurés, 7 protocoles.
-- **6906 / 6906** appels LLM aboutis.
+- **230 runs** mesurés, 14 protocoles.
+- **13791 / 13791** appels LLM aboutis.
 - Population de référence : 12 agents LLM + 48 à règles (X4 varie).
-- Graines par protocole : X1 5, X2 5, X3 5, X4 5, X5 10, X6 10, X7 10.
+- Graines par protocole : X1 5, X2 5, X3 5, X4 5, X5 10, X6 10, X7 10, X8 5, X9 5, X10 5, X11 5, X12 5, X13 5, X14 10.
 - Médiane [Q1–Q3], test de Mann-Whitney bilatéral entre le premier
   bras et chacun des autres.
 - **Censure** : un run qui atteint `max_ticks` avant que tout le
@@ -62,7 +62,7 @@ Indicateurs déclarés : I3_evacuated, I7_delay, I1_consensus, I2_entropy
 | clair_tard | 0/5 | 1.00 | 330.00 |
 | ambigu_tard | 3/5 | 0.98 | 350.00 |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -124,7 +124,7 @@ Indicateurs déclarés : I6_belief_gap, I3_evacuated, I7_delay, I5_max_density
 | avec_meneurs | 4/5 | 0.90 | 290.00 |
 | sans_meneurs | 4/5 | 0.92 | 210.00 |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -165,7 +165,7 @@ Indicateurs déclarés : I1_consensus, I5_max_density, wall_s
 | synchrone | 0/5 | 1.00 | 200.00 |
 | asynchrone | 0/5 | 1.00 | 200.00 |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -207,7 +207,7 @@ Indicateurs déclarés : I6_belief_gap, I3_evacuated, I7_delay, llm_calls, wall_
 | regles_60 | 4/5 | 0.92 | 210.00 |
 | llm_60 | 5/5 | 0.67 | — |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -256,7 +256,7 @@ Indicateurs déclarés : I1_consensus, I2_entropy, I3_evacuated, I7_delay
 | avec_memoire | 0/10 | 1.00 | 200.00 |
 | sans_memoire | 0/10 | 1.00 | 200.00 |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -297,7 +297,7 @@ Indicateurs déclarés : I1_consensus, I3_evacuated, I7_delay
 | visiteurs_seuls | 0/10 | 1.00 | 190.00 |
 | habitues_seuls | 0/10 | 1.00 | 200.00 |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -337,7 +337,7 @@ Indicateurs déclarés : I2_entropy, I1_consensus, I3_evacuated, I7_delay
 | avec_rag | 0/10 | 1.00 | 200.00 |
 | sans_rag | 3/10 | 1.00 | 260.00 |
 
-### Tests (Mann-Whitney, premier bras contre les autres)
+### Tests (Mann-Whitney)
 
 | indicateur | comparaison | p |
 |---|---|---|
@@ -359,4 +359,352 @@ Indicateurs déclarés : I2_entropy, I1_consensus, I3_evacuated, I7_delay
 |---|---|---|
 | avec_rag | A 98, B 15, C 23 | A 336, B 33, C 102 |
 | sans_rag | A 110, B 5, C 9 | A 337, B 33, C 102 |
+
+## X8 — B3
+
+Indicateurs déclarés : I1_consensus, I2_entropy, I3_evacuated, I7_delay, messages
+
+### Par bras
+
+| bras | n | I1 consensus | I2 entropie | I3 évacués | I7 délai | messages |
+|---|---|---|---|---|---|---|
+| avec | 5 | 0.99 [0.99–0.99] | 0.33 [0.29–0.37] | 0.97 [0.95–0.98] | 460.00 [330.00–460.00] | 58.00 [57.00–58.00] |
+| sans | 5 | 0.99 [0.99–0.99] | 0.46 [0.45–0.47] | 0.85 [0.85–0.87] | 210.00 [100.00–210.00] | 0.00 [0.00–0.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| avec | 5/5 | 0.97 | — |
+| sans | 5/5 | 0.85 | — |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | avec vs sans | 0.3095 |
+| I2_entropy | avec vs sans | 0.1508 |
+| I3_evacuated | avec vs sans | 0.0107 |
+| I7_delay | avec vs sans | 0.0150 |
+| messages | avec vs sans | 0.0073 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| avec | 460.00 [330.00–460.00] | 0.97 | 43, 56, 38, 67, 56 | llm, llm, llm, llm, llm | 5/5 |
+| sans | 210.00 [100.00–210.00] | 0.85 | 31, 20, 31, 38, 20 | llm, rules, llm, llm, llm | 4/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| avec | A 48, B 2, C 4 | A 169, B 8, C 55 |
+| sans | A 17, C 1 | A 169, B 8, C 56 |
+
+## X9 — A1
+
+Indicateurs déclarés : I1_consensus, I3_evacuated, I7_delay, llm_calls
+
+### Par bras
+
+| bras | n | I1 consensus | I3 évacués | I7 délai | appels LLM |
+|---|---|---|---|---|---|
+| sans_passe | 5 | 0.99 [0.99–0.99] | 0.97 [0.95–0.98] | 390.00 [340.00–390.00] | 78.00 [77.00–78.00] |
+| avec_passe | 5 | 0.99 [0.99–0.99] | 0.98 [0.97–0.98] | 460.00 [460.00–460.00] | 73.00 [72.00–80.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| sans_passe | 5/5 | 0.97 | — |
+| avec_passe | 4/5 | 0.98 | 680.00 |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | sans_passe vs avec_passe | 1.0000 |
+| I3_evacuated | sans_passe vs avec_passe | 0.4432 |
+| I7_delay | sans_passe vs avec_passe | 0.1339 |
+| llm_calls | sans_passe vs avec_passe | 0.4620 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| sans_passe | 390.00 [340.00–390.00] | 0.97 | 61, 44, 38, 49, 49 | llm, llm, llm, llm, llm | 5/5 |
+| avec_passe | 460.00 [460.00–460.00] | 0.98 | 49, 68, 56, 56, 56 | llm, llm, llm, llm, llm | 5/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| sans_passe | A 50, B 2, C 3 | A 170, B 8, C 55 |
+| avec_passe | A 44, B 1, C 9 | A 169, B 8, C 55 |
+
+## X10 — C8 + C7
+
+Indicateurs déclarés : I1_consensus, I3_evacuated, I7_delay, lag_indicator, lag_llm
+
+### Par bras
+
+| bras | n | I1 consensus | I3 évacués | I7 délai | lag_indicator | lag_llm |
+|---|---|---|---|---|---|---|
+| petite | 5 | 0.99 [0.99–0.99] | 0.95 [0.90–0.95] | 110.00 [100.00–150.00] | 1.50 [1.00–1.50] | 0.00 [0.00–0.00] |
+| petite_async | 5 | 0.99 [0.99–0.99] | 0.90 [0.85–0.90] | 210.00 [210.00–250.00] | 3.50 [2.50–4.50] | 5.50 [4.50–5.50] |
+| grande | 5 | 0.97 [0.97–0.97] | 1.00 [1.00–1.00] | 220.00 [220.00–230.00] | 1.50 [1.50–1.50] | 0.00 [0.00–0.00] |
+| grande_async | 5 | 0.99 [0.98–0.99] | 1.00 [0.98–1.00] | 340.00 [330.00–340.00] | 2.50 [2.00–3.00] | 8.00 [8.00–8.50] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| petite | 5/5 | 0.95 | — |
+| petite_async | 5/5 | 0.90 | — |
+| grande | 1/5 | 1.00 | 325.00 |
+| grande_async | 2/5 | 1.00 | 440.00 |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | petite vs petite_async | 1.0000 |
+| I3_evacuated | petite vs petite_async | 0.3193 |
+| I7_delay | petite vs petite_async | 0.0117 |
+| lag_indicator | petite vs petite_async | 0.0107 |
+| lag_llm | petite vs petite_async | 0.0073 |
+| I1_consensus | petite vs grande | 0.0952 |
+| I3_evacuated | petite vs grande | 0.0088 |
+| I7_delay | petite vs grande | 0.0887 |
+| lag_indicator | petite vs grande | 0.6005 |
+| lag_llm | petite vs grande | constante |
+| I1_consensus | petite vs grande_async | 0.4206 |
+| I3_evacuated | petite vs grande_async | 0.0099 |
+| I7_delay | petite vs grande_async | 0.0117 |
+| lag_indicator | petite vs grande_async | 0.0867 |
+| lag_llm | petite vs grande_async | 0.0073 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| petite | 110.00 [100.00–150.00] | 0.95 | 20, 20, 26, 21, 25 | rules, rules, llm, llm, llm | 3/5 |
+| petite_async | 210.00 [210.00–250.00] | 0.90 | 35, 29, 39, 31, 31 | llm, llm, llm, llm, llm | 5/5 |
+| grande | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 20 | llm, llm, llm, llm, rules | 4/5 |
+| grande_async | 340.00 [330.00–340.00] | 1.00 | 57, 36, 44, 44, 43 | llm, llm, llm, llm, llm | 5/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| petite | A 30, C 1 | A 42, C 23 |
+| petite_async | A 22, C 6 | A 57, C 24 |
+| grande | A 59, B 2, C 2 | A 170, B 8, C 55 |
+| grande_async | A 68, B 4, C 7 | A 249, B 8, C 59 |
+
+## X11 — C4
+
+Indicateurs déclarés : I1_consensus, I3_evacuated, I7_delay, lag_ticks_median, lag_ticks_max
+
+### Par bras
+
+| bras | n | I1 consensus | I3 évacués | I7 délai | lag_ticks_median | lag_ticks_max |
+|---|---|---|---|---|---|---|
+| sync | 5 | 0.98 [0.97–0.98] | 1.00 [1.00–1.00] | 220.00 [220.00–230.00] | 0.00 [0.00–0.00] | 0.00 [0.00–0.00] |
+| async | 5 | 0.99 [0.99–0.99] | 0.98 [0.98–1.00] | 470.00 [310.00–480.00] | 5.00 [5.00–5.00] | 12.00 [12.00–13.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| sync | 1/5 | 1.00 | 325.00 |
+| async | 3/5 | 0.98 | 575.00 |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | sync vs async | 0.2222 |
+| I3_evacuated | sync vs async | 0.2320 |
+| I7_delay | sync vs async | 0.0107 |
+| lag_ticks_median | sync vs async | 0.0040 |
+| lag_ticks_max | sync vs async | 0.0067 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| sync | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+| async | 470.00 [310.00–480.00] | 0.98 | 37, 41, 58, 58, 57 | llm, llm, llm, llm, llm | 5/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| sync | A 58, B 1, C 1 | A 169, B 8, C 55 |
+| async | A 75, B 1, C 6 | A 249, B 8, C 58 |
+
+## X12 — E5
+
+Indicateurs déclarés : I3_evacuated, I7_delay, llm_calls, tokens_in, tokens_out
+
+### Par bras
+
+| bras | n | I3 évacués | I7 délai | appels LLM | tokens_in | tokens_out |
+|---|---|---|---|---|---|---|
+| tous_grand | 5 | 1.00 [1.00–1.00] | 110.00 [100.00–160.00] | 48.00 [46.00–51.00] | 18492.00 [17786.00–20096.00] | 1964.00 [1907.00–2087.00] |
+| protocole_seul | 5 | 1.00 [1.00–1.00] | 160.00 [110.00–160.00] | 45.00 [42.00–47.00] | 13745.00 [11887.00–14198.00] | 1102.00 [976.00–1157.00] |
+| deux_tiers | 5 | 1.00 [1.00–1.00] | 220.00 [220.00–230.00] | 47.00 [46.00–51.00] | 13058.00 [12692.00–14618.00] | 1009.00 [969.00–1128.00] |
+| tiers_regles | 5 | 1.00 [1.00–1.00] | 110.00 [100.00–160.00] | 25.00 [25.00–27.00] | 11294.00 [11096.00–12004.00] | 1102.00 [1091.00–1163.00] |
+| petit_json_ouvert | 5 | 0.95 [0.93–0.97] | 390.00 [270.00–460.00] | 83.00 [83.00–93.00] | 38240.00 [35243.00–39329.00] | 4136.00 [3767.00–4257.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| tous_grand | 1/5 | 1.00 | 235.00 |
+| protocole_seul | 1/5 | 1.00 | 260.00 |
+| deux_tiers | 1/5 | 1.00 | 325.00 |
+| tiers_regles | 1/5 | 1.00 | 235.00 |
+| petit_json_ouvert | 5/5 | 0.95 | — |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I3_evacuated | tous_grand vs protocole_seul | 1.0000 |
+| I7_delay | tous_grand vs protocole_seul | 0.6664 |
+| llm_calls | tous_grand vs protocole_seul | 0.2492 |
+| tokens_in | tous_grand vs protocole_seul | 0.0079 |
+| tokens_out | tous_grand vs protocole_seul | 0.0079 |
+| I3_evacuated | tous_grand vs deux_tiers | 1.0000 |
+| I7_delay | tous_grand vs deux_tiers | 0.0227 |
+| llm_calls | tous_grand vs deux_tiers | 1.0000 |
+| tokens_in | tous_grand vs deux_tiers | 0.0159 |
+| tokens_out | tous_grand vs deux_tiers | 0.0119 |
+| I3_evacuated | tous_grand vs tiers_regles | 1.0000 |
+| I7_delay | tous_grand vs tiers_regles | 1.0000 |
+| llm_calls | tous_grand vs tiers_regles | 0.0119 |
+| tokens_in | tous_grand vs tiers_regles | 0.0079 |
+| tokens_out | tous_grand vs tiers_regles | 0.0079 |
+| I3_evacuated | tous_grand vs petit_json_ouvert | 0.0095 |
+| I7_delay | tous_grand vs petit_json_ouvert | 0.0212 |
+| llm_calls | tous_grand vs petit_json_ouvert | 0.0119 |
+| tokens_in | tous_grand vs petit_json_ouvert | 0.0079 |
+| tokens_out | tous_grand vs petit_json_ouvert | 0.0079 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| tous_grand | 110.00 [100.00–160.00] | 1.00 | 32, 21, 26, 20, 20 | llm, llm, rules, llm, rules | 3/5 |
+| protocole_seul | 160.00 [110.00–160.00] | 1.00 | 32, 21, 26, 20, 26 | llm, llm, llm, llm, llm | 5/5 |
+| deux_tiers | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+| tiers_regles | 110.00 [100.00–160.00] | 1.00 | 32, 21, 20, 20, 26 | llm, llm, rules, llm, llm | 4/5 |
+| petit_json_ouvert | 390.00 [270.00–460.00] | 0.95 | 49, 56, 31, 68, 37 | llm, llm, llm, llm, llm | 5/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| tous_grand | A 64, B 4, C 3 | A 170, B 8, C 55 |
+| protocole_seul | A 59, B 2, C 1 | A 169, B 8, C 55 |
+| deux_tiers | A 58, B 2, C 2 | A 170, B 8, C 55 |
+| tiers_regles | A 29, B 2, C 2 | A 193, B 8, C 62 |
+| petit_json_ouvert | A 42, B 4, C 4 | A 169, B 8, C 55 |
+
+## X13 — A3
+
+Indicateurs déclarés : I1_consensus, I2_entropy, I3_evacuated, I7_delay
+
+### Par bras
+
+| bras | n | I1 consensus | I2 entropie | I3 évacués | I7 délai |
+|---|---|---|---|---|---|
+| avec_securite | 5 | 0.98 [0.97–0.98] | 0.56 [0.54–0.59] | 1.00 [1.00–1.00] | 220.00 [220.00–230.00] |
+| sans_securite | 5 | 0.98 [0.98–0.99] | 0.55 [0.48–0.71] | 1.00 [0.98–1.00] | 220.00 [220.00–230.00] |
+| avec_securite_piege | 5 | 0.97 [0.96–0.97] | 0.16 [0.12–0.17] | 0.92 [0.88–0.92] | 270.00 [270.00–270.00] |
+| sans_securite_piege | 5 | 0.98 [0.96–0.98] | 0.22 [0.08–0.24] | 0.90 [0.88–0.92] | 250.00 [250.00–270.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| avec_securite | 1/5 | 1.00 | 325.00 |
+| sans_securite | 2/5 | 1.00 | 320.00 |
+| avec_securite_piege | 5/5 | 0.92 | — |
+| sans_securite_piege | 5/5 | 0.90 | — |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | avec_securite vs sans_securite | 0.5476 |
+| I2_entropy | avec_securite vs sans_securite | 0.6905 |
+| I3_evacuated | avec_securite vs sans_securite | 0.6005 |
+| I7_delay | avec_securite vs sans_securite | 0.9049 |
+| I1_consensus | avec_securite_piege vs sans_securite_piege | 0.8413 |
+| I2_entropy | avec_securite_piege vs sans_securite_piege | 1.0000 |
+| I3_evacuated | avec_securite_piege vs sans_securite_piege | 0.7503 |
+| I7_delay | avec_securite_piege vs sans_securite_piege | 0.4978 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| avec_securite | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+| sans_securite | 220.00 [220.00–230.00] | 1.00 | 33, 32, 34, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+| avec_securite_piege | 270.00 [270.00–270.00] | 0.92 | 33, 31, 33, 33, 33 | llm, llm, llm, llm, llm | 5/5 |
+| sans_securite_piege | 250.00 [250.00–270.00] | 0.90 | 31, 39, 31, 21, 33 | llm, llm, llm, rules, llm | 4/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| avec_securite | A 58, B 1, C 1 | A 169, B 8, C 55 |
+| sans_securite | A 57, B 1, C 1 | A 184, B 6, C 51 |
+| avec_securite_piege | A 44, B 3, C 22 | A 124, B 14, C 84 |
+| sans_securite_piege | A 38, B 1, C 14 | A 136, B 8, C 86 |
+
+## X14 — A3
+
+Indicateurs déclarés : I1_consensus, I2_entropy, I3_evacuated, I7_delay
+
+### Par bras
+
+| bras | n | I1 consensus | I2 entropie | I3 évacués | I7 délai |
+|---|---|---|---|---|---|
+| avec_familles | 10 | 0.98 [0.97–0.99] | 0.55 [0.53–0.77] | 1.00 [0.99–1.00] | 220.00 [220.00–230.00] |
+| sans_familles | 10 | 0.99 [0.98–0.99] | 0.46 [0.42–0.69] | 1.00 [0.99–1.00] | 225.00 [220.00–230.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| avec_familles | 3/10 | 1.00 | 320.00 |
+| sans_familles | 3/10 | 1.00 | 320.00 |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | avec_familles vs sans_familles | 0.2123 |
+| I2_entropy | avec_familles vs sans_familles | 0.0312 |
+| I3_evacuated | avec_familles vs sans_familles | 1.0000 |
+| I7_delay | avec_familles vs sans_familles | 0.6934 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| avec_familles | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32, 32, 32, 32, 33, 33 | llm, llm, llm, llm, llm, llm, llm, llm, llm, llm | 10/10 |
+| sans_familles | 225.00 [220.00–230.00] | 1.00 | 32, 32, 33, 33, 32, 32, 33, 32, 33, 33 | llm, llm, llm, llm, llm, llm, llm, llm, llm, llm | 10/10 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| avec_familles | A 120, B 5, C 2 | A 337, B 33, C 102 |
+| sans_familles | A 116, B 4 | A 418, B 33, C 19 |
 
