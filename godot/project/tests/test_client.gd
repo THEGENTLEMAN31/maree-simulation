@@ -150,6 +150,33 @@ func _offline() -> void:
 	main._handle('{"type":"error","reason":"run en rejeu : aucune injection possible"}')
 	_check("aucune injection" in main._hint.text, "D3 : l'erreur serveur est affichée")
 
+	# F6 — cliquer un indicateur demande la chaîne, et la trame revient.
+	main._handle(JSON.stringify({
+		"type": "trace",
+		"indicator": "I1_consensus",
+		"found": true,
+		"tick": 4,
+		"from": 0.90,
+		"to": 0.50,
+		"delta": -0.40,
+		"events": [{"seq": 12, "tick": 4, "type": "agent.decision", "label": "A01 décide go_exit A"}],
+		"chains": [],
+	}))
+	_check(main._trace.get("to", 0.0) == 0.50, "F6 : la trame trace est reçue")
+	_check(
+		main._trace.get("events", [])[0].get("label", "") == "A01 décide go_exit A",
+		"F6 : elle porte l'événement brut qui a fait bouger le chiffre",
+	)
+	# La zone cliquable est calculée au dessin ; on la fabrique ici pour
+	# vérifier le test de collision, sans dépendre du rendu.
+	main._ind_boxes = [{"rect": Rect2(10.0, 10.0, 40.0, 16.0), "key": "I1_consensus"}]
+	_check(main._request_trace(Vector2(20.0, 18.0)), "F6 : le clic est reconnu sur l'indicateur")
+	_check(
+		str(main._trace.get("indicator", "")) == "I1_consensus",
+		"F6 : la demande porte l'indicateur cliqué",
+	)
+	_check(not main._request_trace(Vector2(400.0, 400.0)), "F6 : ailleurs, le clic ne demande rien")
+
 	main.queue_free()
 
 
@@ -195,6 +222,15 @@ func _live() -> void:
 				return true
 		return false, 15.0)
 	_check(ok, "D2 : un agent réel expose mémoire + dernière décision")
+
+	# F6 — la remontée d'un indicateur aux événements bruts, en direct.
+	main._send({"type": "trace", "indicator": "I1_consensus"})
+	ok = await _wait_for(func() -> bool: return not main._trace.is_empty(), 10.0)
+	_check(ok, "F6 : trame trace reçue en direct")
+	_check(
+		bool(main._trace.get("found", false)) or str(main._trace.get("reason", "")) != "",
+		"F6 : la trace dit ce qu'elle a trouvé",
+	)
 
 	main.queue_free()
 

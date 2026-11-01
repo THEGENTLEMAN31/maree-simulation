@@ -87,6 +87,11 @@ Chaque trame porte `t_prod` et `t_trait` :
 | `t_trait` | le tick où le système le **traite** (l'écrit) |
 | `t_real` | secondes réelles depuis le début du run (journal seulement) |
 
+Chaque trame porte aussi `seq`, sa position dans le journal. C'est ce
+qui rend `sources` (sur la trame `indicators`) utilisable : sans `seq` sur
+les décisions, un client saurait quelle plage d'événements a produit un
+chiffre sans pouvoir nommer un seul de ces événements.
+
 En mode synchrone, les deux coïncident : c'est la définition du mode.
 En mode asynchrone, ou avec une latence de livraison de messages, ils
 diffèrent — et c'est cette différence qui est intéressante :
@@ -549,6 +554,34 @@ Trois trames, un objet JSON par message.
 | `smoke` | `position`, `radius` (optionnels) | fumée activée au tick suivant |
 | `exit_closed` | `exit` (`A`/`B`/`C`) | sortie fermée au tick suivant |
 | `ping` | — | garde la connexion, répond `pong` |
+
+### Remonter d'un indicateur aux événements bruts (F6)
+
+Une quatrième trame ne modifie rien : elle **demande**. C'est celle qui
+répond à « d'où sort ce chiffre ? », et elle marche en rejeu comme en
+direct.
+
+```json
+{"type": "trace", "indicator": "I1_consensus"}
+```
+
+```json
+{"type": "trace", "indicator": "I1_consensus", "found": true,
+ "tick": 24, "from": 1.0, "to": 0.5, "delta": -0.5, "lookback": 5,
+ "events": [{"seq": 612, "tick": 24, "type": "agent.decision",
+             "label": "A05 décide go_exit B (periodique) — …"}],
+ "chains": [[...], [...]]}
+```
+
+`events` sont les événements des `lookback` ticks qui précèdent la plus
+forte variation ; `chains` remontent, pour chaque décision, la chaîne
+`causation_id` jusqu'à sa racine. Le calcul est fait par le serveur, avec
+le même code que `maree trace` : un client qui le réimplémenterait en
+aurait une deuxième version, et les deux divergeraient. Si l'indicateur
+n'a pas bougé, `found` vaut `false` et `reason` dit pourquoi.
+
+C'est ce que fait le client Godot : les six chiffres du HUD sont
+cliquables, et le panneau affiche la chaîne.
 
 ### Ce que le serveur répond
 

@@ -21,8 +21,12 @@ Protocole (JSON, un objet par trame) :
     {"type": "snapshot",   "tick": …, "sim_time": …, "agents": […], …}
     {"type": "indicators", "I1_consensus": …, …}
     {"type": "narrative",  "text": …, "tick": …}
-    {"type": "event",      "event": "run.started"|…, "tick": …, "data": {…}}
+    {"type": "event",      "event": "run.started"|…, "tick": …, "seq": …, "data": {…}}
+    {"type": "trace",      "indicator": "I1_consensus", "found": true, …}
     {"type": "end",        "ticks": …}
+
+Toute trame porte aussi `seq` (C3) : c'est ce qui permet à un client de
+répondre à « d'où sort ce chiffre ? » sans recalculer le monde.
 
 **Aucun événement du journal n'est filtré** : ceux qui n'ont pas de trame
 typée passent en `event`, enveloppe comprise (`seq`, `tick`, `data`). Un
@@ -102,6 +106,11 @@ class JournalStreamer:
         """
         frame.setdefault("tick", event.t_prod)
         frame.setdefault("t_prod", event.t_prod)
+        # F6 — la position dans le journal, sur **toute** trame. Sans elle,
+        # un client voyait `sources.from_seq/to_seq` sur les indicateurs
+        # mais ne pouvait rattacher aucun événement typé à cette plage : la
+        # décision qui a fait bouger I1 n'était pas identifiable.
+        frame.setdefault("seq", event.seq)
         frame["t_trait"] = event.t_trait
         return frame
 
@@ -189,7 +198,7 @@ class JournalStreamer:
         return {}
 
     async def _receive(self, websocket) -> None:
-        """Traite les trames entrantes (D3) : `inject`, `ping`.
+        """Traite les trames entrantes : `inject`, `ping`, `trace`.
 
         Le client n'a besoin de rien savoir du moteur : il envoie un JSON
         avec un `kind`, le moteur journalise `control.injection` puis
@@ -207,6 +216,27 @@ class JournalStreamer:
                 continue
             if frame.get("type") == "ping":
                 await websocket.send(json.dumps({"type": "pong"}))
+                continue
+            if frame.get("type") == "trace":
+                # F6 — « d'où sort ce chiffre ? ». Le client n'a pas à
+                # reconstruire les chaînes causales en GDScript : le calcul
+                # reste dans `engine.trace`, celui de `maree trace`, et il
+                # marche en rejeu comme en direct (le journal est la source).
+                from maree.engine.trace import report
+
+                key = str(frame.get("indicator") or "I1_consensus")
+                lookback = int(frame.get("lookback") or 5)
+                result = report(
+                    self._journal.read(self._run_id),
+                    key=key,
+                    lookback=lookback,
+                )
+                await websocket.send(
+                    json.dumps(
+                        {"type": "trace", **result},
+                        ensure_ascii=False,
+                    )
+                )
                 continue
             if frame.get("type") != "inject":
                 await websocket.send(

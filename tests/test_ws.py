@@ -318,3 +318,79 @@ def test_l_injection_devient_une_trame_dediee(tmp_path: Path) -> None:
     frames = asyncio.run(collect())
     assert [f["type"] for f in frames] == ["event", "injection", "end"]
     assert frames[1]["kind"] == "smoke"
+
+
+async def test_chaque_trame_porte_seq(tmp_path: Path) -> None:
+    """F6 — sans `seq` sur les trames typées, `sources` ne sert à rien.
+
+    Les indicateurs annoncent la plage `from_seq`/`to_seq` qui les a
+    produits ; si une décision n'arrive pas avec son `seq`, le client ne
+    peut pas la rattacher à cette plage. Le champ est donc sur **toute**
+    trame, pas seulement sur celles qui passent en `event`.
+    """
+    streamer = JournalStreamer(_journal(tmp_path), RUN, plan={}, speed=0)
+    frames = []
+    async for frame in streamer._frames():
+        frames.append(frame)
+        if len(frames) > 20:
+            break
+    assert all("seq" in frame for frame in frames)
+    assert [f["seq"] for f in frames] == [1, 2, 3, 4, 5, 6]
+
+
+def _journal_avec_variation(tmp_path: Path) -> JsonlJournal:
+    """Deux mesures d'I1, une décision entre les deux : de quoi remonter."""
+    journal = JsonlJournal(tmp_path)
+    for event in [
+        _event(1, EventType.RUN_STARTED, {}, tick=0),
+        _event(
+            2,
+            EventType.DECISION,
+            {
+                "agent_id": "A01",
+                "trigger": "fumee_visible",
+                "intention": {"kind": "go_exit", "target": "A"},
+                "reason": "je sors",
+            },
+            tick=1,
+        ),
+        _event(3, EventType.INDICATORS, {"I1_consensus": 0.0}, tick=1),
+        _event(4, EventType.SNAPSHOT, {"tick": 1, "agents": []}, tick=1),
+        _event(5, EventType.INDICATORS, {"I1_consensus": 0.6}, tick=3),
+        _event(6, EventType.RUN_ENDED, {"ticks": 3}, tick=3),
+    ]:
+        journal.append(event)
+    return journal
+
+
+async def test_trace_remonte_aux_evenements_bruts(tmp_path: Path) -> None:
+    """F6 — le client demande « d'où sort ce chiffre ? », le serveur calcule.
+
+    Le calcul reste dans `engine.trace` (celui de `maree trace`) : un
+    client qui le réimplémenterait en GDScript en aurait une deuxième
+    version, et les deux divergeraient. La trame porte la variation, les
+    événements qui la précèdent et les chaînes causales.
+    """
+    import json
+
+    streamer = JournalStreamer(_journal_avec_variation(tmp_path), RUN, plan={}, speed=0)
+    ws = _FakeWS([json.dumps({"type": "trace", "indicator": "I1_consensus"})])
+    await streamer._receive(ws)
+    frame = ws.sent[0]
+    assert frame["type"] == "trace"
+    assert frame["indicator"] == "I1_consensus"
+    assert frame["found"] is True
+    assert frame["from"] == 0.0 and frame["to"] == 0.6
+    assert any(step["type"] == "agent.decision" for step in frame["events"])
+
+
+async def test_trace_sur_un_indicateur_sans_variation(tmp_path: Path) -> None:
+    """Un indicateur absent ne plante pas : il répond `found: false` et dit pourquoi."""
+    import json
+
+    streamer = JournalStreamer(_journal(tmp_path), RUN, plan={}, speed=0)
+    ws = _FakeWS([json.dumps({"type": "trace", "indicator": "I9_inconnu"})])
+    await streamer._receive(ws)
+    assert ws.sent[0]["type"] == "trace"
+    assert ws.sent[0]["found"] is False
+    assert ws.sent[0]["reason"]

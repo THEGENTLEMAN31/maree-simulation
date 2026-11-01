@@ -72,6 +72,11 @@ var _screenshot_done := false
 var _preselect := ""
 var _debug := false
 var _debug_at := -1.0
+#: F6 — zones cliquables des six indicateurs du HUD, et dernière
+#: réponse du serveur à « d'où sort ce chiffre ? ». Le client ne
+#: calcule pas la chaîne : il l'affiche.
+var _ind_boxes: Array = []
+var _trace: Dictionary = {}
 
 
 func _ready() -> void:
@@ -159,6 +164,8 @@ func _handle(text: String) -> void:
 				_selected = _preselect
 		"indicators":
 			_ind = message
+		"trace":
+			_trace = message
 		"world":
 			_handle_world(message)
 		"injection":
@@ -346,6 +353,7 @@ func _draw() -> void:
 	_draw_smoke()
 	_draw_announcement()
 	_draw_hud()
+	_draw_trace()
 	_draw_inspector()
 
 
@@ -477,19 +485,27 @@ func _draw_hud() -> void:
 	# B2 — un indicateur au moins doit être affiché à côté de la scène,
 	# synchronisé avec elle. On en affiche six, nommés, pour qu'un
 	# observateur qui ne connaît pas le code puisse les lire.
-	_text(
-		Vector2(MARGIN, 68),
-		"I1 %.2f   I2 %.2f   I3 %.2f   I5 %.1f/m²   I6 %.2f   I7 %.0f s" % [
-			float(_ind.get("I1_consensus", 0.0)),
-			float(_ind.get("I2_entropy", 0.0)),
-			float(_ind.get("I3_evacuated", 0.0)),
-			float(_ind.get("I5_max_density", 0.0)),
-			float(_ind.get("I6_belief_gap", 0.0)),
-			float(_ind.get("I7_delay_seconds", 0.0)),
-		],
-		11,
-		DIM,
-	)
+	# F6 — chacun est une zone cliquable : le clic demande au serveur la
+	# chaîne qui a produit la valeur (voir `_request_trace`).
+	_ind_boxes.clear()
+	var ix := MARGIN
+	var iy := 68.0
+	for item in [
+		["I1_consensus", "I1", "%.2f"],
+		["I2_entropy", "I2", "%.2f"],
+		["I3_evacuated", "I3", "%.2f"],
+		["I5_max_density", "I5", "%.1f/m²"],
+		["I6_belief_gap", "I6", "%.2f"],
+		["I7_delay_seconds", "I7", "%.0f s"],
+	]:
+		var text := "%s %s" % [item[1], item[2] % float(_ind.get(item[0], 0.0))]
+		var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		var box := Rect2(ix - 3.0, iy - 12.0, w + 8.0, 16.0)
+		if str(_trace.get("indicator", "")) == str(item[0]):
+			draw_rect(box, Color(0.20, 0.24, 0.30))
+		_text(Vector2(ix, iy), text, 11, DIM)
+		_ind_boxes.append({"rect": box, "key": str(item[0])})
+		ix += w + 18.0
 	_text(
 		Vector2(view.x - PANEL_W - 250, 26),
 		_status if _live else "%s (rejeu)" % _status,
@@ -508,7 +524,7 @@ func _draw_hud() -> void:
 	# légende ne veut rien dire.
 	_para(
 		Vector2(MARGIN, 78),
-		"point = sortie crue (A bleu, B vert, C orange, gris = aucune croyance) · anneau orange = croit une sortie fermée · cellules rouges = goulots",
+		"point = sortie crue (A bleu, B vert, C orange, gris = aucune croyance) · anneau orange = croit une sortie fermée · cellules rouges = goulots · cliquer un indicateur affiche la chaîne qui l'a produit",
 		view.x - PANEL_W - 2.0 * MARGIN,
 		9,
 		Color(0.45, 0.48, 0.52),
@@ -729,6 +745,69 @@ func _is_open(exit_id: String) -> bool:
 	return exit_id in open
 
 
+## F6 — cliquer un indicateur demande au serveur la chaîne qui l'a produit.
+## Le calcul reste côté Python (`engine.trace`, celui de `maree trace`) :
+## une deuxième implémentation en GDScript divergerait en silence.
+func _request_trace(click: Vector2) -> bool:
+	for box in _ind_boxes:
+		var rect: Rect2 = box["rect"]
+		if rect.has_point(click):
+			_trace = {"indicator": box["key"], "found": false, "reason": "en attente du serveur…"}
+			_send({"type": "trace", "indicator": box["key"]})
+			return true
+	return false
+
+
+func _draw_trace() -> void:
+	if _trace.is_empty():
+		return
+	var view := _viewport()
+	var width: float = min(620.0, view.x - PANEL_W - 2.0 * MARGIN)
+	var lines: Array[String] = []
+	if not bool(_trace.get("found", false)):
+		lines.append("%s : %s" % [
+			str(_trace.get("indicator", "?")),
+			str(_trace.get("reason", "aucune variation")),
+		])
+	else:
+		lines.append("%s  %s → %s   (tick %s, delta %s)" % [
+			str(_trace.get("indicator", "?")),
+			str(_trace.get("from")),
+			str(_trace.get("to")),
+			str(_trace.get("tick")),
+			str(_trace.get("delta")),
+		])
+		for step in _trace.get("events", []):
+			lines.append("t%s #%s  %s" % [
+				str(step.get("tick")), str(step.get("seq")), str(step.get("label"))
+			])
+			if lines.size() >= 12:
+				break
+		for chain in _trace.get("chains", []):
+			if lines.size() >= 18:
+				break
+			for depth in range(chain.size()):
+				var step: Dictionary = chain[depth]
+				lines.append("%s└ t%s %s" % [
+					"   ".repeat(depth), str(step.get("tick")), str(step.get("label"))
+				])
+				if lines.size() >= 18:
+					break
+	# On mesure d'abord : la hauteur dépend du repli des longues raisons.
+	var height := 0.0
+	for line in lines:
+		height += _font.get_multiline_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, width, 11).y + 2.0
+	var top: float = max(view.y - height - 34.0, HUD_H)
+	draw_rect(
+		Rect2(Vector2(MARGIN - 10.0, top - 6.0), Vector2(width + 20.0, height + 16.0)),
+		Color(0.05, 0.06, 0.08, 0.92),
+	)
+	var y := top + 6.0
+	for line in lines:
+		y = _para(Vector2(MARGIN, y), line, width, 11, DIM)
+	draw_rect(Rect2(Vector2(MARGIN - 10.0, top - 6.0), Vector2(3.0, height + 16.0)), Color(0.60, 0.72, 0.86))
+
+
 func _agent_by_id(agent_id: String) -> Dictionary:
 	if agent_id.is_empty():
 		return {}
@@ -749,6 +828,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _select_at(click: Vector2) -> void:
+	if _request_trace(click):
+		return
 	var best := ""
 	var best_distance := 0.9 * _px
 	for agent in _snap.get("agents", []):
