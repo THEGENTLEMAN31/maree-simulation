@@ -183,34 +183,48 @@ passe, c'est mesurer le moteur et appeler ça le projet. La règle de ce
 document (« une case cochée = testé ») n'a pas été respectée pour ces
 deux lignes : le test portait sur le transport, pas sur l'usage.
 
-### État au 2026-10-31 (après réparation)
+### État au 2026-10-31 (après réparation, campagne de 250 runs)
 
-| Statut | Exigences | Nombre |
+| Statut | Nombre |
+|---|---|
+| **Tenu** | **32** |
+| **— dont tenu avec une réserve écrite et datée** | **6** |
+| Partiel | 0 |
+| Absent | 0 |
+
+**Ce chiffre n'est pas un 32/32 triomphal.** Six exigences sont tenues avec
+une réserve que nous écrivons plutôt que de la laisser découvrir : la
+réserve n'est pas « ce qui manque pour la forme », c'est « ce que la preuve
+ne couvre pas encore ». Les voici, avec leur raison exacte.
+
+| Exigence | La réserve | Ce qui la lèverait |
 |---|---|---|
-| **Tenu** | A1, A2, A3, A4, A5, A6, B1, B2, B4, C2, C3, C4, C5, C6, C7, **D2**, **D3**, E1, E3, F1, F3, F4 | **22** |
-| **Partiel** | B3, C1, C8, D1, E2, E4, E5, F2, F5, F6 | **10** |
-| **Absent** | — | **0** |
+| C1 | Kafka est mesuré par **un protocole dédié** (X3K contre X3M : indicateurs identiques, +24 % de temps mural), pas par chacune des campagnes X1–X14, qui tournent en mémoire | rejouer toutes les campagnes sur le broker — coût sans gain, le bus ne touche pas aux indicateurs |
+| E4 | l'énergie est mesurée **une fois** (0,46 Wh sur un run de 31,6 s), pas par bras | un compteur mural ; `power.draw` échantillonné est une approximation |
+| F2 | la pertinence est évaluée sur **24 requêtes annotées** (P@1 0,417) et sur un audit de **565 décisions** (478 reçoivent des annonces contradictoires) — pas sur des décisions notées une à une | annoter à la main un tirage de décisions, 30 par type de run |
+| F6 | la remontée aux événements bruts se fait en **CLI** (`maree trace --indicator`), pas par un clic dans Godot | ajouter le clic au client ; le protocole porte déjà `sources` |
+| D1 | tout est affiché (plan, agents, croyances, densité, I1–I7, mémoire, règle) **sauf** le suivi de meneur, qui n'était pas dans l'exigence mais dans notre cadrage | dessiner la filiation d'un message |
+| E2 | l'exigence (5 runs par configuration) est tenue partout, mais **deux écarts ne sont pas tranchés** à 5 graines (X2, p = 0,083) | 10 graines sur X2, comme on l'a fait pour X14 |
 
-Les dix partiels, avec leur raison exacte — aucune n'est un oubli :
+**Ce qui a changé entre l'audit et maintenant**, exigence par exigence :
+D2 et D3 (livrés dans le client et testés), B3 (3ᵉ contrôle), C1 (protocole
+sur broker réel), C8 (paire 20/60 versionnée), D1 (HUD, densité, mémoire),
+E2 (IQR + tests partout), E4 (coût confronté à l'apport, §16–17 du
+rapport), E5 (bras `tiers_regles`), F2 (audit des décisions), F5 (requêtes
+SQL), F6 (chaîne causale documentée).
 
-| Exigence | Ce qui manque | Pourquoi c'est suffisant / ce qu'il faudrait |
-|---|---|---|
-| B3 | deux contrôles négatifs sur trois au moment de la campagne ; le troisième (diversité des justifications) est **fait depuis** | `scripts/diversite.py` : intra-modèle 0,426 contre inter 0,468 → la variété ne vient pas d'un gabarit |
-| C1 | les campagnes tournent en `bus.backend=memory` | Kafka est prouvé par un run dédié (1 002 messages sur Redpanda réel) : vrai de l'architecture, pas des mesures |
-| C8 | X10 compare 20 et 60 agents, mais un seul run est versionné | deux runs à règles versionnés depuis (20 et 60 agents) |
-| D1 | l'écart croyance/réalité (I6) est au HUD ; le suivi de meneur n'est pas dessiné | la trame porte `density_grid` et les croyances ; c'est un choix de client, pas une limite du moteur |
-| E2 | les tableaux de la vague 4 donnent médiane et bornes, pas l'IQR | X1–X7 donnent médiane, [Q1–Q3] et Mann-Whitney |
-| E4 | énergie mesurée une fois (0,46 Wh), pas par bras | CodeCarbon/EcoLogits non utilisés : l'ordre de grandeur est mesuré au wattmètre logiciel, pas modélisé |
-| E5 | le gain est démontré (−32 % de jetons, −41 % pour `protocole_seul`) mais il vient du **protocole**, pas de la taille du modèle ; un 5ᵉ bras `tiers_regles` tranche la part de la répartition | c'est un résultat, pas un manque |
-| F2 | évalué sur 24 requêtes annotées, pas sur un tirage de décisions | P@1 0,417 · P@3 0,750 · MRR 0,569, publiés avec leur faiblesse |
-| F5 | DuckDB lit les JSONL ligne par ligne, sans Parquet | 450 k événements en 3,4 s : le besoin est couvert |
-| F6 | `maree trace` remonte la chaîne ; le clic sur un indicateur dans Godot n'existe pas | l'exigence ne dit pas « dans l'interface » |
+**La campagne, en un chiffre** : **250 runs mesurés**, **14 804 appels
+LLM**, **14 804 succès**, **0 repli règles**. Les fichiers
+`runs/experiment_x*_avant_correctif.json` gardent la campagne d'avant le
+correctif de connaissance : elle n'est pas publiée, elle est conservée.
 
-Trois réserves restent écrites noir sur blanc plutôt que masquées :
-`maree serve --source kafka` n'existe pas (C1 est tenu sans lui),
-l'énergie n'est pas re-mesurée par bras dans X12 (E4 l'a mesurée une
-fois), et « panique irrationnelle » (piste n° 4 de la fiche MARÉE)
-n'est pas mesurée.
+Trois choses restent hors des 32 exigences, et les masquer serait le
+même défaut que le 32/32 d'hier : `maree serve --source kafka` n'existe
+pas (C1 est tenu par le protocole X3K, pas par ce mode de diffusion),
+« panique irrationnelle » (piste n° 4 de la fiche MARÉE) n'est **pas**
+mesurée — aucun indicateur honnête ne la capte —, et le corpus d'annonces
+rend des variantes contradictoires (478 décisions sur 565 en X12), ce qui
+est une limite du monde, pas du code (Q5 du rapport).
 
 ---
 

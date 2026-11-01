@@ -1,0 +1,31 @@
+# @package _global_
+# ============================================================
+# X3-Kafka — le même protocole que X3, mais sur un broker réel (C1)
+#
+# C1 demande que « les événements du monde transitent par Kafka ». Les
+# campagnes tournent en `bus.backend=memory`, et nous l'écrivions jusqu'ici
+# comme une réserve. Ce protocole-ci lève la réserve par la mesure : mêmes
+# bras, mêmes graines, même population que X3, mais chaque événement est
+# publié sur Redpanda avant d'être consommé.
+#
+# Ce qu'on attend : **les indicateurs ne bougent pas**. Si I1, I5 et I7
+# sont identiques à X3, le bus n'est pas dans le chemin de la mesure —
+# c'est-à-dire qu'il diffuse, et ne décide pas. Si quelque chose bouge,
+# c'est que la diffusion a un effet sur le monde, et il faudra le dire.
+# ============================================================
+
+experiment:
+  id: X3K
+  hypothesis: C1
+  indicators: [I1_consensus, I5_max_density, wall_s]
+  compare:
+    - [synchrone, asynchrone]
+  arms:
+    - name: synchrone
+      description: un seul appel LLM à la fois, événements publiés sur Redpanda
+      run:
+        max_concurrency: 1
+    - name: asynchrone
+      description: quatre appels simultanés, événements publiés sur Redpanda
+      run:
+        max_concurrency: 4

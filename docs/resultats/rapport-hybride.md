@@ -231,12 +231,15 @@ GPU, sans serveur, sans réseau (`make replay-demo`, `make replay-pair`).
         Godot · chroniqueur
 ```
 
-- **Le bus n'est pas dans le chemin de la mesure.** Les campagnes tournent
-  en `bus.backend=memory` ; Redpanda sert la démonstration temps réel, et
-  il est prouvé par un run dédié (1 002 messages sur 4 topics pour
-  1 023 événements, les 21 instantanés n'étant pas publiés). Kafka est donc
-  vrai de l'architecture, pas des chiffres des tableaux — nous préférons
-  l'écrire que le laisser croire.
+- **Le bus ne change pas la dynamique, il change l'horloge murale — et
+  c'est mesuré.** Le même protocole (X3), les mêmes graines, la même
+  version du code, une fois sur Redpanda et une fois en mémoire
+  (`configs/experiment/x3_kafka.yaml` contre `x3_memoire.yaml`, §12) :
+  **I1, I3, I5 et I7 sont identiques à la décimale** (p = 1,000), seul le
+  temps mural diffère (+24 % : 28,3 s contre 22,9 s en synchrone). 10 538
+  événements publiés sur quatre topics pour ces dix runs, instantanés
+  exclus. Kafka diffuse, ne décide pas — et nous l'avons vérifié au lieu
+  de l'affirmer.
 - **Le client ne dépend jamais du moteur.** Une fonction pure
   `frame_for(event)` transforme un événement en trame autoportante ;
   `docs/protocol-ui.md` décrit les douze types (`hello`, `world`,
@@ -437,6 +440,12 @@ rapport porte sur l'après**.
 
 ## 12. Résultats
 
+**La campagne, d'abord.** Seize protocoles, **250 runs mesurés**,
+**14 804 appels LLM**, **14 804 succès**, **zéro repli sur les règles**. Ce
+dernier chiffre n'est pas décoratif : un run dont les appels échouent
+ressemble à un résultat (voir §5), donc chaque tableau ci-dessous porte
+sur des runs dont le journal atteste que le modèle a répondu.
+
 ### H1 — une annonce claire et précoce accélère l'évacuation
 **Soutenue sur la clarté, pas sur l'heure.**
 
@@ -625,6 +634,35 @@ Une foule avec des familles n'évacue pas moins bien ; elle évacue en
 doutant. C'est un résultat modeste, et il ne faut pas lui faire dire que
 les familles ralentissent : elles ne ralentissent pas, dans ce scénario.
 
+#### C1 — le bus ne change pas la dynamique, il change l'horloge
+
+C1 demande que les événements transitent par Kafka. Les campagnes
+tournaient en mémoire ; nous l'écrivions comme une réserve. Elle est levée
+par la mesure : le **même protocole**, les mêmes graines, la même version
+du code, une fois sur un broker réel, une fois en mémoire.
+
+| | I1 | I3 | I5 | I7 (s) | mural | appels |
+|---|---|---|---|---|---|---|
+| synchrone, **Redpanda** | 0,97 | 1,00 | 0,48 | 220 | 28,3 s | 254 |
+| synchrone, mémoire | 0,97 | 1,00 | 0,48 | 220 | 22,9 s | 252 |
+| asynchrone, **Redpanda** | 0,97 | 1,00 | 0,48 | 220 | 21,4 s | 250 |
+| asynchrone, mémoire | 0,97 | 1,00 | 0,48 | 220 | 17,4 s | 257 |
+
+**Tous les indicateurs sont identiques** (p = 1,000 sur I1, I3, I5 et I7
+dans les deux modes) ; le bus coûte **+24 % de temps mural** (28,3 contre
+22,9 s en synchrone, 21,4 contre 17,4 s en asynchrone, p = 0,056 et
+0,095). Cinq graines par bras, 10 538 événements publiés sur quatre topics pour
+les dix runs du bras Kafka, aucun échec de publication.
+
+**Le témoin a failli manquer, et c'est la leçon de méthode.** Comparer ces
+runs au X3 du 29 octobre donnait I7 = 220 s contre 100 s : on aurait conclu
+« Kafka ralentit la foule de 120 s ». Faux — le code a changé entre-temps
+(les agents à règles suivent désormais la sortie **annoncée**, `_announced_exit`,
+ajouté en vague 4), et l'annonce de t18 nomme « nord », donc A. Deux runs
+séparés par une version de code ne comparent rien : il faut un témoin
+**contemporain**, même mémoire, mêmes graines. C'est exactement le piège
+que `AGENTS.md` documente pour les runs LLM, appliqué au bus.
+
 ### Les contrôles négatifs (B3)
 
 Trois contrôles, dont deux joués en protocole et le troisième en
@@ -712,6 +750,10 @@ documentée ». Trois niveaux, du plus sûr au plus exigeant :
 | **rejeu** | rien : ni GPU, ni réseau, ni serveur | `make replay-demo`, `make replay-pair` | < 2 s |
 | **simulation sans LLM** | Python, `uv` | `make smoke` | < 1 s |
 | **simulation hybride** | GPU 4 Go + llama.cpp | procédure du `README.md` §Démarrage | ~25 s par run |
+
+Le bus se reproduit aussi : `MAREE_KAFKA_BOOTSTRAP=172.28.0.10:9092
+uv run maree experiment --name x3k --seeds 5 bus.backend=redpanda`, à
+comparer à `x3m` (même code, même graines, mémoire) — §12.
 
 Deux runs complets sont **versionnés dans le dépôt** avec leur journal :
 `runs/demo20` (20 agents) et `runs/demo60` (60 agents), mêmes proportions

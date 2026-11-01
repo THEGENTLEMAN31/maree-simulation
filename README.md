@@ -76,9 +76,12 @@ godot --path godot/project          # client : plan, inspection, injection (D2/D
 localement et la publication de ports — deux choses qui **n'ont pas
 fonctionné sur la machine de développement** (apt sans réseau pendant le
 build, publication de ports cassée). La procédure réellement utilisée est
-le `docker run` ci-dessus. Les campagnes d'expérience tournent de toute
-façon en `bus.backend=memory` : Redpanda est prouvé par un run dédié
-(C1, 1 002 messages), pas par les mesures.
+le `docker run` ci-dessus. Les campagnes tournent en `bus.backend=memory`
+par défaut ; le bus réel est mesuré par un protocole dédié —
+`MAREE_KAFKA_BOOTSTRAP=172.28.0.10:9092 uv run maree experiment --name x3k
+--seeds 5 bus.backend=redpanda`, à comparer à `x3m` (même code, mémoire) :
+indicateurs identiques, +24 % de temps mural. Sans `MAREE_KAFKA_BOOTSTRAP`,
+le client vise `localhost:9092` et le run ne démarre pas.
 
 Sans serveur LLM du tout, `make smoke` fait un run complet de 60 agents
 **sans aucun appel LLM**.

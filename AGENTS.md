@@ -395,6 +395,9 @@ rejouable de bout en bout.
 | Protocole X3, 5 graines × 2 bras | I1 et I5 **identiques**, I7 100 s des deux côtés, mural **34,0 → 20,9 s** (×1,63, p = 0,0117) | `experiment_x3` |
 | Protocole X4, 5 graines × 3 bras | `llm_60` **40/60 sortis** (5/5 censurés, 520 appels, 234,8 s), hybride 55/60 (5/5), règles 55/60 (4/5, 9,6 s) ; **tous les piégés sont des visiteurs** (17 à 23 sur 24 en tout-LLM) | `experiment_x4` |
 | Campagne X1–X7 | **115 runs, 6 906 appels LLM / 6 906 succès**, 0 repli, **0 cible hors savoir** sur 2 022 | `runs/experiment_x*.json` |
+| Campagne complète (X1–X14 + les deux témoins C1) | **250 runs, 14 804 appels / 14 804 succès, 0 repli** | `runs/experiment_x*.json` |
+| C1, le bus ne touche pas aux indicateurs | X3K (Redpanda) contre X3M (mémoire) : I1 0,97 / I3 1,00 / I5 0,48 / I7 220 s **identiques**, p = 1,000 ; mural 28,3 contre 22,9 s (+24 %) | `experiment_x3k` / `experiment_x3m` |
+| C1, volume publié | 10 538 événements sur 4 topics pour 10 runs (414 instantanés exclus) | journaux `run_x3k_*` |
 | I5 par noyau de 2 m | 0,32 à 0,56 pers/m² (la grille de 1 m valait 2,0 partout) | campagne X1–X7 |
 | Preset 8192/4 (E2B) + bge-m3 | `n_slots = 4`, `n_ctx_slot = 2048`, **1 980 Mo / 4 096** | `nvidia-smi`, RTX 3050 |
 | Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
@@ -452,9 +455,14 @@ uv run maree experiment --name x1 --seeds 3
 
 Depuis l'hôte, `experiment` exige deux choses, sinon il échoue ou ment :
 
-- `bus.backend=memory` — le bus Kafka pointe sur `redpanda:9092`, qui ne
-  résout pas hors compose (`KafkaConnectionError: No connection to node
-  with id 0`, au premier `run.started`) ;
+- `bus.backend=memory` **ou** `MAREE_KAFKA_BOOTSTRAP=172.28.0.10:9092`. Le
+  défaut `localhost:9092` ne résout pas hors compose (`Unable connect to
+  "localhost:9092"`, une ligne par tentative, le run ne démarre jamais).
+  La variable `MAREE_KAFKA_BOOTSTRAP` est lue par `configs/config.yaml`
+  (`bus.bootstrap`) ; `bus.backend=redpanda` sans elle fait échouer les
+  10 runs. Pour un protocole **sur broker réel**, voir `x3k.yaml` — il
+  publie ~1 054 événements par run sur 4 topics et donne les mêmes
+  indicateurs que `x3m.yaml` en mémoire (+24 % de temps mural seulement) ;
 - `MAREE_LLM_URL=http://<ip-du-conteneur>:8080/v1` — sans lui, le client
   vise `llama-cpp:8080`, tous les appels échouent et les 10 runs sont des
   replis règles qui *ressemblent* à des résultats. L'IP change au reboot
@@ -464,7 +472,18 @@ Depuis l'hôte, `experiment` exige deux choses, sinon il échoue ou ment :
 MAREE_LLM_URL=http://$(docker inspect maree-llama-cpp \
   --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):8080/v1 \
   uv run maree experiment --name x1 --seeds 5 bus.backend=memory
+
+# pareil, mais les événements passent par Redpanda (C1) :
+MAREE_KAFKA_BOOTSTRAP=172.28.0.10:9092 \
+  uv run maree experiment --name x3k --seeds 5 bus.backend=redpanda
 ```
+
+**Un témoin contemporain, sinon rien.** Comparer X3K (broker) au X3 du
+2026-10-29 donnait I7 = 220 s contre 100 s : on aurait conclu « Kafka
+ralentit la foule ». Faux — entre-temps les règles suivent la sortie
+annoncée (`_announced_exit`). D'où `x3m.yaml`, même code, mêmes graines,
+en mémoire : I1/I3/I5/I7 **identiques à la décimale**, +24 % de mural.
+Deux runs séparés par une version de code ne comparent rien.
 
 **Contrat d'affichage** : `docs/protocol-ui.md` décrit chaque trame
 (`hello`, `world`, `decision`, `belief`, `message`, `heard`, `evacuated`,

@@ -4,10 +4,10 @@ Rapport généré par `scripts/rapport_experiences.py` à partir des
 `runs/experiment_x*.json` et des journaux JSONL. Aucun chiffre n'est
 écrit à la main.
 
-- **230 runs** mesurés, 14 protocoles.
-- **13791 / 13791** appels LLM aboutis.
+- **250 runs** mesurés, 16 protocoles.
+- **14804 / 14804** appels LLM aboutis.
 - Population de référence : 12 agents LLM + 48 à règles (X4 varie).
-- Graines par protocole : X1 5, X2 5, X3 5, X4 5, X5 10, X6 10, X7 10, X8 5, X9 5, X10 5, X11 5, X12 5, X13 5, X14 10.
+- Graines par protocole : X1 5, X2 5, X3 5, X3K 5, X3M 5, X4 5, X5 10, X6 10, X7 10, X8 5, X9 5, X10 5, X11 5, X12 5, X13 5, X14 10.
 - Médiane [Q1–Q3], test de Mann-Whitney bilatéral entre le premier
   bras et chacun des autres.
 - **Censure** : un run qui atteint `max_ticks` avant que tout le
@@ -186,6 +186,86 @@ Indicateurs déclarés : I1_consensus, I5_max_density, wall_s
 |---|---|---|
 | synchrone | A 50, B 5, C 13 | A 169, B 8, C 55 |
 | asynchrone | A 52, B 6, C 12 | A 169, B 8, C 55 |
+
+## X3K — C1
+
+Indicateurs déclarés : I1_consensus, I5_max_density, wall_s
+
+### Par bras
+
+| bras | n | I1 consensus | I5 densité max | temps mural |
+|---|---|---|---|---|
+| synchrone | 5 | 0.97 [0.97–0.98] | 0.48 [0.40–0.48] | 28.30 [25.30–29.60] |
+| asynchrone | 5 | 0.97 [0.97–0.98] | 0.48 [0.40–0.48] | 21.40 [20.30–22.00] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| synchrone | 1/5 | 1.00 | 325.00 |
+| asynchrone | 1/5 | 1.00 | 325.00 |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | synchrone vs asynchrone | 0.6905 |
+| I5_max_density | synchrone vs asynchrone | 1.0000 |
+| wall_s | synchrone vs asynchrone | 0.0952 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| synchrone | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+| asynchrone | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| synchrone | A 58, B 4, C 2 | A 169, B 8, C 55 |
+| asynchrone | A 59, B 2, C 1 | A 170, B 8, C 55 |
+
+## X3M — H3
+
+Indicateurs déclarés : I1_consensus, I5_max_density, wall_s
+
+### Par bras
+
+| bras | n | I1 consensus | I5 densité max | temps mural |
+|---|---|---|---|---|
+| synchrone | 5 | 0.97 [0.97–0.98] | 0.48 [0.40–0.48] | 22.90 [19.80–23.10] |
+| asynchrone | 5 | 0.97 [0.97–0.98] | 0.48 [0.40–0.48] | 17.40 [16.90–17.70] |
+
+### Runs non terminés (censure)
+
+| bras | runs non terminés | I3 médian | I4 des runs terminés |
+|---|---|---|---|
+| synchrone | 1/5 | 1.00 | 325.00 |
+| asynchrone | 1/5 | 1.00 | 325.00 |
+
+### Tests (Mann-Whitney)
+
+| indicateur | comparaison | p |
+|---|---|---|
+| I1_consensus | synchrone vs asynchrone | 0.6905 |
+| I5_max_density | synchrone vs asynchrone | 1.0000 |
+| wall_s | synchrone vs asynchrone | 0.0952 |
+
+### Délai premier signal → dernier sorti (I7)
+
+| bras | I7 médian [Q1–Q3] (s) | I3 médian | dernier sorti (ticks) | type du dernier | runs où c'est un LLM |
+|---|---|---|---|---|---|
+| synchrone | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+| asynchrone | 220.00 [220.00–230.00] | 1.00 | 33, 33, 32, 32, 32 | llm, llm, llm, llm, llm | 5/5 |
+
+### Sorties choisies (décisions `go_exit`)
+
+| bras | agents LLM | agents à règles |
+|---|---|---|
+| synchrone | A 58, B 4, C 2 | A 169, B 8, C 55 |
+| asynchrone | A 60, B 1, C 2 | A 169, B 8, C 55 |
 
 ## X4 — H4
 
