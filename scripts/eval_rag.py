@@ -262,11 +262,28 @@ def score_annotated(path: Path) -> dict:
     verdicts: dict[str, int] = {}
     for d in rows:
         verdicts[d["verdict_top1"]] = verdicts.get(d["verdict_top1"], 0) + 1
+    # Par collection du meilleur passage : une moyenne globale cache qu'une
+    # collection est excellente et une autre du bruit.
+    by_collection: dict[str, dict[str, float]] = {}
+    for d in rows:
+        doc = str((d.get("retrieved") or [{}])[0].get("doc_id", ""))
+        collection = doc.split("/")[0] or "?"
+        bucket = by_collection.setdefault(
+            collection, {"n": 0.0, "pertinent": 0.0, "contradictoire": 0.0}
+        )
+        bucket["n"] += 1
+        if d["verdict_top1"] == "pertinent":
+            bucket["pertinent"] += 1
+        if d["verdict_top1"] == "contradictoire":
+            bucket["contradictoire"] += 1
+    for bucket in by_collection.values():
+        bucket["p@1"] = round(bucket["pertinent"] / bucket["n"], 4)
     return {
         "n": len(rows),
         "p@1": round(p1, 4),
         "p@3": round(p3_hits / total, 4) if total else 0.0,
         "verdicts": dict(sorted(verdicts.items(), key=lambda kv: -kv[1])),
+        "by_collection": dict(sorted(by_collection.items())),
     }
 
 
