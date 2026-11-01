@@ -133,6 +133,143 @@ def evaluate_run(runs: Path, run_id: str) -> dict:
     }
 
 
+def _profile_map(runs: Path, run_id: str) -> dict[str, str]:
+    """profil de chaque agent, lu dans le premier instantané du run."""
+    from maree.adapters.journal.jsonl import JsonlJournal
+
+    for e in JsonlJournal(runs).read(run_id):
+        if str(e.type) == "world.snapshot":
+            return {a["id"]: a.get("profile", "?") for a in e.data.get("agents", [])}
+    return {}
+
+
+def _world_state(runs: Path, run_id: str) -> dict[str, object]:
+    """annonce diffusée et fumée, pour juger une décision dans son contexte."""
+    from maree.adapters.journal.jsonl import JsonlJournal
+
+    state: dict[str, object] = {"announcement": None, "announcement_tick": None, "smoke_tick": None}
+    for e in JsonlJournal(runs).read(run_id):
+        t = str(e.type)
+        if t == "world.announcement":
+            state["announcement"] = e.data.get("text")
+            state["announcement_tick"] = e.t_prod
+        elif t == "world.smoke" and state["smoke_tick"] is None:
+            state["smoke_tick"] = e.t_prod
+    return state
+
+
+def sample_decisions(runs: Path, run_ids: list[str], per_collection: int, out: Path) -> dict:
+    """Échantillon stratifié de décisions réelles, prêt à annoter (F2).
+
+    L'exigence dit « pour un échantillon de décisions, il montre ce qui a
+    été retrouvé et évalue sa pertinence ». Le jeu `rag_queries.yaml`
+    évalue le *récupérateur* sur des questions choisies ; celui-ci évalue
+    des décisions **réellement prises**, tirées du journal, avec la
+    question réellement posée et les passages réellement rendus.
+
+    Le tirage est stratifié par collection du meilleur passage : sans
+    cela, les annonces (565 décisions sur 1 287 en X12) écraseraient
+    l'échantillon et l'on n'évaluerait que la collection la plus peuplée.
+    """
+    from maree.adapters.journal.jsonl import JsonlJournal
+
+    buckets: dict[str, list[dict]] = {}
+    # Un même tirage se répète d'un bras à l'autre (le récupérateur est
+    # déterministe) : sans dédoublonnage, quatre bras donnent quatre fois
+    # la même décision et l'échantillon ne mesure qu'une situation.
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for run_id in run_ids:
+        events = JsonlJournal(runs).read(run_id)
+        profiles = _profile_map(runs, run_id)
+        state = _world_state(runs, run_id)
+        for e in events:
+            if str(e.type) != "agent.decision":
+                continue
+            d = e.data
+            retrieved = d.get("retrieved") or []
+            if not retrieved or not d.get("query"):
+                continue
+            top = retrieved[0]
+            signature = (
+                str(d.get("query")),
+                tuple(str(p.get("doc_id")) for p in retrieved[:3]),
+            )
+            if signature in seen:
+                continue
+            seen.add(signature)
+            key = str(top.get("collection") or top.get("doc_id", "").split("/")[0])
+            buckets.setdefault(key, []).append(
+                {
+                    "run_id": run_id,
+                    "agent_id": d.get("agent_id"),
+                    "profile": profiles.get(str(d.get("agent_id")), "?"),
+                    "tick": e.t_prod,
+                    "trigger": d.get("trigger"),
+                    "query": d.get("query"),
+                    "intention": d.get("intention", {}).get("kind"),
+                    "announcement": state["announcement"],
+                    "announcement_tick": state["announcement_tick"],
+                    "retrieved": [
+                        {
+                            "doc_id": p.get("doc_id"),
+                            "score": round(float(p.get("score", 0.0)), 4),
+                            "text": str(p.get("text", ""))[:240],
+                        }
+                        for p in retrieved[:3]
+                    ],
+                    "verdict_top1": "",
+                    "pertinents": [],
+                    "note": "",
+                }
+            )
+    sample: list[dict] = []
+    for key in sorted(buckets):
+        items = buckets[key]
+        # tirage régulier, déterministe : pas de `random` (décision 12).
+        step = max(1, len(items) // per_collection)
+        picked = items[::step][:per_collection]
+        sample.extend(picked)
+    doc = {
+        "regle": (
+            "pertinent : le passage répond à la question posée par CET agent "
+            "à CE tick (bonne collection, bon profil, information disponible) ; "
+            "partiel : même sujet, ne répond pas ; hors_sujet : autre sujet ; "
+            "contradictoire : annonce nommant une autre sortie que celle diffusée."
+        ),
+        "decisions": sample,
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        yaml.safe_dump(doc, allow_unicode=True, sort_keys=False, width=100),
+        encoding="utf-8",
+    )
+    return {"n": len(sample), "collections": {k: len(v) for k, v in sorted(buckets.items())}}
+
+
+def score_annotated(path: Path) -> dict:
+    """P@1, P@3 et taux de contradiction sur un échantillon annoté à la main."""
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    rows = [d for d in doc["decisions"] if d.get("verdict_top1")]
+    n = len(rows) or 1
+    p1 = sum(1 for d in rows if d["verdict_top1"] == "pertinent") / n
+    p3_hits = 0
+    total = 0
+    for d in rows:
+        ids = [p["doc_id"] for p in d["retrieved"][:3]]
+        marked = [i for i in d.get("pertinents", []) if i in ids]
+        p3_hits += len(marked)
+        total += len(ids)
+    verdicts: dict[str, int] = {}
+    for d in rows:
+        verdicts[d["verdict_top1"]] = verdicts.get(d["verdict_top1"], 0) + 1
+    return {
+        "n": len(rows),
+        "p@1": round(p1, 4),
+        "p@3": round(p3_hits / total, 4) if total else 0.0,
+        "verdicts": dict(sorted(verdicts.items(), key=lambda kv: -kv[1])),
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--index", type=Path, default=ROOT / "data" / "rag")
@@ -141,7 +278,27 @@ def main() -> None:
     ap.add_argument("--run", help="évaluer un run enregistré au lieu de l'index")
     ap.add_argument("--runs", type=Path, default=ROOT / "runs")
     ap.add_argument("--lexical", action="store_true", help="sans bge-m3 (repli lexical)")
+    ap.add_argument("--sample", type=int, help="taille de l'échantillon de décisions (F2)")
+    ap.add_argument("--per-collection", type=int, default=6, help="décisions par collection")
+    ap.add_argument(
+        "--sample-runs",
+        nargs="*",
+        default=["run_x12_tous_grand_s0_3091", "run_x12_deux_tiers_s0_71de",
+                 "run_x12_petit_json_ouvert_s0_4f55", "run_x10_grande_async_s0_2e0e"],
+        help="runs dont on tire l'échantillon",
+    )
+    ap.add_argument("--scored", type=Path, help="échantillon annoté à scorer (P@1/P@3)")
     args = ap.parse_args()
+
+    if args.scored:
+        print(json.dumps(score_annotated(args.scored), indent=2, ensure_ascii=False))
+        return
+
+    if args.sample:
+        info = sample_decisions(args.runs, args.sample_runs, args.per_collection, args.out)
+        print(json.dumps(info, indent=2, ensure_ascii=False))
+        print(f"-> {args.out} (annotations à remplir à la main)")
+        return
 
     if args.run:
         result = evaluate_run(args.runs, args.run)

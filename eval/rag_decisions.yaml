@@ -1,0 +1,699 @@
+regle: 'pertinent : le passage répond à la question posée par CET agent à CE tick (bonne collection, bon
+  profil, information disponible) ; partiel : même sujet, ne répond pas ; hors_sujet : autre sujet ; contradictoire
+  : annonce nommant une autre sortie que celle diffusée.'
+decisions:
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A57
+  profile: vendeur
+  tick: 10
+  trigger: fumee_visible
+  query: évacuation esplanade fumée incendie
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-01
+    score: 0.3078
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  - doc_id: souvenirs_editions/2022-agents
+    score: 0.2302
+    text: 'Souvenir de l''édition 2022 (agents) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis la sortie B (la sortie nord, à l''emplacement de la passerelle). Lors de l''édition
+      2022, une fumée de barbecue avait déclenché un'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A58
+  profile: vendeur
+  tick: 13
+  trigger: periodique
+  query: évacuation esplanade
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-02
+    score: 0.2865
+    text: 'Votre attention, s''il vous plaît. Pour votre sécurité, l''esplanade est évacuée par la sortie
+      B. Suivez les flèches vertes au sol et les agents en gilet. Il n''y a pas de danger immédiat si
+      vous restez calmes. La zone concernée est la partie '
+  - doc_id: annonces/claire-04
+    score: 0.2484
+    text: Mesdames, messieurs, la fête est interrompue. Merci de quitter l'esplanade par la sortie A.
+      Les enfants non accompagnés sont pris en charge au point info, près de la scène. La zone concernée
+      est le stand est. Le texte évite volontairement l
+  - doc_id: annonces/claire-01
+    score: 0.2101
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A57
+  profile: vendeur
+  tick: 16
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie A il faut sortir par la sortie
+    A il faut sortir par la sortie A il faut sortir par la sortie A il faut sortir par la sortie A il
+    faut sortir par la sortie A il faut sortir par la sortie A
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-07
+    score: 0.3613
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie A par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      le sud-est. Le texte évite volontairement les mots « '
+  - doc_id: annonces/rumeur-01
+    score: 0.2546
+    text: Il paraît que la sortie A est condamnée. Des gens disent avoir vu le personnel poser des barrières.
+      Si c'est vrai, autant éviter de passer par là. Personne ne sait qui a lancé l'info, mais tout le
+      monde la répète. Le texte évite volontairem
+  - doc_id: annonces/claire-01
+    score: 0.2448
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A57
+  profile: vendeur
+  tick: 18
+  trigger: annonce
+  query: évacuation esplanade
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-02
+    score: 0.2865
+    text: 'Votre attention, s''il vous plaît. Pour votre sécurité, l''esplanade est évacuée par la sortie
+      B. Suivez les flèches vertes au sol et les agents en gilet. Il n''y a pas de danger immédiat si
+      vous restez calmes. La zone concernée est la partie '
+  - doc_id: annonces/claire-06
+    score: 0.2627
+    text: Votre attention, s'il vous plaît. Pour votre sécurité, l'esplanade est évacuée par la sortie
+      C. Suivez les flèches vertes au sol et les agents en gilet. Il n'y a pas de danger immédiat si vous
+      restez calmes. La zone concernée est la passere
+  - doc_id: annonces/claire-04
+    score: 0.2484
+    text: Mesdames, messieurs, la fête est interrompue. Merci de quitter l'esplanade par la sortie A.
+      Les enfants non accompagnés sont pris en charge au point info, près de la scène. La zone concernée
+      est le stand est. Le texte évite volontairement l
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_deux_tiers_s0_71de
+  agent_id: A14
+  profile: famille
+  tick: 14
+  trigger: periodique
+  query: évacuation esplanade il faut sortir par la sortie C
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-03
+    score: 0.3299
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie C par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      la partie ouest. La régie note l''heure exacte de diff'
+  - doc_id: annonces/claire-02
+    score: 0.2383
+    text: 'Votre attention, s''il vous plaît. Pour votre sécurité, l''esplanade est évacuée par la sortie
+      B. Suivez les flèches vertes au sol et les agents en gilet. Il n''y a pas de danger immédiat si
+      vous restez calmes. La zone concernée est la partie '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_deux_tiers_s0_71de
+  agent_id: A57
+  profile: vendeur
+  tick: 18
+  trigger: annonce
+  query: évacuation esplanade fumée incendie
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-01
+    score: 0.3078
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  - doc_id: annonces/annonce-claire
+    score: 0.2663
+    text: '(Annonce type « claire » diffusée moins de 3 minutes après le premier signal.) « Mesdames,
+      messieurs, votre attention. Une fumée a été signalée près des stands sud. Nous vous demandons de
+      vous diriger calmement, sans courir, vers la sortie '
+  - doc_id: annonces/claire-07
+    score: 0.2589
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie A par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      le sud-est. Le texte évite volontairement les mots « '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_deux_tiers_s0_71de
+  agent_id: A58
+  profile: vendeur
+  tick: 18
+  trigger: annonce
+  query: évacuation esplanade il faut sortir par la sortie C
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-03
+    score: 0.3299
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie C par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      la partie ouest. La régie note l''heure exacte de diff'
+  - doc_id: annonces/claire-06
+    score: 0.2547
+    text: Votre attention, s'il vous plaît. Pour votre sécurité, l'esplanade est évacuée par la sortie
+      C. Suivez les flèches vertes au sol et les agents en gilet. Il n'y a pas de danger immédiat si vous
+      restez calmes. La zone concernée est la passere
+  - doc_id: annonces/claire-07
+    score: 0.2477
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie A par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      le sud-est. Le texte évite volontairement les mots « '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_deux_tiers_s0_71de
+  agent_id: A57
+  profile: vendeur
+  tick: 24
+  trigger: periodique
+  query: évacuation esplanade fumée incendie
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-01
+    score: 0.3078
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  - doc_id: annonces/claire-15
+    score: 0.2857
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie C par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      le stand est. Le texte évite volontairement les mots '
+  - doc_id: annonces/annonce-claire
+    score: 0.2663
+    text: '(Annonce type « claire » diffusée moins de 3 minutes après le premier signal.) « Mesdames,
+      messieurs, votre attention. Une fumée a été signalée près des stands sud. Nous vous demandons de
+      vous diriger calmement, sans courir, vers la sortie '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_petit_json_ouvert_s0_4829
+  agent_id: A57
+  profile: vendeur
+  tick: 16
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie A il faut sortir par la sortie
+    A il faut sortir par la sortie A il faut sortir par la sortie A il faut sortir par la sortie A il
+    faut sortir par la sortie A il faut sortir par la sortie A il faut sortir par la sortie A il faut
+    sortir par la sortie A il faut sortir par la sortie A il faut sortir par la sortie A
+  intention: search
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-07
+    score: 0.3504
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie A par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      le sud-est. Le texte évite volontairement les mots « '
+  - doc_id: annonces/rumeur-01
+    score: 0.273
+    text: Il paraît que la sortie A est condamnée. Des gens disent avoir vu le personnel poser des barrières.
+      Si c'est vrai, autant éviter de passer par là. Personne ne sait qui a lancé l'info, mais tout le
+      monde la répète. Le texte évite volontairem
+  - doc_id: annonces/claire-01
+    score: 0.2451
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_petit_json_ouvert_s0_4829
+  agent_id: A58
+  profile: vendeur
+  tick: 18
+  trigger: annonce
+  query: évacuation esplanade il faut sortir par la sortie C il faut sortir par la sortie C il faut sortir
+    par la sortie C
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-03
+    score: 0.344
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie C par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      la partie ouest. La régie note l''heure exacte de diff'
+  - doc_id: annonces/claire-07
+    score: 0.2567
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie A par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      le sud-est. Le texte évite volontairement les mots « '
+  - doc_id: annonces/claire-06
+    score: 0.2309
+    text: Votre attention, s'il vous plaît. Pour votre sécurité, l'esplanade est évacuée par la sortie
+      C. Suivez les flèches vertes au sol et les agents en gilet. Il n'y a pas de danger immédiat si vous
+      restez calmes. La zone concernée est la passere
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A57
+  profile: vendeur
+  tick: 12
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie A il faut sortir par la sortie
+    A il faut sortir par la sortie A il faut sortir par la sortie A il faut sortir par la sortie A il
+    faut sortir par la sortie A il faut sortir par la sortie A
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-01
+    score: 0.2448
+    text: Mesdames, messieurs, votre attention. Une fumée a été signalée le cœur de l'esplanade, face
+      à la scène. Nous vous demandons de vous diriger calmement vers la sortie A. Ne courez pas, ne revenez
+      pas en arrière, et laissez passer les personne
+  - doc_id: annonces/claire-03
+    score: 0.236
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie C par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      la partie ouest. La régie note l''heure exacte de diff'
+  - doc_id: annonces/claire-02
+    score: 0.1666
+    text: 'Votre attention, s''il vous plaît. Pour votre sécurité, l''esplanade est évacuée par la sortie
+      B. Suivez les flèches vertes au sol et les agents en gilet. Il n''y a pas de danger immédiat si
+      vous restez calmes. La zone concernée est la partie '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A14
+  profile: famille
+  tick: 14
+  trigger: sortie_fermee
+  query: évacuation esplanade sortie fermée itinéraire alternatif il faut sortir par la sortie C il faut
+    sortir par la sortie C
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: annonces/claire-03
+    score: 0.2816
+    text: 'Annonce de la régie : évacuation en cours. Merci de rejoindre la sortie C par le chemin le
+      plus direct, sans stationner sur la passerelle. Les issues sont dégagées. La zone concernée est
+      la partie ouest. La régie note l''heure exacte de diff'
+  - doc_id: annonces/claire-04
+    score: 0.1634
+    text: Mesdames, messieurs, la fête est interrompue. Merci de quitter l'esplanade par la sortie A.
+      Les enfants non accompagnés sont pris en charge au point info, près de la scène. La zone concernée
+      est le stand est. Le texte évite volontairement l
+  - doc_id: annonces/claire-02
+    score: 0.1526
+    text: 'Votre attention, s''il vous plaît. Pour votre sécurité, l''esplanade est évacuée par la sortie
+      B. Suivez les flèches vertes au sol et les agents en gilet. Il n''y a pas de danger immédiat si
+      vous restez calmes. La zone concernée est la partie '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A01
+  profile: securite
+  tick: 1
+  trigger: premiere_decision
+  query: évacuation esplanade
+  intention: search
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: consignes_securite/protocole-etape-07
+    score: 0.1738
+    text: L'évacuation n'est déclarée terminée qu'après un double comptage des zones et la confirmation
+      radio de chaque chef d'îlot. La consigne est révisée après chaque édition à partir des incidents
+      observés et des remontées du public.
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A01
+  profile: securite
+  tick: 13
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie A il faut sortir par la sortie
+    A il faut sortir par la sortie A
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: consignes_securite/fiche-incident-01
+    score: 0.2251
+    text: 'Fiche incident « fumée ». Signalement type : une fumée épaisse et sombre, le sud-est, près
+      des stands de nourriture. Première action : isoler un rayon de dix mètres et empêcher l''accès sans
+      créer de mouvement de foule. Deuxième action : ale'
+  - doc_id: consignes_securite/protocole
+    score: 0.1929
+    text: 'Protocole officiel de la Fête des Lanternes en cas d''évacuation : 1. Dès qu''une fumée ou
+      un danger est signalé côté sud, l''agent de sécurité de service prévient la régie par radio, sans
+      déclencher d''annonce publique tant que la nature du da'
+  - doc_id: consignes_securite/fiche-incident-08
+    score: 0.1567
+    text: 'Fiche incident « incendie ». Signalement type : un départ de feu dans une tente, le stand est,
+      côté générateur. Première action : isoler un rayon de dix mètres et empêcher l''accès sans créer
+      de mouvement de foule. Deuxième action : alerter '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_deux_tiers_s0_71de
+  agent_id: A01
+  profile: securite
+  tick: 13
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie A il faut sortir par la sortie
+    A il faut sortir par la sortie A il faut sortir par la sortie A
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: consignes_securite/fiche-incident-01
+    score: 0.2146
+    text: 'Fiche incident « fumée ». Signalement type : une fumée épaisse et sombre, le sud-est, près
+      des stands de nourriture. Première action : isoler un rayon de dix mètres et empêcher l''accès sans
+      créer de mouvement de foule. Deuxième action : ale'
+  - doc_id: consignes_securite/protocole
+    score: 0.1875
+    text: 'Protocole officiel de la Fête des Lanternes en cas d''évacuation : 1. Dès qu''une fumée ou
+      un danger est signalé côté sud, l''agent de sécurité de service prévient la régie par radio, sans
+      déclencher d''annonce publique tant que la nature du da'
+  - doc_id: consignes_securite/fiche-incident-08
+    score: 0.1585
+    text: 'Fiche incident « incendie ». Signalement type : un départ de feu dans une tente, le stand est,
+      côté générateur. Première action : isoler un rayon de dix mètres et empêcher l''accès sans créer
+      de mouvement de foule. Deuxième action : alerter '
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A05
+  profile: habitue
+  tick: 1
+  trigger: premiere_decision
+  query: évacuation esplanade
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2016-sortie
+    score: 0.2288
+    text: 'Souvenir de l''édition 2016 (sortie) : une pluie fine avait vidé l''esplanade dès 21 h. Vu
+      depuis la partie nord (entre la scène et les stands de restauration). En 2016, une pluie fine avait
+      vidé l''esplanade dès 21 h. On m''avait conseillé cec'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A57
+  profile: vendeur
+  tick: 1
+  trigger: premiere_decision
+  query: évacuation esplanade
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2022-agents
+    score: 0.1374
+    text: 'Souvenir de l''édition 2022 (agents) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis la sortie B (la sortie nord, à l''emplacement de la passerelle). Lors de l''édition
+      2022, une fumée de barbecue avait déclenché un'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A05
+  profile: habitue
+  tick: 10
+  trigger: fumee_visible
+  query: évacuation esplanade fumée incendie
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2022-foule
+    score: 0.2198
+    text: 'Souvenir de l''édition 2022 (foule) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2022, une fumée
+      de barbecue avait déclenché une évacuation partielle.'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A05
+  profile: habitue
+  tick: 16
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie A
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2020-annonce
+    score: 0.4082
+    text: 'Souvenir de l''édition 2020 (annonce) : l''édition avait été annulée et remplacée par une veillée.
+      Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2020, l''édition avait été
+      annulée et remplacée par une veillée. J''étais l'
+  - doc_id: souvenirs_editions/2021-sortie
+    score: 0.4082
+    text: 'Souvenir de l''édition 2021 (sortie) : des jauges sanitaires avaient divisé le public en deux
+      files. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2021, des jauges sanitaires
+      avaient divisé le public en deux files. J'''
+  - doc_id: souvenirs_editions/2022-foule
+    score: 0.4082
+    text: 'Souvenir de l''édition 2022 (foule) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2022, une fumée
+      de barbecue avait déclenché une évacuation partielle.'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A05
+  profile: habitue
+  tick: 24
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie B il faut sortir par la sortie
+    A
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2020-annonce
+    score: 0.4082
+    text: 'Souvenir de l''édition 2020 (annonce) : l''édition avait été annulée et remplacée par une veillée.
+      Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2020, l''édition avait été
+      annulée et remplacée par une veillée. J''étais l'
+  - doc_id: souvenirs_editions/2021-sortie
+    score: 0.4082
+    text: 'Souvenir de l''édition 2021 (sortie) : des jauges sanitaires avaient divisé le public en deux
+      files. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2021, des jauges sanitaires
+      avaient divisé le public en deux files. J'''
+  - doc_id: souvenirs_editions/2022-foule
+    score: 0.4082
+    text: 'Souvenir de l''édition 2022 (foule) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2022, une fumée
+      de barbecue avait déclenché une évacuation partielle.'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A06
+  profile: habitue
+  tick: 24
+  trigger: periodique
+  query: évacuation esplanade il faut sortir par la sortie A il faut sortir par la sortie A il faut sortir
+    par la sortie A
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/fermeture-a-dernier
+    score: 0.156
+    text: Lors de la Fête des Lanternes de l'an dernier, la sortie A avait été fermée en dernière minute
+      à cause de travaux sur le front de mer. Des centaines de personnes s'étaient retrouvées bloquées
+      devant le portail clôturé, et le flux s'était re
+  - doc_id: souvenirs_editions/2016-sortie
+    score: 0.1466
+    text: 'Souvenir de l''édition 2016 (sortie) : une pluie fine avait vidé l''esplanade dès 21 h. Vu
+      depuis la partie nord (entre la scène et les stands de restauration). En 2016, une pluie fine avait
+      vidé l''esplanade dès 21 h. On m''avait conseillé cec'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x12_tiers_regles_s0_a4c1
+  agent_id: A06
+  profile: habitue
+  tick: 30
+  trigger: periodique
+  query: évacuation esplanade il faut sortir par la sortie B
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2020-annonce
+    score: 0.2722
+    text: 'Souvenir de l''édition 2020 (annonce) : l''édition avait été annulée et remplacée par une veillée.
+      Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2020, l''édition avait été
+      annulée et remplacée par une veillée. J''étais l'
+  - doc_id: souvenirs_editions/2021-sortie
+    score: 0.2722
+    text: 'Souvenir de l''édition 2021 (sortie) : des jauges sanitaires avaient divisé le public en deux
+      files. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2021, des jauges sanitaires
+      avaient divisé le public en deux files. J'''
+  - doc_id: souvenirs_editions/2022-foule
+    score: 0.2722
+    text: 'Souvenir de l''édition 2022 (foule) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2022, une fumée
+      de barbecue avait déclenché une évacuation partielle.'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A57
+  profile: vendeur
+  tick: 6
+  trigger: fumee_visible
+  query: évacuation esplanade fumée incendie
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2022-agents
+    score: 0.2302
+    text: 'Souvenir de l''édition 2022 (agents) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis la sortie B (la sortie nord, à l''emplacement de la passerelle). Lors de l''édition
+      2022, une fumée de barbecue avait déclenché un'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A05
+  profile: habitue
+  tick: 14
+  trigger: sortie_fermee
+  query: évacuation esplanade fumée incendie sortie fermée itinéraire alternatif
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2020-annonce
+    score: 0.4082
+    text: 'Souvenir de l''édition 2020 (annonce) : l''édition avait été annulée et remplacée par une veillée.
+      Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2020, l''édition avait été
+      annulée et remplacée par une veillée. J''étais l'
+  - doc_id: souvenirs_editions/2024-agents
+    score: 0.381
+    text: 'Souvenir de l''édition 2024 (agents) : des travaux avaient fermé la sortie C pendant tout le
+      week-end. Vu depuis la scène principale (le cœur de l''esplanade, face à la scène). Je me souviens
+      de 2024 : des travaux avaient fermé la sortie C pe'
+  - doc_id: souvenirs_editions/2025-annonce
+    score: 0.381
+    text: 'Souvenir de l''édition 2025 (annonce) : une chaleur tardive avait poussé le public vers l''ouest.
+      Vu depuis la scène principale (le cœur de l''esplanade, face à la scène). Je me souviens de 2025
+      : une chaleur tardive avait poussé le public ver'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A06
+  profile: habitue
+  tick: 14
+  trigger: sortie_fermee
+  query: évacuation esplanade sortie fermée itinéraire alternatif
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/fermeture-a-dernier
+    score: 0.1656
+    text: Lors de la Fête des Lanternes de l'an dernier, la sortie A avait été fermée en dernière minute
+      à cause de travaux sur le front de mer. Des centaines de personnes s'étaient retrouvées bloquées
+      devant le portail clôturé, et le flux s'était re
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A05
+  profile: habitue
+  tick: 24
+  trigger: periodique
+  query: évacuation esplanade fumée incendie il faut sortir par la sortie B il faut sortir par la sortie
+    B
+  intention: go_exit
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2020-annonce
+    score: 0.4082
+    text: 'Souvenir de l''édition 2020 (annonce) : l''édition avait été annulée et remplacée par une veillée.
+      Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2020, l''édition avait été
+      annulée et remplacée par une veillée. J''étais l'
+  - doc_id: souvenirs_editions/2021-sortie
+    score: 0.4082
+    text: 'Souvenir de l''édition 2021 (sortie) : des jauges sanitaires avaient divisé le public en deux
+      files. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2021, des jauges sanitaires
+      avaient divisé le public en deux files. J'''
+  - doc_id: souvenirs_editions/2022-foule
+    score: 0.4082
+    text: 'Souvenir de l''édition 2022 (foule) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2022, une fumée
+      de barbecue avait déclenché une évacuation partielle.'
+  verdict_top1: ''
+  pertinents: []
+  note: ''
+- run_id: run_x2_avec_meneurs_s0_42da
+  agent_id: A06
+  profile: habitue
+  tick: 24
+  trigger: periodique
+  query: évacuation esplanade il faut sortir par la sortie B il faut sortir par la sortie B
+  intention: stay
+  announcement: Évacuation. Rejoignez la sortie nord.
+  announcement_tick: 18
+  retrieved:
+  - doc_id: souvenirs_editions/2020-annonce
+    score: 0.2722
+    text: 'Souvenir de l''édition 2020 (annonce) : l''édition avait été annulée et remplacée par une veillée.
+      Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2020, l''édition avait été
+      annulée et remplacée par une veillée. J''étais l'
+  - doc_id: souvenirs_editions/2021-sortie
+    score: 0.2722
+    text: 'Souvenir de l''édition 2021 (sortie) : des jauges sanitaires avaient divisé le public en deux
+      files. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2021, des jauges sanitaires
+      avaient divisé le public en deux files. J'''
+  - doc_id: souvenirs_editions/2022-foule
+    score: 0.2722
+    text: 'Souvenir de l''édition 2022 (foule) : une fumée de barbecue avait déclenché une évacuation
+      partielle. Vu depuis le sud-est (la zone sud-est, côté fumée). Lors de l''édition 2022, une fumée
+      de barbecue avait déclenché une évacuation partielle.'
+  verdict_top1: ''
+  pertinents: []
+  note: ''

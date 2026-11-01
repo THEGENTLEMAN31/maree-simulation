@@ -84,7 +84,11 @@ PROFILES: dict[str, Profile] = {
         cadence_ticks=2,
         knows_exits=None,
         knows_zones=None,
-        rag_collections=("consignes_securite", "plan_signaletique"),
+        #: Le nom doit être **exactement** celui du front matter du corpus
+        #: (`plan_signalétique`, accent compris). Écrit sans accent, il ne
+        #: filtre rien et rend 44 passages invisibles *sans erreur* : c'est
+        #: arrivé, et `tests/test_corpus.py` le garde maintenant.
+        rag_collections=("consignes_securite", "plan_signalétique"),
         priorities=("evaluer", "guider", "evacuer"),
         system_prompt=(
             _COMMUN
@@ -103,7 +107,7 @@ PROFILES: dict[str, Profile] = {
         cadence_ticks=3,
         knows_exits=("A", "B", "C"),
         knows_zones=None,
-        rag_collections=("plan_signaletique", "souvenirs_editions"),
+        rag_collections=("plan_signalétique", "souvenirs_editions"),
         priorities=("eviter_la_foule", "evacuer"),
         system_prompt=(
             _COMMUN
@@ -139,7 +143,12 @@ PROFILES: dict[str, Profile] = {
         cadence_ticks=3,
         knows_exits=("A",),
         knows_zones=None,
-        rag_collections=("consignes_securite",),
+        #: Le visiteur n'a pas le droit de lire les consignes de sécurité
+        #: (`allowed_profiles` du corpus ne le cite pas) : déclarer cette
+        #: collection lui donnait **zéro** passage, sans erreur. Il lit ce
+        #: qu'il entend — les annonces. C'est le scénario : il ne connaît
+        #: que A, et c'est l'annonce qui lui apprend où aller.
+        rag_collections=("annonces",),
         priorities=("comprendre", "suivre", "evacuer"),
         system_prompt=(
             _COMMUN
@@ -168,6 +177,13 @@ PROFILES: dict[str, Profile] = {
         ),
     ),
 }
+
+#: `savoir_profils` n'est dans aucune `rag_collections`, et c'est un choix :
+#: ces 45 passages décrivent le profil lui-même (« ce savoir oriente ses
+#: décisions sans qu'il l'énonce »), déjà porté par `system_prompt`. Les
+#: récupérer à chaque décision remplacerait une annonce par une phrase qui
+#: ne dit rien de la situation. `tests/test_corpus.py` vérifie qu'ils
+#: existent pour chaque profil — le corpus est complet, le prompt le porte.
 
 #: Le bras de comparaison X4 : mêmes profils, décision par règles.
 RULES_PROFILE = Profile(

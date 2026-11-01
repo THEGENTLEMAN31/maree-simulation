@@ -65,6 +65,39 @@ def test_aucun_passage_date_apres_la_fin_du_run(passages) -> None:
     assert not tardifs, f"ticks au-delà de max_ticks={MAX_TICKS} : {tardifs}"
 
 
+def test_les_collections_declarees_existent(passages) -> None:
+    """Une collection mal orthographiée ne filtre rien : elle rend le vide.
+
+    `plan_signaletique` (sans accent) ne correspondait à aucun passage du
+    corpus (`plan_signalétique`) : la sécurité et les habitués — les deux
+    profils qui la déclarent — ne pouvaient pas lire 44 passages du plan,
+    et rien ne le signalait. Un nom de collection est une clé, pas une
+    étiquette : il se vérifie.
+    """
+    collections = {p.collection for p in passages}
+    declarees = {c for profil in PROFILES.values() for c in profil.rag_collections}
+    assert declarees <= collections, f"collections inconnues : {sorted(declarees - collections)}"
+
+
+def test_chaque_profil_lit_au_moins_un_passage(passages) -> None:
+    """Le filtre croise `rag_collections` **et** `allowed_profiles`.
+
+    Déclarer une collection que le corpus n'ouvre pas au profil donne zéro
+    passage, silencieusement : le visiteur déclarait `consignes_securite`,
+    où aucun passage ne l'autorise. Il ne retrievait jamais rien.
+    """
+    for profil in PROFILES.values():
+        # au dernier tick du scénario : avant l'annonce, un profil n'a
+        # légitimement rien à lire (les annonces s'ouvrent à t10).
+        lisibles = [
+            p
+            for p in passages
+            if p.collection in profil.rag_collections
+            and p.allowed_for(profil.id, MAX_TICKS)
+        ]
+        assert lisibles, f"{profil.id} ne peut lire aucun passage"
+
+
 def test_chaque_profil_a_du_savoir(passages) -> None:
     par_profil = Counter(
         p.allowed_profiles[0] for p in passages if p.collection == "savoir_profils"
