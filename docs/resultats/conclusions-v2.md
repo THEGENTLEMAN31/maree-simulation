@@ -263,10 +263,11 @@ la foule à sortir**.
    est libre » ne fait pas entrer B dans le savoir d'un visiteur : la
    garde s'appuie sur `Profile.knows`, comme `_known_open` pour les
    règles. Un agent ne peut pas apprendre la géographie par ouï-dire.
-4. **I5 ne dépasse jamais ~0,6 pers/m².** La foule n'est jamais dense :
-   le goulot de ce scénario est le **savoir**, pas l'encombrement. Un
-   noyau de 2 m suffit, mais il ne faudra pas conclure « pas de
-   bouchon » d'un indicateur qui plafonne à 0,6.
+4. **I5 reste bas dans la population de référence** (0,32 à 0,56 pers/m²),
+   et ne monte qu'à **1,51** dans le seul bras où une foule piégée
+   s'accumule (60 LLM en X4). Le goulot de ce scénario est le **savoir**,
+   pas l'encombrement : il ne faudra pas conclure « pas de bouchon » d'un
+   indicateur qui plafonne à 1,5.
 5. **I6 n'est vivant que dans le piège** (X2, X4), et il sature à 1,00
    au moment de la fermeture. Il mesure l'instant, pas la récupération.
 6. **Reproductibilité** : deux runs de même configuration donnent les

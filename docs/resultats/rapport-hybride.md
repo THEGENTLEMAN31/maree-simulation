@@ -741,8 +741,10 @@ appris quelque chose.
    bouger. Un indicateur de consensus qui ne réagit pas à la disparition
    de la communication mesure l'accord initial des profils, pas la
    contagion.
-3. **I5 ne dépasse jamais ~0,6 pers/m²** : la foule n'est jamais dense.
-   Ne pas conclure « pas de bouchon » d'un indicateur qui plafonne.
+3. **I5 reste bas** : 0,32 à 0,56 pers/m² dans la population de
+   référence, 1,51 au plus dans le seul bras où une foule piégée
+   s'accumule (60 LLM). Ne pas conclure « pas de bouchon » d'un
+   indicateur qui plafonne à 1,5.
 4. **I6 n'est vivant que dans le piège** et sature à 1,00 au moment de la
    fermeture : il mesure l'instant, pas la récupération.
 5. **Un petit modèle ne raisonne pas, il suit la forme du prompt.** Quatre
@@ -1056,8 +1058,8 @@ de lui.
 
 - **« Le goulot est le savoir, pas l'encombrement »** — c'est vrai à
   60 agents sur 2 400 m². À 600, la densité moyenne devient 0,25 pers/m²
-  et les abords des trois sorties satureront : I5, qui plafonne ici à
-  0,6 pers/m², deviendrait l'indicateur principal, et le modèle de
+  et les abords des trois sorties satureront : I5, qui reste sous
+  1,6 pers/m² ici, deviendrait l'indicateur principal, et le modèle de
   collision rapide de JuPedSim (sans force sociale) deviendrait
   contestable.
 - **Le décalage mesuré (C7).** `lag_ticks_median` vaut 4 à 60 agents
