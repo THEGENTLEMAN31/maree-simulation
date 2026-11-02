@@ -25,21 +25,22 @@ temps, énergie).
 
 **Les trois résultats que nous défendons.**
 
-1. **Une annonce vague ne ralentit pas la foule : elle la bloque.** À
-   délai égal, une consigne claire fait sortir 60/60 ; la même annonce en
-   termes ambigu laisse 7 runs sur 10 censurés au plafond de temps, avec
-   deux personnes sur soixante encore dehors de la sortie à la fin
-   (X1, 5 graines par bras, p = 0,0185 sur le délai).
+1. **Une annonce vague ne ralentit pas la foule : elle bloque les
+   sorties.** À délai égal, une consigne claire évacue 100 % de la
+   population ; la même annonce en termes ambigus laisse **10 runs sur 10**
+   censurés au plafond de temps, avec trois personnes sur soixante encore
+   à l'intérieur (X1, 5 graines par bras, p = 0,0095 sur la part sortie —
+   et **aucun effet sur le délai**, p = 0,67).
 2. **Le LLM ne fait pas mieux évacuer, et il coûte cher.** Sur le scénario
-   du piège, les soixante agents à règles sortent 55/60 pour 9,6 s de
-   calcul ; les soixante agents LLM sortent 40/60 pour 520 appels et
-   234,8 s. Le résultat inverse celui que nous avions publié avant de
+   du piège, les soixante agents à règles sortent 55/60 pour 11,1 s de
+   calcul ; les soixante agents LLM sortent 42/60 pour 477 appels et
+   89,5 s. Le résultat inverse celui que nous avions publié avant de
    corriger une fuite de connaissance (X4).
 3. **Le gain de sobriété vient du protocole et de la répartition, pas de
-   la taille du modèle.** Donner au petit modèle une règle écrite et deux
-   drapeaux oui/non coûte 41 % de jetons de moins que de le laisser
-   répondre en JSON libre — avec le grand modèle (X12). Le petit modèle
-   *applique* une politique ; le grand la *juge*.
+   la taille du modèle.** Écrire la politique (règle + deux drapeaux)
+   au lieu de laisser le JSON ouvert économise **34 %** de jetons avec le
+   grand modèle ; répartir la cognition en économise **47 %** (X12). Le
+   petit modèle *applique* une politique ; le grand la *juge*.
 
 ---
 
@@ -91,8 +92,9 @@ Deux règles tiennent l'ensemble :
   runs identiques divergeraient ;
 - **ordre canonique** : les décisions s'appliquent par `agent_id`
   croissant, jamais dans l'ordre d'arrivée des réponses. Vérifié : en
-  passant de 1 à 4 appels concurrents, le temps mural baisse de 34,0 à
-  20,9 s (×1,63, p = 0,0117) **sans que I1, I5 ni I7 bougent** (X3).
+  passant en mode asynchrone, le temps mural baisse de 18,1 à 14,1 s sur
+  les cinq paires de graines **sans que I1, I5 ni I7 bougent** (X3) —
+  l'effet est là 5 fois sur 5, le seuil n'est pas atteint à 5 paires.
 
 Le déterminisme n'est pas un luxe, c'est la condition du rejeu : aucune
 horloge système dans la logique du monde (le temps est un entier), graines
@@ -166,11 +168,13 @@ honnête :
   ticks. Ce n'est pas une latence inventée, c'est la latence mesurée
   convertie par une cadence déclarée.
 
-**Le décalage, mesuré, sous charge** (X10, 5 graines) : `lag_llm` — tick où
-l'événement se produit → tick où l'agent le perçoit — vaut **0 en
-synchrone**, **5,5 à 20 agents**, **8,0 à 60 agents**. L'indicateur, lui,
-bouge 1,5 à 3,5 ticks après l'événement : c'est un agrégat, il attend
-qu'assez d'agents aient bougé, et à 60 agents il en faut plus qu'à 20.
+**Le décalage, mesuré, sous charge** (X10, 5 graines) : `lag_ticks_median`
+— tick où l'événement se produit → tick où la décision s'applique — vaut
+**0 en synchrone**, **4 à 20 agents comme à 60** (5 au maximum), et
+`lag_llm` (perception → application) vaut 2. Le décalage ne s'allonge donc
+pas de 20 à 60 agents : ce n'est pas la file qui le fabrique. L'indicateur
+agrégé, lui, bouge de 1 à 2 ticks après l'événement — il attend qu'assez
+d'agents aient bougé.
 
 **Deux pièges corrigés grâce à ce mode.** (a) Une vérification de cohérence
 qui lit l'état **courant** au lieu de l'état **perçu** ne se voit jamais en
@@ -235,11 +239,11 @@ GPU, sans serveur, sans réseau (`make replay-demo`, `make replay-pair`).
   c'est mesuré.** Le même protocole (X3), les mêmes graines, la même
   version du code, une fois sur Redpanda et une fois en mémoire
   (`configs/experiment/x3_kafka.yaml` contre `x3_memoire.yaml`, §12) :
-  **I1, I3, I5 et I7 sont identiques à la décimale** (p = 1,000), seul le
-  temps mural diffère (+24 % : 28,3 s contre 22,9 s en synchrone). 10 538
-  événements publiés sur quatre topics pour ces dix runs, instantanés
-  exclus. Kafka diffuse, ne décide pas — et nous l'avons vérifié au lieu
-  de l'affirmer.
+  **les médianes de I1, I3, I5 et I7 sont identiques** (p ≥ 0,60), seul le
+  temps mural diffère (+33 % : 24,2 s contre 18,2 s en synchrone, et
+  +41 % en asynchrone). **10 084 événements publiés sur quatre topics**
+  pour ces dix runs, instantanés exclus. Kafka diffuse, ne décide pas — et
+  nous l'avons vérifié au lieu de l'affirmer.
 - **Le client ne dépend jamais du moteur.** Une fonction pure
   `frame_for(event)` transforme un événement en trame autoportante ;
   `docs/protocol-ui.md` décrit les douze types (`hello`, `world`,
@@ -343,8 +347,8 @@ règles, en quelques secondes.
 - **Une API LLM distante.** Latence réseau de 70 à 500 ms par décision
   (qui viderait C4 et C7 de leur sens), quota qui tombe au milieu d'une
   campagne (donc des bras non comparables), et données envoyées à un tiers.
-  Les 6 906 appels de la campagne X1–X7 ont tous abouti en local, sans un
-  seul repli.
+  Les 14 181 appels de la campagne rejouée ont tous abouti en local, sans
+  un seul repli.
 - **Un rendu 3D.** Le sujet est la croyance, pas l'image.
 - **Parquet.** Voir §3 : le JSONL lu ligne par ligne fait le travail en
   3,4 s sur 450 000 événements.
@@ -440,99 +444,124 @@ rapport porte sur l'après**.
 
 ## 12. Résultats
 
-**La campagne, d'abord.** Seize protocoles, **250 runs mesurés**,
-**14 804 appels LLM**, **14 804 succès**, **zéro repli sur les règles**. Ce
+**La campagne, d'abord.** Seize protocoles, **260 runs mesurés**,
+**14 181 appels LLM**, **14 181 succès**, **zéro repli sur les règles**. Ce
 dernier chiffre n'est pas décoratif : un run dont les appels échouent
 ressemble à un résultat (voir §5), donc chaque tableau ci-dessous porte
 sur des runs dont le journal atteste que le modèle a répondu.
 
 ### H1 — une annonce claire et précoce accélère l'évacuation
-**Soutenue sur la clarté, pas sur l'heure.**
+**Soutenue sur la clarté (le nombre de sortis), non soutenue sur l'heure.**
 
 | bras | I7 (s) | I3 | I2 | runs censurés |
 |---|---|---|---|---|
-| clair, tôt (t17) | **160 [160–160]** | 1,00 | 0,47 | 0/5 |
-| ambigu, tôt (t17) | **260 [260–260]** | 0,98 | 0,58 | **4/5** |
-| clair, tard (t30) | 280 [270–290] | 1,00 | — | 0/5 |
-| ambigu, tard (t30) | 270 [270–270] | 0,98 | — | **3/5** |
+| clair, tôt (t17) | 380 [380–390] | **1,00** | 0,57 | 1/5 |
+| ambigu, tôt (t17) | 370 [260–440] | 0,95 | 0,56 | **5/5** |
+| clair, tard (t30) | 280 [280–290] | **1,00** | 0,51 | 1/5 |
+| ambigu, tard (t30) | 440 [270–560] | 0,95 | 0,54 | **5/5** |
 
-Clarté à délai égal : p = 0,0185. L'annonce est délivrée dans **5 runs sur
-5** dans les quatre bras (vérifié sur le déclencheur, pas supposé).
+À délai égal, la clarté ne change pas le **temps** (380 contre 370 s,
+p = 0,67) mais elle change le **nombre de sortis** : I3 1,00 contre 0,95
+(p = 0,0095), et **10 runs censurés sur 10** dans les bras ambigus contre
+2 sur 10 dans les bras clairs. Une consigne vague ne ralentit pas la
+foule : elle laisse une partie des agents en `STAY` jusqu'au plafond.
+L'annonce est délivrée dans **5 runs sur 5** dans les quatre bras
+(vérifié sur le déclencheur, pas supposé).
 
-Ce que la clarté achète n'est pas une accélération : c'est le **nombre de
-sortis**. 1,00 partout avec un ordre clair, 0,98 sans, et **7 runs
-censurés sur 10** dans les bras ambigus contre 0 sur 10 dans les bras
-clairs. Une consigne vague ne ralentit pas la foule : elle laisse une
-partie des agents à règles en `STAY` jusqu'au plafond. I2 le confirme
-(0,47 contre 0,58, p = 0,0079) : l'ambiguïté se lit dans l'incertitude.
+Sur l'heure, l'effet mesuré va dans le sens **inverse** de l'hypothèse :
+l'annonce claire et tardive sort en 280 s, l'annonce claire et précoce en
+380 s (p = 0,0097). Ce n'est pas la foule qui change, c'est **un agent**.
+Dans les cinq runs `clair_tot`, le dernier sorti est A57, vendeur confié
+au petit modèle : il répond `RESTER` à la fumée de t5, à l'annonce de t17,
+puis à chaque rappel périodique, et ne bascule sur `SORTIR` qu'au rappel
+de t41. Dans `clair_tard`, la même annonce tombe à t30 et il obéit
+immédiatement : dernière sortie à t33, et le dernier sorti y est un agent
+à règles dans 4 runs sur 5. Le petit modèle n'entend l'annonce qu'une
+fois sur deux — c'est la limite déjà consignée (2/6) — et I7 mesure ici sa
+réponse, pas celle du groupe.
+
+L'ancien chiffre (160 s contre 260 s) venait d'une campagne dont le
+protocole de modèles n'était pas celui-ci : il n'était pas faux, il
+mesurait autre chose. Deux runs séparés par une version de code ne se
+comparent pas, et c'est vrai à l'intérieur d'un même protocole.
 
 ### H2 — les meneurs piègent davantage de monde
-**Non soutenue, avec un signal dans le sens prévu.**
+**Non soutenue : l'écart de délai a disparu.**
 
 | bras | I6 | I3 | I7 (s) | I5 (pers/m²) |
 |---|---|---|---|---|
-| avec meneurs | 1,00 | 0,90 | **220 [220–220]** | 0,40 |
-| sans meneurs | 1,00 | 0,92 | **150 [150–150]** | 0,48 |
+| avec meneurs | 1,00 | 0,90 | **265 [250–270]** | 0,48 |
+| sans meneurs | 1,00 | 0,89 | **265 [250–270]** | 0,56 |
 
-p = 0,75 (I3), 0,74 (I5), **0,083 (I7)**. Quatre runs sur cinq sont
-censurés des deux côtés. L'écart de délai (7 ticks de plus avec des
-guides) va dans le sens de H2 mais n'est pas significatif à 5 graines : à
-lire comme une piste. **I6 = 1,00 dans les deux bras** est une tautologie
-du scénario (au moment de la fermeture, tout le monde croit en A) et ne
-discrimine rien.
+p = 0,62 (I3), **0,91 (I7)**, **0,058 (I5)**. Les 20 runs sont censurés
+(personne ne sort complètement) : le scénario piège ne discrimine que par
+I3, et I3 ne bouge pas. L'écart de 70 s qui avait suggéré un effet à
+5 graines (220 contre 150 s) n'existe plus à 10 graines. Seule la densité
+diffère — plus haute **sans** meneurs — dans le sens inverse du mécanisme
+attendu, et elle frôle le seuil sans l'atteindre. **I6 = 1,00 dans les
+deux bras** est une tautologie du scénario (au moment de la fermeture,
+tout le monde croit en A) et ne discrimine rien.
 
 ### H3 — synchrone contre asynchrone
-**Effet nul sur la dynamique, gain mural net.**
+**Effet nul sur la dynamique ; le gain mural est là, mais 5 graines ne
+suffisent pas à le trancher.**
 
 | bras | I1 | I5 | I7 (s) | temps mural |
 |---|---|---|---|---|
-| synchrone | 0,96 | 0,48 | 100 | 34,0 s |
-| asynchrone | 0,96 | 0,40 | 100 | **20,9 s** |
+| synchrone | 0,98 | 0,40 | 220 | 18,1 s |
+| asynchrone | 0,97 | 0,40 | 220 | **14,1 s** |
 
-p = 0,84 (I1), 0,58 (I5), 0,54 (I7), **0,0117** (mural), facteur **1,63×**.
-C'est la démonstration que la perception figée et l'ordre canonique font
-leur travail : le parallélisme n'achète que du temps réel. En revanche, en
-mode **réellement asynchrone** (chacun ramasse sa réponse quand elle
-arrive, X11), le délai n'est plus gratuit : I7 passe de 220 à 470 s et
-`lag_llm` de 0 à 5 ticks médians (12 au maximum).
+p = 0,84 (I1), 0,82 (I5), 0,82 (I7) : la dynamique est identique, ce qui
+est la démonstration que la perception figée et l'ordre canonique font
+leur travail. Le temps mural baisse sur **les cinq paires de graines**
+(17,8→14,9 ; 18,1→13,0 ; 21,1→14,1 ; 27,4→25,3 ; 16,6→14,0), médiane
+18,1 → 14,1 s, facteur **1,28**. À cinq paires, un test apparié ne peut
+pas descendre sous p = 0,0625 ; on ne conclut donc pas, on constate que
+l'effet est présent 5 fois sur 5.
+
+En mode **réellement asynchrone** (chacun ramasse sa réponse quand elle
+arrive, X11), le délai n'est plus gratuit mais reste petit : I7 passe de
+220 à 230 s (p = 0,041) et `lag_ticks_median` de 0 à 4 (6 au maximum).
 
 ### H4 — LLM contre règles sur l'écart croyance/réalité
 **Réfutée — et le résultat est l'inverse de celui attendu.**
 
 | bras | I3 | I7 (s) | appels | mural |
 |---|---|---|---|---|
-| hybride 12 LLM + 48 règles | 0,92 | 220 | 43 | 30,9 s |
-| 60 règles | 0,92 | **150** | 0 | **9,6 s** |
-| 60 LLM | **0,67** | **350** | **520** | **234,8 s** |
+| hybride 12 LLM + 48 règles | 0,88 | 270 | 78 | 24,7 s |
+| 60 règles | 0,92 | **150** | 0 | **11,1 s** |
+| 60 LLM | **0,70** | **440** | **477** | **89,5 s** |
 
-Le tout-LLM est le **pire** bras : 40 agents sortis sur 60 en médiane,
-contre 55 pour les règles (p = 0,0117 sur I3 et I7), pour 12 fois le temps
-mural. Qui reste piégé ? **Des visiteurs, dans les trois bras** — c'est
+Le tout-LLM est le **pire** bras : 42 agents sortis sur 60 en médiane,
+contre 55 pour les règles (p = 0,008 sur I3, 0,011 sur I7), pour 8 fois le
+temps mural. Qui reste piégé ? **Des visiteurs, dans les trois bras** — c'est
 voulu, ils ne connaissent que A et A ferme à t14 — mais le nombre varie
-énormément : 0 à 8 visiteurs piégés sur 24 en tout-règles, **17 à 23** en
-tout-LLM.
+énormément : 0 à 8 visiteurs piégés sur 24 en tout-règles, **9 à 19** en
+tout-LLM, plus 1 à 7 habitués par run qu'on ne voyait pas dans la campagne
+d'avant correctif.
 
 Les agents à règles visiteurs se rabattent sur ce qu'ils savent faire :
 suivre quelqu'un, attendre, sortir par où la foule sort. Les agents LLM
 visiteurs explorent (`search`), tournent, et ne sortent pas. Le « 60/60 »
-publié avant le correctif était l'artefact de la fuite, pas la cognition.
-**Ce n'est pas le LLM qui rattrape les règles, c'est l'inverse.**
+publié avant le correctif de connaissance était l'artefact de la fuite,
+pas la cognition. **Ce n'est pas le LLM qui rattrape les règles, c'est
+l'inverse.**
 
 ### H5 — la mémoire change le choix de sortie
-**Soutenue sur les décisions, invisible dans les agrégats.**
+**Soutenue sur les décisions et sur l'incertitude, pas sur l'errance.**
 
-| bras | I1 | I2 | I7 | `search` | `stay` | LLM → C |
+| bras | I1 | I2 | I7 | `search` | `stay` | `guide` |
 |---|---|---|---|---|---|---|
-| avec mémoire | 0,96 | 0,44 | 100 | **5,0** | **143** | **2,0** |
-| sans mémoire | 0,96 | 0,44 | 100 | **8,5** | **134** | **1,0** |
+| avec mémoire | 0,98 | **0,52** | 220 | 5,0 | **29,0** | **1,0** |
+| sans mémoire | 0,98 | **0,50** | 220 | 5,5 | **24,5** | **2,0** |
 
-Aucun agrégat ne bouge à 10 graines (p = 0,68 ; 0,52 ; 0,54). Au niveau
-des décisions : `search` p = 0,0015, `stay` p = 0,0006, C p = 0,050. Avec
-mémoire, les agents LLM cherchent moins, restent plus, et vont davantage
-vers C — la sortie que les habitués connaissent et que le RAG documente.
-Leçon de méthode : pour H5, **l'indicateur est la distribution des
-décisions**, pas la moyenne de la foule. Douze agents sur soixante ne
-déplacent aucun agrégat.
+I2 diffère (p = 0,0073), et au niveau des décisions `stay` (p = 0,0087) et
+`guide` (p = 0,0050) aussi ; `search` (p = 0,56) et le choix de sortie
+(p = 0,33 pour C) ne bougent pas. Avec mémoire, les agents LLM restent
+davantage et guident moins — la préhistoire de J−3 donne de quoi hésiter,
+pas de quoi mieux se diriger. Leçon de méthode : pour H5, **l'indicateur
+est la distribution des décisions**, pas la moyenne de la foule. Douze
+agents sur soixante ne déplacent qu'un agrégat, et de peu.
 
 ### H6 — le profil change la décision
 **Soutenue.**
@@ -540,26 +569,30 @@ déplacent aucun agrégat.
 | bras | I1 | I3 | I7 (s) | LLM → A | LLM → B | règles → B |
 |---|---|---|---|---|---|---|
 | visiteurs seuls | **1,00** | 1,00 | **90** | 40 | **0** | 0 |
-| habitués seuls | 0,93 | 1,00 | 100 | 31 | 13 | 66 |
+| habitués seuls | 0,94 | 1,00 | 100 | 27 | 14 | 67 |
 
-p = 0,0001 (I1), **0,0252** (I7), I3 constante. Un visiteur ne connaît que
+p = 0,0001 (I1), **0,0021** (I7), I3 constante. Un visiteur ne connaît que
 A et ne choisit que A — **côté LLM comme côté règles**, ce qui n'était pas
 le cas avant le correctif de connaissance (12 décisions LLM vers B). Le
 savoir définit l'ensemble des sorties atteignables, et il le fait plus
 vite : 90 s contre 100 s, parce qu'il n'y a rien à arbitrer.
 
 ### H7 — le RAG change la croyance
-**Soutenue, à 10 graines, sur la cognition et sur la foule.**
+**Soutenue sur la cognition, non soutenue sur les agrégats.**
 
-| bras | I2 | I3 | I7 (s) | `search` | LLM → B | LLM → C |
-|---|---|---|---|---|---|---|
-| avec RAG | **0,44** | 1,00 | **100 [100–100]** | **4,0** | 1,5 | 2,0 |
-| sans RAG | **0,54** | 1,00 (3/10 censurés) | **150 [102–160]** | **21,5** | 0,0 | 1,0 |
+| bras | I2 | I3 | I7 (s) | `search` |
+|---|---|---|---|---|
+| avec RAG | 0,53 | 1,00 | 220 | **5,0** |
+| sans RAG | 0,54 | 1,00 | 220 | **9,5** |
 
-p = 0,0008 (I2), **0,016 (I7)**, `search` p = 0,0002. Sans RAG, les agents
-LLM errent cinq fois plus, prennent plus de décisions, et la foule met
-50 s de plus — 3 runs sur 10 sont même censurés. Le RAG ne change pas
-seulement ce que les agents croient : il change le temps que met la foule.
+`search` divise par deux (p = 0,0002) : sans RAG, les agents LLM errent
+deux fois plus. Mais ni l'entropie (p = 0,47) ni le délai (p = 0,83) ni
+l'évacuation ne bougent. C'était l'inverse avant le correctif des
+collections (I2 0,44 contre 0,54, I7 100 contre 150 s) : depuis que le
+visiteur lit les annonces et que les habitués lisent le plan, le RAG
+nourrit des sources qui se contredisent, et l'écart d'entropie entre les
+deux bras disparaît (voir Q5). Le RAG change ce que font les agents ; il
+ne change plus ce que la foule met à sortir.
 
 ### Les deux leviers MARÉE restés non testés (X13, X14)
 
@@ -576,15 +609,16 @@ sortie ne ferme) et `e2e` (A ferme à t14).
 
 | bras | I1 | I2 | I3 | I7 (s) |
 |---|---|---|---|---|
-| avec sécurité, `demo` | 0,98 | 0,56 | 1,00 | 220 |
-| sans sécurité, `demo` | 0,98 | 0,55 | 1,00 | 220 |
-| avec sécurité, `e2e` | 0,97 | **0,16** | 0,92 | **270** |
-| sans sécurité, `e2e` | 0,98 | 0,22 | 0,90 | 250 |
+| avec sécurité, `demo` | 0,97 | 0,53 | 1,00 | 220 |
+| sans sécurité, `demo` | 0,98 | 0,49 | 1,00 | 220 |
+| avec sécurité, `e2e` | 0,97 | **0,13** | 0,90 | 270 |
+| sans sécurité, `e2e` | 0,97 | **0,19** | 0,90 | 250 |
 
-**Résultat : rien de significatif** (p = 0,84 sur I1 ; 0,75 sur I3 ; 0,50
-sur I7 ; 1,00 sur I2). Le seul écart de médiane qui se voit — I2 0,16
-contre 0,22 dans le piège — a des intervalles qui se recouvrent
-complètement ([0,12–0,17] contre [0,08–0,24]) et ne tient pas.
+**Résultat : rien de significatif** (p = 1,00 sur I1 ; 0,60 sur I3 ; 1,00
+sur I7 ; 0,55 sur I2 en `demo`, et 0,14 sur I7 en `e2e`). Le seul écart de
+médiane qui se voit — I2 0,13 contre 0,19 dans le piège — a des intervalles
+qui se recouvrent complètement ([0,11–0,18] contre [0,08–0,24]) et ne
+tient pas.
 
 Pourquoi ce levier ne mord pas, et c'est la partie utile : **le savoir de
 la sécurité n'est pas exclusif**. Les habitués connaissent les mêmes
@@ -609,24 +643,26 @@ Seize agents `famille` (27 %) contre zéro : les seize deviennent
 
 | bras | I1 | I2 | I3 | I7 (s) | appels |
 |---|---|---|---|---|---|
-| avec familles | 0,98 | **0,55 [0,53–0,77]** | 1,00 | 220 | 48 |
-| sans familles | 0,99 | **0,46 [0,42–0,69]** | 1,00 | 225 | 50 |
+| avec familles | 0,98 | **0,52 [0,51–0,54]** | 1,00 | 220 | 46 |
+| sans familles | 0,98 | **0,41 [0,40–0,44]** | 1,00 | 225 | 44 |
 
 **Résultat : les familles rendent la foule moins sûre, sans changer son
-issue.** À **10 graines**, I2 monte de 0,09 (**p = 0,031**), 9 graines sur
-10 vont dans le même sens ; I3 et I7 ne bougent pas (p = 1,00 et 0,69) ;
-le coût est identique (48 contre 50 appels). C'est cohérent avec le
+issue.** À **10 graines**, I2 monte de 0,11 (**p = 0,017**), 9 graines sur
+10 vont dans le même sens, et I1 baisse de 0,006 (p = 0,026) ; I3 et I7 ne
+bougent pas (p = 0,58 et 0,54) ; le coût est identique (46 contre 44
+appels). C'est cohérent avec le
 profil : un agent `famille` cherche un proche, donc il doute, sans pour
 autant sortir plus mal — il finit par sortir avec les autres.
 
 Une réserve de lecture, parce que l'IQR de I2 est large : la distribution
 est **bimodale**, et ce n'est pas un hasard. Les runs où un agent reste
-non sorti à la fin (I3 = 0,98) produisent un I2 de 0,77 à 0,83 ; les
-autres, 0,41 à 0,60. L'entropie moyenne sur la partie active est donc
-plus haute dans les runs censurés, et c'est cette censure qui fabrique
-l'intervalle large. L'écart entre bras reste dans **chaque** régime (0,60
-contre 0,42 sur les runs complets, 0,82 contre 0,77 sur les censurés) —
-mais il faut le dire plutôt que de ne montrer que la médiane.
+non sorti à la fin produisent les I2 les plus hauts (0,85 avec familles,
+0,76 à 0,77 sans) ; les autres, 0,49 à 0,58 contre 0,26 à 0,45.
+L'entropie moyenne sur la partie active est donc plus haute dans les runs
+censurés, et c'est cette censure qui élargit l'intervalle. L'écart entre
+bras reste dans **chaque** régime (0,52 contre 0,41 sur les runs complets,
+0,85 contre 0,76 sur les censurés) — mais il faut le dire plutôt que de ne
+montrer que la médiane.
 
 Ce que X14 dit de notre modèle, et qui n'était pas acquis : **la
 solidarité familiale se lit dans l'incertitude, pas dans la performance.**
@@ -643,16 +679,20 @@ du code, une fois sur un broker réel, une fois en mémoire.
 
 | | I1 | I3 | I5 | I7 (s) | mural | appels |
 |---|---|---|---|---|---|---|
-| synchrone, **Redpanda** | 0,97 | 1,00 | 0,48 | 220 | 28,3 s | 254 |
-| synchrone, mémoire | 0,97 | 1,00 | 0,48 | 220 | 22,9 s | 252 |
-| asynchrone, **Redpanda** | 0,97 | 1,00 | 0,48 | 220 | 21,4 s | 250 |
-| asynchrone, mémoire | 0,97 | 1,00 | 0,48 | 220 | 17,4 s | 257 |
+| synchrone, **Redpanda** | 0,98 | 1,00 | 0,48 | 220 | 24,2 s | 44 |
+| synchrone, mémoire | 0,98 | 1,00 | 0,48 | 220 | 18,2 s | 43 |
+| asynchrone, **Redpanda** | 0,97 | 1,00 | 0,40 | 220 | 22,1 s | 48 |
+| asynchrone, mémoire | 0,97 | 1,00 | 0,40 | 220 | 15,7 s | 45 |
 
-**Tous les indicateurs sont identiques** (p = 1,000 sur I1, I3, I5 et I7
-dans les deux modes) ; le bus coûte **+24 % de temps mural** (28,3 contre
-22,9 s en synchrone, 21,4 contre 17,4 s en asynchrone, p = 0,056 et
-0,095). Cinq graines par bras, 10 538 événements publiés sur quatre topics pour
-les dix runs du bras Kafka, aucun échec de publication.
+**Tous les indicateurs sont identiques** (médianes égales, p ≥ 0,60 sur
+I1, I3, I5 et I7) ; le bus coûte **+33 % de temps mural** (24,2 contre
+18,2 s en synchrone, 22,1 contre 15,7 s en asynchrone). Le test non
+apparié ne tranche pas (p = 0,69 et 0,15) parce que la variance entre
+graines est grande, mais les graines sont les mêmes de part et d'autre :
+apparié, le coût est positif dans **les cinq paires** (+3,7 à +6,3 s,
+médiane +5,8 s). Cinq graines par bras, **10 084 événements publiés sur
+quatre topics** pour les dix runs du bras Kafka, aucun échec de
+publication.
 
 **Le témoin a failli manquer, et c'est la leçon de méthode.** Comparer ces
 runs au X3 du 29 octobre donnait I7 = 220 s contre 100 s : on aurait conclu
@@ -670,19 +710,19 @@ post-traitement :
 
 | contrôle | attendu | mesuré | verdict |
 |---|---|---|---|
-| communication coupée (X8) | I1 chute | I1 **0,990 → 0,992** ; I2 0,333 → **0,461** ; I3 0,967 → 0,850 ; messages 58 → **0** | **I1 ne mesure pas l'influence sociale dans cette population** — c'est l'artefact que B3 devait révéler, publié tel quel. I2, lui, distingue. |
+| communication coupée (X8) | I1 chute | I1 **0,973 → 0,990** ; I2 0,530 → **0,830** ; I3 1,000 → 0,967 ; messages 58 → **0** | **I1 ne mesure pas l'influence sociale dans cette population** — c'est l'artefact que B3 devait révéler, publié tel quel. I2 va dans le sens attendu, mais un run du bras « avec » (0,849) recouvre la distribution : p = 0,15 à 5 graines, donc non tranché. |
 | annonce neutre (X8) | I2 ne baisse pas | joué avec le bras sans communication | pas de baisse |
-| diversité des justifications | intra < inter si le modèle produit du gabarit | **intra 0,425 · inter 0,467** (rapport 0,91) sur 950 justifications X12,
-  243 375 paires, embeddings bge-m3 | la variété ne vient pas d'un seul gabarit |
+| diversité des justifications | intra < inter si le modèle produit du gabarit | **intra 0,400 · inter 0,472** (rapport 0,85) sur 939 justifications X12,
+  440 391 paires, embeddings bge-m3 | la variété ne vient pas d'un seul gabarit |
 
 Le troisième contrôle est le plus intéressant, et il a failli manquer : il
 compare la distance d'embeddings entre justifications **d'un même modèle**
 et **entre modèles**. Un rapport proche de 1 signifie que le petit modèle
-n'est pas un perroquet d'un gabarit unique — c'est le cas (0,91), et c'est
-mesuré sur 450 775 paires.
+n'est pas un perroquet d'un gabarit unique — c'est le cas (0,85), et c'est
+mesuré sur 440 391 paires.
 
-**Coût de la communication** : sans diffusion, 131 appels au lieu de 77
-(+70 %) et 47,6 s au lieu de 26,1 s. Ce n'est pas la diffusion qui coûte
+**Coût de la communication** : sans diffusion, 64 appels au lieu de 45
+(+42 %) et 34,4 s au lieu de 14,4 s. Ce n'est pas la diffusion qui coûte
 cher, c'est son absence : un agent qui n'a rien entendu redécide. Un
 système qui parle est un système qui pense moins souvent.
 
@@ -719,8 +759,8 @@ appris quelque chose.
    X1, la fumée de t5 — donc l'heure de l'annonce reste dans le chiffre.
    Isoler la réaction à l'annonce demanderait de compter depuis l'annonce.
 2. **« Dernier sorti » n'est pas « dernier piégé ».** En X4 hybride, le
-   dernier sorti est un agent LLM dans 4 runs sur 5, alors que les piégés
-   sont tous des visiteurs.
+   dernier sorti est un agent LLM dans 5 runs sur 5, alors que les piégés
+   sont des visiteurs (moins un habitué dans un run sur cinq).
 3. **La connaissance est statique.** Un message qui dit « B est libre »
    n'ajoute pas B au savoir d'un visiteur : la garde s'appuie sur
    `Profile.knows`. Un agent ne peut donc pas apprendre la géographie par
@@ -728,9 +768,11 @@ appris quelque chose.
 4. **La fermeture d'une issue n'est pas une barrière physique** :
    JuPedSim ne détruit pas proprement une sortie, les agents sont
    redirigés vers un point d'arrêt 1,5 m à l'intérieur. Ils s'y accumulent.
-5. **Puissance statistique.** X1–X4 restent à 5 graines : une p-value
-   exacte à 5 contre 5 vaut 0,0079 au mieux, et deux écarts (X2 sur I7,
-   X4 hybride contre règles) ne sont pas tranchés.
+5. **Puissance statistique.** X1 et X3–X4 restent à 5 graines : une
+   p-value exacte à 5 contre 5 vaut 0,0079 au mieux. Deux écarts ne sont
+   donc pas tranchés — le temps mural de X3 (p = 0,095, présent 5 fois sur
+   5) et I3 de X4 hybride contre tout-règles (p = 0,35). X2 est passé à
+   10 graines et a tranché : pas d'effet des meneurs.
 6. **Reproductibilité LLM.** Deux runs de même configuration donnent les
    mêmes comptes, pas les mêmes décisions. L'expérience doit agréger des
    graines, jamais comparer deux runs appariés. Le journal, lui, reste
@@ -784,19 +826,18 @@ appel d'API, aucun quota consommé, aucune donnée envoyée.
 |---|---:|---:|---:|---:|---:|
 | tout à règles, 60 agents (`demo60`) | **0** | 0 | **0,9 s** | 60/60 | 100 |
 | run versionné `demo_replay` | 49 | — | 18,0 s | 60/60 | — |
-| hybride, communication **coupée** (X8) | 131 | 62 431 | 47,6 s | 51/60 | — |
-| hybride, communication **active** (X8) | 77 | 36 610 | 26,1 s | 58/60 | — |
+| hybride, communication **coupée** (X8) | 64 | 25 291 | 34,4 s | 58/60 | — |
+| hybride, communication **active** (X8) | 45 | 13 701 | 14,4 s | 60/60 | — |
 
 Deux choses se lisent dans ce tableau, et une seule est une bonne nouvelle.
 
-**La communication divise le coût par 1,7.** Sans diffusion, un agent qui
-n'a rien entendu redécide : 131 appels au lieu de 77 (+70 %), 47,6 s au
-lieu de 26,1 s. Ce n'est pas la diffusion qui coûte cher, c'est son
-absence.
+**La communication divise le coût.** Sans diffusion, un agent qui n'a rien
+entendu redécide : 64 appels au lieu de 45 (+42 %), 34,4 s au lieu de
+14,4 s. Ce n'est pas la diffusion qui coûte cher, c'est son absence.
 
 **Le LLM ne fait pas mieux évacuer, et il coûte.** 12 agents LLM + 48
-règles sortent 58 sur 60 ; les règles seules sortent 60/60 en 0,9 s. En
-tout-LLM (X4), c'est 40/60 pour 520 appels et 234,8 s. L'apport du LLM
+règles sortent 53 sur 60 ; les règles seules sortent 55/60 en 11,1 s. En
+tout-LLM (X4), c'est 42/60 pour 477 appels et 89,5 s. L'apport du LLM
 dans ce scénario n'est donc pas la performance d'évacuation — il est
 ailleurs, et il est mesurable (§17).
 
@@ -807,10 +848,10 @@ ailleurs, et il est mesurable (§17).
 | une décision **justifiée** par une phrase, pas seulement par une règle | `agent.decision.llm.raw_output` et `reason` |
 | un recours explicite au **savoir** (RAG) | `retrieved` journalisé, P@1 0,417 (F2) |
 | une **mémoire** datée qui pèse sur la décision | préhistoire J−3 : 50 % des décisions LLM citent un épisode (X9) |
-| des **échanges** en langage naturel qui modifient la croyance | `message.sent` / `heard` : couper la communication change I2 de 0,333 à 0,461 (X8) |
+| des **échanges** en langage naturel qui modifient la croyance | `message.sent` / `heard` : couper la communication fait passer I2 de 0,53 à 0,83 (X8, non tranché à 5 graines) |
 | des **profils** qui décident différemment dans la même situation | X6 : p = 0,0001 sur I1 |
 | un **récit** lisible du run | chroniqueur, 4 récits par run, 0 repli |
-| des **dérives diagnostiquées** (A4, O2) | 8 % des appels, taux rapporté aux décisions et ventilé par cause |
+| des **dérives diagnostiquées** (A4, O2) | 9,9 % des appels, taux rapporté aux décisions et ventilé par cause |
 
 Ce que le LLM n'apporte pas, et qu'il faut dire : de meilleures
 évacuations, ni un coût plus bas. Le projet est un **banc d'essai pour
@@ -820,7 +861,7 @@ d'évacuation.
 ### O2 — la posture d'« assistant prudent », mesurée
 
 La dérive que le sujet nomme est réelle, et elle a une forme unique dans
-notre corpus : sur **1 287 appels** de la campagne X12, **62** (4,8 %)
+notre corpus : sur **1 196 appels** de la campagne X12, **62** (5,2 %)
 répondent *« cible générique : la sortie la plus proche »* — ils ne
 nomment aucune sortie. L'agent ne refuse pas de
 sortir : il refuse de **choisir**. C'est le comportement d'un assistant
@@ -833,7 +874,7 @@ valide ; seule la cible est inutilisable, et le moteur la remplace par la
 sortie connue la plus proche. Compter ce cas comme une réponse
 inexploitable aurait gonflé le taux d'incidents et masqué la vraie
 question : ce n'est pas le modèle qui a échoué, c'est la **consigne** qui
-l'a rendu prudent. Le taux d'incident global (8 %) est rapporté aux
+l'a rendu prudent. Le taux d'incident global (9,9 %) est rapporté aux
 décisions LLM (`incident_rate` dans `run.ended`), pas compté en absolu.
 
 ## 18. Le levier de sobriété : le protocole, pas la taille du modèle (X12)
@@ -844,24 +885,24 @@ l'attribution des modèles et la consigne donnée.
 
 | bras | ce qui change | appels | jetons | I3 | I7 (s) | mural |
 |---|---|---:|---:|---:|---:|---:|
-| `tous_grand` | référence : 12 agents sur le grand modèle, JSON ouvert | 48 | **20 456** | 1,00 | **110** | 21,3 s |
-| `protocole_seul` | 12 sur le grand modèle, **règle + drapeaux** | 45 | 14 847 (−27 %) | 1,00 | 160 | 15,5 s |
-| `deux_tiers` | 6 grands + 6 petits, règle + drapeaux | 47 | 14 027 (−31 %) | 1,00 | 220 | 16,3 s |
-| **`tiers_regles`** | **6 grands + 54 agents à règles** | **25** | **12 385 (−39 %)** | **1,00** | **110** | 16,3 s |
-| `petit_json_ouvert` | 6 grands + 6 petits, JSON ouvert (témoin) | 83 | 42 376 (+107 %) | 0,95 | 390 | 33,1 s |
+| `tous_grand` | référence : 12 agents sur le grand modèle, JSON ouvert | 43 | **20 073** | 1,00 | **100** | 20,5 s |
+| `protocole_seul` | 12 sur le grand modèle, **règle + drapeaux** | 40 | 13 207 (−34 %) | 1,00 | 110 | 12,5 s |
+| `deux_tiers` | 6 grands + 6 petits, règle + drapeaux | 43 | 13 069 (−35 %) | 1,00 | 220 | 13,9 s |
+| **`tiers_regles`** | **6 grands + 54 agents à règles** | **21** | **10 724 (−47 %)** | **1,00** | **100** | 12,9 s |
+| `petit_json_ouvert` | 6 grands + 6 petits, JSON ouvert (témoin) | 88 | 47 959 (+139 %) | 0,93 | 460 | 39,8 s |
 
 **Le gain est réel et il ne vient pas d'où on l'attendait.**
 
-- Passer du JSON ouvert à une **règle + deux drapeaux** économise 27 % de
+- Passer du JSON ouvert à une **règle + deux drapeaux** économise 34 % de
   jetons **avec le grand modèle** : le protocole compte plus que le
   paramètre.
-- Donner le JSON ouvert au petit modèle **coûte le double** (+107 % de
-  jetons, +200 s de délai, 0,95 d'évacuation) : un modèle de 0,6 Md ne
-  remplit pas un format ouvert, il le recopie.
+- Donner le JSON ouvert au petit modèle **coûte le double et plus**
+  (+139 % de jetons, +360 s de délai, 0,93 d'évacuation) : un modèle de
+  0,6 Md ne remplit pas un format ouvert, il le recopie.
 - Répartir la cognition — six agents qui pensent, cinquante-quatre qui
-  appliquent — **divise les appels par deux** (−48 %) et les jetons par
-  2,6, **sans perdre un seul évacué ni un seul tick de délai** (I3 1,00,
-  I7 110 s, identique à la référence).
+  appliquent — **divise les appels par deux** (−51 %) et les jetons par
+  1,9, **sans perdre un seul évacué ni un seul tick de délai** (I3 1,00,
+  I7 100 s, identique à la référence).
 
 C'est le résultat à retenir de E5 : **le levier de sobriété n'est pas la
 taille du modèle, c'est le choix de qui pense.** Et le corollaire assumé :
@@ -872,19 +913,31 @@ la première option de la liste.
 ## 19. Énergie
 
 Mesuré au compteur logiciel (`nvidia-smi --query-gpu=power.draw`,
-échantillonné toutes les 500 ms) sur un run hybride de 31,6 s :
+échantillonné à 1 Hz), repos mesuré à l'arrêt (**6,5 W**), fenêtre du
+run (`run.started` → `run.ended`), intégration par trapèzes. Le repos est
+soustrait, sinon on compte le bureau et le ventilateur comme du coût de
+simulation.
 
-| grandeur | valeur |
-|---|---:|
-| puissance au repos | 6,5 W |
-| puissance pendant le run | 59,0 W |
-| surcoût | **52,5 W** |
-| énergie du run | **1 658 J = 0,46 Wh** |
+| protocole · bras | Wh actifs (médiane [IQR]) | durée |
+|---|---:|---:|
+| X4 · 60 règles | **0,163** [0,162–0,169] | 11,1 s |
+| X12 · `tiers_regles` | 0,217 [0,200–0,293] | 12,9 s |
+| X12 · `protocole_seul` | 0,219 [0,215–0,327] | 12,5 s |
+| X12 · `deux_tiers` | 0,233 [0,217–0,236] | 13,9 s |
+| X3M · asynchrone | 0,247 [0,245–0,276] | 15,7 s |
+| X3M · synchrone | 0,291 [0,286–0,349] | 18,2 s |
+| X12 · `tous_grand` | 0,370 [0,355–0,424] | 20,5 s |
+| X4 · hybride 12 LLM | 0,397 [0,379–0,409] | 24,7 s |
+| X12 · `petit_json_ouvert` | 0,642 [0,583–0,702] | 39,8 s |
+| X4 · 60 LLM | **1,673** [1,431–1,814] | 89,5 s |
 
-Un run hybride coûte un demi-watt-heure de GPU ; les runs de X12 (15 à
-33 s) sont du même ordre, 0,2 à 0,5 Wh. Un run à règles dure 0,9 s —
-plus court que la période d'échantillonnage, donc **non mesurable** avec
-cette méthode, ce qui est en soi la réponse.
+Un run hybride coûte **0,4 Wh** de GPU ; le tout-règles 0,16 Wh, le
+tout-LLM 1,7 Wh — dix fois le tout-règles pour un tiers d'évacués en
+moins. Le levier de sobriété se lit aussi ici : `tiers_regles` fait
+0,217 Wh, soit 41 % de moins que la référence `tous_grand`, pour la même
+évacuation et le même délai. Un run à règles de la démo (0,9 s) est plus
+court que la période d'échantillonnage : **non mesurable** avec cette
+méthode, ce qui est en soi la réponse.
 
 Ce n'est pas une mesure de laboratoire : `power.draw` est la puissance
 instantanée de la carte, pas un compteur mural. `CodeCarbon` et
@@ -906,9 +959,9 @@ l'énergie grise du matériel.
 Avec un budget divisé par deux, nous sacrifierions **le bras tout-LLM** et
 les protocoles à 10 graines, pas la référence : la comparaison
 LLM / règles et la mesure de clarté de l'annonce sont les deux résultats
-qui tiennent avec 5 graines. Ce qui tomberait : l'écart X2 sur le délai
-(p = 0,083) et la question « le petit modèle écoute-t-il les annonces ? »
-(2/6, déjà non concluante).
+qui tiennent avec 5 graines. Ce qui tomberait : la question « le petit
+modèle écoute-t-il les annonces ? » (2/6, déjà non concluante), et avec
+elle l'explication de la queue de H1.
 
 ---
 
@@ -931,17 +984,18 @@ qui tiennent avec 5 graines. Ce qui tomberait : l'écart X2 sur le délai
    c'est-à-dire « voilà sur quoi il s'appuie, et à quel point ça
    ressemble ». Invisible sans LLM.
 4. **Les dérives.** Posture d'assistant prudent, réponse inexploitable,
-   sortie hors de son rôle, récupération douteuse : 8 % des appels en
+   sortie hors de son rôle, récupération douteuse : 9,9 % des appels en
    moyenne. Un agent à règles ne dérive pas — il n'a rien à dériver.
 
 **Des courbes, une seule famille d'indicateurs bouge vraiment : I2.**
 Remplacer les LLM par les règles ne change pas I1 (0,97 en hybride, 0,97
-en tout-règles, 0,98 en tout-LLM)
-ni I3 dans le bras hybride (0,92), et **améliore** I7 (220 → 150 s). Le
-LLM ne déplace donc pas les courbes dans le sens favorable — et c'est
-écrit tel quel (§13). Ce qui change, c'est la **distribution des
-décisions** (X5 : `search` 5,0 contre 8,5 ; `stay` 143 contre 134) et
-I2. C'est pourquoi nos conclusions scientifiques ne reposent pas sur
+en tout-règles, 0,99 en tout-LLM)
+et **améliore** I3 comme I7 (0,88 / 270 s en hybride, 0,92 / 150 s en
+tout-règles). Le LLM ne déplace donc pas les courbes dans le sens
+favorable — et c'est écrit tel quel (§13). Ce qui change, c'est la
+**distribution des décisions** (X5, médianes par run : `stay` 29,0 contre
+24,5 ; `guide` 1,0 contre 2,0) et I2. C'est pourquoi nos conclusions
+scientifiques ne reposent pas sur
 « le LLM évacue mieux », qui est faux, mais sur la circulation d'une
 croyance, qui est mesurable dans le journal.
 
@@ -958,24 +1012,28 @@ Trois preuves, dans l'ordre de force :
    peut que mesurer une perte. Sur `demo60`, I1 vaut 1,00 à t0 et ne
    bouge jamais — la foule n'a rien construit, elle est partie d'un accord.
 2. **Couper la communication ne le fait pas bouger** (X8, 5 graines) :
-   I1 0,990 → 0,992, alors que les messages passent de 58 à **0**. Un
+   I1 0,973 → 0,990, alors que les messages passent de 58 à **0**. Un
    consensus qui ne dépend pas de la communication n'est pas un consensus
    social : c'est la similarité des profils et des règles. C'est
    exactement l'artefact que B3 demande de chercher, et nous l'avons
    trouvé contre nous.
-3. **I2, lui, distingue** : 0,333 → 0,461 sans communication (p sur le
-   protocole), et 0,44 → 0,54 sans RAG (p = 0,0008). L'entropie des
-   croyances réagit à ce qui devrait la faire réagir.
+3. **I2, lui, réagit** : couper la communication le fait passer de 0,53 à
+   0,83 (p = 0,15 à 5 graines : la direction est nette, le seuil n'est pas
+   atteint), et la composition de la foule le tranche à 10 graines
+   (familles : 0,52 contre 0,41, p = 0,017). L'entropie des croyances
+   réagit à ce qui devrait la faire réagir — le RAG, depuis le correctif
+   des collections, ne la déplace plus (0,53 contre 0,54, p = 0,47).
 
 **Et la ressemblance des réponses d'un même modèle ?** Troisième contrôle
-de B3, en post-traitement : 950 justifications de X12, embeddings bge-m3.
+de B3, en post-traitement : 939 justifications de X12, embeddings bge-m3.
 La distance cosinus médiane **entre deux réponses du même modèle** vaut
-0,425 ; **entre modèles différents**, 0,467. Rapport **0,91** — la variété
+0,400 ; **entre modèles différents**, 0,472. Rapport **0,85** — la variété
 intra-modèle est du même ordre que l'inter-modèle, donc les justifications
-ne sont pas un gabarit unique recopié 950 fois. Détail qui va contre
-l'intuition : le petit modèle est *plus* varié (0,437) que le grand
-(0,420), parce qu'il répond une phrase courte et variable alors que le
-grand suit un contrat JSON.
+ne sont pas un gabarit unique recopié 939 fois. Détail qui va contre
+l'intuition : c'est le grand modèle qui est le plus varié en son sein
+(0,408) et le petit le plus resserré (0,343), parce qu'il répond une
+phrase courte et stéréotypée — la variété des justifications ne vient pas
+de lui.
 
 ## Q3 — Quelle conclusion de votre rapport resterait vraie avec dix fois plus d'agents, et laquelle tomberait ?
 
@@ -1002,62 +1060,62 @@ grand suit un contrat JSON.
   0,6 pers/m², deviendrait l'indicateur principal, et le modèle de
   collision rapide de JuPedSim (sans force sociale) deviendrait
   contestable.
-- **Le décalage mesuré (C7).** `lag_llm` vaut 8 ticks à 60 agents avec
-  `max_concurrency = 4`. À 600 agents dont 120 LLM, la file d'attente
-  multiplie la latence par 30 : le décalage mesuré décrirait la file, pas
-  la cognition. Il faudrait soit baisser la proportion de LLM, soit
-  l'assumer et mesurer la file comme un fait du monde.
+- **Le décalage mesuré (C7).** `lag_ticks_median` vaut 4 à 60 agents
+  avec `max_concurrency = 4` (6 au maximum) et `lag_llm` 2. À 600 agents
+  dont 120 LLM, la
+  file d'attente multiplierait la latence : le décalage mesuré décrirait
+  la file, pas la cognition. Il faudrait soit baisser la proportion de
+  LLM, soit l'assumer et mesurer la file comme un fait du monde.
 - **Toute statistique à 5 graines.** Les p-values ne survivraient pas à un
   changement de distribution de cette ampleur ; il faudrait rejouer.
 
 ## Q4 — Avec un budget d'appels divisé par deux, que sacrifieriez-vous, et quelle conclusion tomberait ?
 
 **Ce qu'on garde, et il y a de la marge :** `tiers_regles` divise déjà les
-appels par deux (25 contre 48) *sans perdre un évacué* (I3 1,00, I7
-110 s) — c'est un résultat mesuré (§18), pas une projection. Avec un
-budget de 25 appels par run, on garde donc la référence, la baseline à
+appels par deux (21 contre 43) *sans perdre un évacué* (I3 1,00, I7
+100 s) — c'est un résultat mesuré (§18), pas une projection. Avec un
+budget de 21 appels par run, on garde donc la référence, la baseline à
 règles et le protocole d'annonce.
 
 **Ce qu'on sacrifie :**
 
 | sacrifice | coût |
 |---|---|
-| le bras **tout-LLM** de X4 (520 appels par run) | le résultat « le tout-LLM sort moins bien » resterait vrai mais ne serait plus reproductible dans le budget |
-| les protocoles à **10 graines** (X5, X6, X7) | les p-values tombent à 0,08 au mieux ; H5, H6 et H7 resteraient des pistes |
+| le bras **tout-LLM** de X4 (477 appels par run) | le résultat « le tout-LLM sort moins bien » resterait vrai mais ne serait plus reproductible dans le budget |
+| les protocoles à **10 graines** (X2, X5, X6, X7, X14) | les p-values tombent à 0,08 au mieux ; H5, H6 et H7 resteraient des pistes |
 | le **chroniqueur** (4 appels par run) | on perd le récit, pas la mesure |
 | X1 en plan **2×2** → garder seulement clair/ambigu à délai égal | on perd l'effet de l'heure, qui est déjà non significatif |
 
 **Ce qui tomberait pour de bon :** la question « le petit modèle
 écoute-t-il les annonces ? » (2/6 — déjà non concluante, donc rien à
-perdre) et l'écart X2 sur le délai des meneurs (p = 0,083), qui n'est pas
-tranché aujourd'hui de toute façon.
+perdre) et l'effet des meneurs sur le délai (X2, p = 0,91 à 10 graines :
+il n'existe pas).
 
 ## Q5 — Montrez une décision prise à partir d'une information mal retrouvée. Qu'a fait l'agent, et votre système s'en est-il aperçu ?
 
-**Oui, et le système s'en est aperçu 115 fois sur la campagne X12** — au
+**Oui, et le système s'en est aperçu 100 fois sur la campagne X12** — au
 moins une fois dans chacun des 25 runs.
 
-**Le cas.** `run_x10_grande_async_s1_73fd`, tick 20, agent **A14**
-(habitué, grand modèle). L'annonce officielle est diffusée ; A14 interroge
-le corpus. Le meilleur passage retrouvé est `annonces/claire-02` (score
-0,2865) qui dit : « l'esplanade est **évacuée par la sortie B** ». Le
-deuxième dit A, le troisième dit C — **le corpus contient douze variantes
-d'annonce**, une par secteur, et la récupération en rend trois
-contradictoires. A14 choisit **C**, en écrivant : « Les souvenirs
-indiquent C, mais l'annonce officielle dit le nord. Je choisis C car
-c'est dans les souvenirs. »
+**Le cas.** `run_x12_tous_grand_s3_75ed`, tick 14, agent **A14**
+(habitué, grand modèle). A14 interroge le corpus et reçoit trois
+annonces : `annonces/claire-03` (score 0,2731) évacue par **C**,
+`annonces/claire-02` (0,2304) par **B**, `annonces/claire-04` (0,2240)
+par **A**. Trois consignes, trois sorties. A14 choisit **A**, en
+écrivant : « Messages A19, A20, A43 et le souvenir t8/t7 indiquent la
+sortie A. Message de la régie mentionne C, mais les autres insistent sur
+A. »
 
 **Ce que le système a fait.** Le drapeau `rag.suspect` n'a **pas** tiré :
-le score (0,2865) est au-dessus du seuil de 0,17. Il a tiré dans l'autre
+le score (0,2731) est au-dessus du seuil de 0,17. Il a tiré dans l'autre
 cas de figure, celui des récupérations faibles : requête « évacuation
 esplanade » sans contexte, meilleur score **0,1374**, document
 `souvenirs_editions/2022-agents` (« une fumée de barbecue avait déclenché
 une évacuation »). L'agent A57 a répondu `RESTER` — décision correcte à
 t1, où aucune fumée n'est visible — mais le passage était hors sujet, et
 l'événement `rag.suspect` l'a consigné avec la question, le score, le
-document, le seuil et la chaîne causale. C'est ce qui permet de
-retrouver ces cas dans 450 000 événements en une requête au lieu de les
-relire à la main.
+document, le seuil et la chaîne causale (`run_x12_tous_grand_s0_d188`,
+tick 1). C'est ce qui permet de retrouver ces cas dans 450 000 événements
+en une requête au lieu de les relire à la main.
 
 **Ce que cet exemple nous a appris, et que nous n'avions pas prévu.**
 Notre seuil attrape les récupérations **faibles**, pas les récupérations
@@ -1065,8 +1123,9 @@ Notre seuil attrape les récupérations **faibles**, pas les récupérations
 l'agent reçoit trois consignes différentes et rien ne le prévient. C'est
 une limite du corpus (les douze variantes sont toutes disponibles à
 partir de t10, alors qu'une seule a été diffusée), elle est quantifiée
-dans la campagne X12 : sur **565 décisions** qui retrouvent au moins deux
-annonces, **478** en reçoivent de contradictoires. La vraie annonce est
+dans la campagne X12 : sur **1 196 décisions LLM**, **483** retrouvent au
+moins une annonce du corpus, et **358** en reçoivent qui nomment des
+sorties différentes. La vraie annonce est
 toujours donnée séparément dans le prompt (« Annonce officielle : … »),
 ce qui limite les dégâts — mais un modèle peut préférer ses souvenirs.
 
@@ -1081,21 +1140,21 @@ pas fait, et c'est dit ici plutôt que découvert par un relecteur.
 
 | | synchrone (X3) | asynchrone (X11) |
 |---|---|---|
-| I3 | 1,00 | 0,98 |
-| I7 | 220 s | **470 s** |
-| décalage `lag_llm` | 0 | **5 ticks médians, 12 au maximum** |
-| appels | 47 | 60 |
+| I3 | 1,00 | 1,00 |
+| I7 | 220 s | **230 s** |
+| décalage `lag_ticks_median` | 0 | **4 ticks (6 au maximum)** |
+| appels | 45 | 50 |
 
 - **Ce qui tient** : l'issue physique. Dans les deux modes, la foule sort
-  presque entièrement, et les mêmes croyances mènent aux mêmes sorties.
-  I3 1,00 contre 0,98 : l'histoire « la croyance mène à l'issue » ne
-  dépend pas du mode.
-- **Ce qui ne tient pas** : **les délais**. I7 double (220 → 470 s) et le
-  décalage passe de 0 à 5 ticks médians. En synchrone, la barrière du tick
-  interdit à la latence du modèle d'exister dans le monde : le temps
-  simulé et le temps de calcul sont décorrélés. En asynchrone, chaque
-  seconde de LLM devient 4 ticks de monde : **le modèle lent devient un
-  fait du monde**.
+  entièrement, et les mêmes croyances mènent aux mêmes sorties. I3 1,00
+  des deux côtés : l'histoire « la croyance mène à l'issue » ne dépend pas
+  du mode.
+- **Ce qui ne tient pas** : **les délais**. I7 passe de 220 à 230 s
+  (p = 0,041) et le décalage de 0 à 4 ticks médians. En synchrone, la
+  barrière du tick interdit à la latence du modèle d'exister dans le
+  monde : le temps simulé et le temps de calcul sont décorrélés. En
+  asynchrone, chaque seconde de LLM devient 4 ticks de monde : **le
+  modèle lent devient un fait du monde**.
 
 **Lequel décrit le mieux le phénomène ? L'asynchrone, sans hésiter** —
 une foule réelle ne décide pas en lockstep, et l'attente fait partie de
@@ -1112,24 +1171,25 @@ mode il a été obtenu. C'est la raison pour laquelle I7 est toujours publié
 
 ## Ce que le projet démontre, en trois phrases
 
-1. **Une croyance partagée se mesure, et elle peut piéger.** I2 réagit à la
-   communication (0,333 → 0,461 quand on la coupe), au RAG (0,44 → 0,54
-   quand on le retire) et à la composition de la foule (familles : 0,44 →
-   0,57). I1, lui, démarre à 1,00 par construction et ne mesure pas
-   l'influence sociale — nous l'avons découvert en le testant, pas en le
-   supposant.
-2. **La clarté d'une annonce change l'issue, pas seulement le temps.** À
-   délai égal, 60/60 sortent avec un ordre clair, et 7 runs sur 10 sont
-   censurés avec une consigne vague.
+1. **Une croyance partagée se mesure, et elle peut piéger.** I2 réagit à
+   la composition de la foule (familles : 0,52 contre 0,41, p = 0,017 à
+   10 graines) et, dans le sens attendu mais sans seuil atteint, à la
+   communication (0,53 → 0,83 quand on la coupe). I1, lui, démarre à 1,00
+   par construction et ne mesure pas l'influence sociale — nous l'avons
+   découvert en le testant, pas en le supposant.
+2. **La clarté d'une annonce change l'issue, pas le temps.** À délai
+   égal, **1,00** de la population sort avec un ordre clair et **0,95**
+   avec une consigne vague ; les dix runs ambigus sont censurés au
+   plafond de temps. Sur le délai, il n'y a rien (p = 0,67).
 3. **Le coût est maîtrisable, et le levier n'est pas celui qu'on croit.**
    Répartir la cognition (6 agents qui pensent, 54 qui appliquent) divise
-   les appels par deux sans perdre un évacué ; donner un format ouvert au
-   petit modèle double la facture.
+   les appels par deux sans perdre un évacué (−47 % de jetons) ; donner un
+   format ouvert au petit modèle coûte 2,4 fois plus.
 
 ## Ce que le projet ne démontre pas
 
 - Que le LLM évacue mieux. **C'est l'inverse** sur le scénario du piège
-  (40/60 contre 55/60), et c'est publié comme tel.
+  (42/60 contre 55/60), et c'est publié comme tel.
 - Que la foule entre en panique. Nous mesurons des croyances et des
   sorties ; « panique irrationnelle » n'a aucun indicateur honnête ici.
 - Qu'à 600 agents les mêmes conclusions tiendraient : I5 changerait de
@@ -1139,20 +1199,24 @@ mode il a été obtenu. C'est la raison pour laquelle I7 est toujours publié
 
 ## Ce qui reste ouvert, en une liste honnête
 
-1. **Le corpus d'annonces rend des variantes contradictoires** (478
-   décisions sur 565 en X12). Le percept porte la vraie annonce à part,
-   mais le modèle peut préférer ses « souvenirs ». À filtrer.
+1. **Le corpus d'annonces rend des variantes contradictoires** (483
+   décisions de X12 retrouvent une annonce, 358 en reçoivent de
+   contradictoires). Le percept porte la vraie annonce à part, mais le
+   modèle peut préférer ses « souvenirs ». À filtrer.
 2. **Le petit modèle n'écoute qu'à moitié les annonces** (2/6 sur essais
-   directs) : c'est la limite de la politique explicite, consignée.
+   directs) : c'est la limite de la politique explicite, consignée. C'est
+   aussi elle qui fabrique le délai de H1 (A57 reste jusqu'à t41).
 3. **O4, conditions dégradées** : l'agent muet et la réponse
-   inexploitable sont éprouvés au quotidien (8 % des appels) ; le cas
+   inexploitable sont éprouvés au quotidien (9,9 % des appels) ; le cas
    « quota atteint » ne l'est pas, faute d'API distante.
-4. **L'énergie n'est mesurée qu'une fois** (0,46 Wh), pas par bras.
-5. **X2 reste à la limite de la puissance statistique** à 5 graines
-   (p = 0,083 sur I7, en faveur de H2) : un écart dans le sens prévu,
-   non tranché. X14, lui, a été rejoué à 10 graines et tient (p = 0,031).
-6. **L'interface ne fait pas de clic sur un indicateur** ; la remontée
-   existe en CLI (`maree trace`).
+4. **L'énergie est mesurée par bras** (0,16 à 1,67 Wh selon le bras),
+   mais au compteur logiciel `power.draw` à 1 Hz, pas au compteur mural.
+5. **X2 a tranché contre nous** : à 10 graines, les meneurs ne changent ni
+   le délai (265 s des deux côtés, p = 0,91) ni la part sortie. L'écart
+   observé à 5 graines n'était pas un effet.
+6. **La remontée aux événements se fait par clic dans Godot** (F6, depuis
+   le 2026-11-01) et par `maree trace` en CLI ; le suivi de meneur, lui,
+   n'est toujours pas dessiné.
 
 ## Où lire quoi
 

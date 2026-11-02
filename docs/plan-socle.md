@@ -183,48 +183,52 @@ passe, c'est mesurer le moteur et appeler ça le projet. La règle de ce
 document (« une case cochée = testé ») n'a pas été respectée pour ces
 deux lignes : le test portait sur le transport, pas sur l'usage.
 
-### État au 2026-10-31 (après réparation, campagne de 250 runs)
+### État au 2026-11-01 (campagne de 260 runs, après correctifs)
 
 | Statut | Nombre |
 |---|---|
 | **Tenu** | **32** |
-| **— dont tenu avec une réserve écrite et datée** | **6** |
+| **— dont tenu avec une réserve écrite et datée** | **4** |
 | Partiel | 0 |
 | Absent | 0 |
 
-**Ce chiffre n'est pas un 32/32 triomphal.** Six exigences sont tenues avec
-une réserve que nous écrivons plutôt que de la laisser découvrir : la
+**Ce chiffre n'est pas un 32/32 triomphal.** Quatre exigences sont tenues
+avec une réserve que nous écrivons plutôt que de la laisser découvrir : la
 réserve n'est pas « ce qui manque pour la forme », c'est « ce que la preuve
 ne couvre pas encore ». Les voici, avec leur raison exacte.
 
 | Exigence | La réserve | Ce qui la lèverait |
 |---|---|---|
-| C1 | Kafka est mesuré par **un protocole dédié** (X3K contre X3M : indicateurs identiques, +24 % de temps mural), pas par chacune des campagnes X1–X14, qui tournent en mémoire | rejouer toutes les campagnes sur le broker — coût sans gain, le bus ne touche pas aux indicateurs |
-| E4 | l'énergie est mesurée **une fois** (0,46 Wh sur un run de 31,6 s), pas par bras | un compteur mural ; `power.draw` échantillonné est une approximation |
-| F2 | la pertinence est évaluée sur **24 requêtes annotées** (P@1 0,417) et sur un audit de **565 décisions** (478 reçoivent des annonces contradictoires) — pas sur des décisions notées une à une | annoter à la main un tirage de décisions, 30 par type de run |
-| F6 | la remontée aux événements bruts se fait en **CLI** (`maree trace --indicator`), pas par un clic dans Godot | ajouter le clic au client ; le protocole porte déjà `sources` |
-| D1 | tout est affiché (plan, agents, croyances, densité, I1–I7, mémoire, règle) **sauf** le suivi de meneur, qui n'était pas dans l'exigence mais dans notre cadrage | dessiner la filiation d'un message |
-| E2 | l'exigence (5 runs par configuration) est tenue partout, mais **deux écarts ne sont pas tranchés** à 5 graines (X2, p = 0,083) | 10 graines sur X2, comme on l'a fait pour X14 |
+| C1 | Kafka est mesuré par **un protocole dédié** (X3K contre X3M : médianes d'indicateurs identiques, +33 % de temps mural, 10 084 événements publiés), pas par chacune des campagnes X1–X14, qui tournent en mémoire | rejouer toutes les campagnes sur le broker — coût sans gain, le bus ne touche pas aux indicateurs |
+| E4 | l'énergie est mesurée **par bras** (0,16 à 1,67 Wh), au compteur logiciel `power.draw` à 1 Hz, repos 6,5 W mesuré à l'arrêt — pas au compteur mural | un compteur d'énergie matériel ; `power.draw` échantillonné reste une approximation |
+| F2 | la pertinence est évaluée sur **24 requêtes annotées** (P@1 0,417) et sur un audit de **483 décisions** de X12 (358 reçoivent des annonces contradictoires) — pas sur des décisions notées une à une | annoter à la main un tirage de décisions, 30 par type de run |
+| D1 | tout est affiché (plan, agents, croyances, densité, I1–I7, mémoire, règle, clic vers l'événement) **sauf** le suivi de meneur, qui n'était pas dans l'exigence mais dans notre cadrage | dessiner la filiation d'un message |
 
 **Ce qui a changé entre l'audit et maintenant**, exigence par exigence :
 D2 et D3 (livrés dans le client et testés), B3 (3ᵉ contrôle), C1 (protocole
 sur broker réel), C8 (paire 20/60 versionnée), D1 (HUD, densité, mémoire),
-E2 (IQR + tests partout), E4 (coût confronté à l'apport, §16–17 du
-rapport), E5 (bras `tiers_regles`), F2 (audit des décisions), F5 (requêtes
-SQL), F6 (chaîne causale documentée).
+E2 (X2 tranché à 10 graines : p = 0,91 sur I7), E4 (mesure par bras),
+E5 (bras `tiers_regles`), F2 (audit des décisions, ventilation par
+collection), F5 (requêtes SQL), F6 (clic dans Godot depuis `sources`,
+testé par `make godot-test`).
 
-**La campagne, en un chiffre** : **250 runs mesurés**, **14 804 appels
-LLM**, **14 804 succès**, **0 repli règles**. Les fichiers
-`runs/experiment_x*_avant_correctif.json` gardent la campagne d'avant le
-correctif de connaissance : elle n'est pas publiée, elle est conservée.
+**La campagne, en un chiffre** : **260 runs mesurés**, **14 181 appels
+LLM**, **14 181 succès**, **0 repli règles**. Elle a été rejouée
+intégralement deux fois — après le correctif de connaissance, puis après
+celui des collections RAG (2026-11-01) — pour qu'un seul code produise
+tous les chiffres publiés. Les fichiers
+`runs/experiment_x*_avant_correctif.json` et `runs/avant_correctif_rag/`
+gardent les campagnes antérieures : elles ne sont pas publiées, elles sont
+conservées.
 
 Trois choses restent hors des 32 exigences, et les masquer serait le
 même défaut que le 32/32 d'hier : `maree serve --source kafka` n'existe
 pas (C1 est tenu par le protocole X3K, pas par ce mode de diffusion),
 « panique irrationnelle » (piste n° 4 de la fiche MARÉE) n'est **pas**
 mesurée — aucun indicateur honnête ne la capte —, et le corpus d'annonces
-rend des variantes contradictoires (478 décisions sur 565 en X12), ce qui
-est une limite du monde, pas du code (Q5 du rapport).
+rend des variantes contradictoires (483 décisions en retrouvent une,
+358 en reçoivent de contradictoires en X12), ce qui est une limite du
+monde, pas du code (Q5 du rapport).
 
 ---
 
@@ -238,6 +242,15 @@ est une limite du monde, pas du code (Q5 du rapport).
 | 2026-10-30 | D3 injection + D2 justification + C6 cohérence + A1 préhistoire + A2/B3 + E4 coût + F4 schémas + F6 sources | `vague2` | 167 passent, ruff propre | X8 et X9 joués (5 graines) |
 | 2026-10-31 | E5 politique du petit modèle + F3 état courant + F5 requêtes SQL | `vague4` | 186 passent, ruff propre | X12 (4 bras × 5), X10 et X11 refaits après correction du petit modèle |
 | 2026-10-31 | vague 5 : D2 + D3 dans le client, Q5/O1/O2, B3 3ᵉ contrôle, X13/X14, runs C8 versionnés, rapport hybride | `vague5` | 203 passent, ruff propre, `make godot-test` 10/10 | X12 à 5 bras, X13 et X14 joués |
+| 2026-11-01 | correctif des collections RAG + énergie par bras + clic Godot (F6) + campagne entièrement rejouée sur un seul code | `—` | 214 passent, ruff propre | 260 runs, 14 181 appels, 16 protocoles ; rapports régénérés |
+
+> **Les mesures qui suivent sont datées.** Elles disent ce qui a été mesuré
+> le jour de la vague, pas ce qui est vrai aujourd'hui. Les chiffres
+> courants — un seul code, une seule campagne — sont dans
+> [`resultats/rapport-v2.md`](resultats/rapport-v2.md) (2026-11-01,
+> 260 runs) et dans [`resultats/conclusions-v2.md`](resultats/conclusions-v2.md).
+> En particulier, X8 et X9 ont été rejoués : les valeurs de la vague 2
+> ci-dessous ne sont plus celles à citer.
 
 ### Mesures de la vague 1
 

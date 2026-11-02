@@ -40,10 +40,23 @@ import statistics
 from collections import Counter, defaultdict
 
 
-def load_reasons(pattern: str, runs: str) -> list[tuple[str, str]]:
-    """(modèle rendu, justification) pour chaque décision LLM lisible."""
+def load_reasons(
+    pattern: str, runs: str, run_ids: list[str] | None = None
+) -> list[tuple[str, str]]:
+    """(modèle rendu, justification) pour chaque décision LLM lisible.
+
+    `run_ids` prime sur `pattern` : les répertoires de runs s'accumulent
+    d'une campagne à l'autre, et un motif `run_x12_*` ramasse alors les
+    deux. Le JSON d'expérience dit exactement quels runs comptent.
+    """
     items: list[tuple[str, str]] = []
-    paths = sorted(glob.glob(os.path.join(runs, pattern, "events.jsonl")))
+    if run_ids is not None:
+        paths = [os.path.join(runs, rid, "events.jsonl") for rid in run_ids]
+        missing = [p for p in paths if not os.path.exists(p)]
+        if missing:
+            raise SystemExit(f"journaux absents : {missing[0]} …")
+    else:
+        paths = sorted(glob.glob(os.path.join(runs, pattern, "events.jsonl")))
     if not paths:
         raise SystemExit(f"aucun journal pour {pattern!r} dans {runs}/")
     for path in paths:
@@ -119,13 +132,26 @@ async def main() -> None:
     )
     parser.add_argument("--runs", default="runs")
     parser.add_argument(
+        "--experiment",
+        help=(
+            "protocole dont on ne prend que les runs déclarés "
+            "(`runs/experiment_<nom>.json`) — évite qu'un motif ramasse "
+            "les runs d'une campagne précédente"
+        ),
+    )
+    parser.add_argument(
         "--url",
         default=os.environ.get("MAREE_LLM_URL", "http://127.0.0.1:8080/v1"),
         help="base URL OpenAI-compatible pour bge-m3 (défaut : MAREE_LLM_URL)",
     )
     args = parser.parse_args()
 
-    items = load_reasons(args.pattern, args.runs)
+    run_ids = None
+    if args.experiment:
+        path = os.path.join(args.runs, f"experiment_{args.experiment}.json")
+        with open(path, encoding="utf-8") as handle:
+            run_ids = [row["run_id"] for row in json.load(handle)]
+    items = load_reasons(args.pattern, args.runs, run_ids)
     models = Counter(model for model, _ in items)
     print(f"justifications LLM : {len(items)}")
     for model, count in models.most_common():

@@ -57,15 +57,23 @@ def read_power(path: Path) -> list[tuple[float, float]]:
 
 
 def run_window(directory: Path) -> tuple[float, float] | None:
-    """(début, fin) en epoch, lus dans le nom du run et dans `run.ended`."""
-    match = _RUN.match(directory.name)
-    if not match:
-        return None
-    start = datetime.strptime(match.group(1), "run_%Y%m%d-%H%M%S").timestamp()
-    ended = None
+    """(début, fin) en epoch.
+
+    Deux nommages coexistent, et le second a rendu ce script muet pendant
+    une campagne : les runs d'expérience s'appellent
+    `run_x12_deux_tiers_s0_1a2b`, sans heure. Les dater par leur nom
+    donnait zéro run mesuré, sans erreur — le pire des silences.
+
+    * nom horodaté (`run_20261029-101500…`) : l'heure de départ est dans
+      le nom ;
+    * nom sans heure : on prend la fin du journal (`mtime`) moins le
+      `t_real` du `run.ended`. Le `mtime` est précis à la seconde, ce qui
+      suffit pour un échantillon de puissance à 1 Hz.
+    """
     events = directory / "events.jsonl"
     if not events.exists():
         return None
+    ended = None
     for line in events.read_text(encoding="utf-8").splitlines():
         try:
             event = json.loads(line)
@@ -75,7 +83,12 @@ def run_window(directory: Path) -> tuple[float, float] | None:
             ended = float(event.get("t_real") or 0.0)
     if ended is None:
         return None
-    return start, start + ended
+    match = _RUN.match(directory.name)
+    if match:
+        start = datetime.strptime(match.group(1), "run_%Y%m%d-%H%M%S").timestamp()
+        return start, start + ended
+    end = events.stat().st_mtime
+    return end - ended, end
 
 
 def integrate(
@@ -127,6 +140,18 @@ def main() -> None:
     )
     parser.add_argument("--json", type=Path, help="écrire le détail par run")
     parser.add_argument(
+        "--runs-from",
+        nargs="*",
+        default=[],
+        help=(
+            "ne mesurer que les runs déclarés par ces protocoles "
+            "(`runs/experiment_<nom>.json`) ; sans cette option, tous les "
+            "répertoires `run_*` sont mesurés, y compris ceux d'une "
+            "campagne antérieure hors de la fenêtre d'échantillonnage — "
+            "ils comptent alors pour 0 Wh et faussent la médiane"
+        ),
+    )
+    parser.add_argument(
         "--idle",
         type=float,
         help=(
@@ -144,9 +169,17 @@ def main() -> None:
         raise SystemExit(f"échantillon trop court : {len(samples)} points")
 
     # Un run est rattaché à un bras par son nom (run_x12_deux_tiers_s0_…).
+    allowed: set[str] | None = None
+    if args.runs_from:
+        allowed = set()
+        for name in args.runs_from:
+            path = args.runs / f"experiment_{name}.json"
+            allowed.update(row["run_id"] for row in json.loads(path.read_text()))
     windows: list[tuple[float, float]] = []
     per_run: list[dict] = []
     for directory in sorted(args.runs.glob("run_*")):
+        if allowed is not None and directory.name not in allowed:
+            continue
         window = run_window(directory)
         if window is None:
             continue

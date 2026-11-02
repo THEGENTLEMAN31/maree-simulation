@@ -1,14 +1,14 @@
-# MARÉE v2 — conclusions de la campagne X1–X7
+# MARÉE v2 — conclusions de la campagne X1–X14
 
 > **Lecture par hypothèse.** La synthèse demandée par le cahier des
 > charges (partie technique, mini-article, bilan de sobriété, réponses
 > Q1–Q6) est dans `rapport-hybride.md`. Ce document-ci reste la lecture
 > détaillée des sept hypothèses préenregistrées.
 
-Campagne du 2026-10-29 : **115 runs**, 7 protocoles, 5 graines par bras
-pour X1–X4 et **10 graines** pour X5–X7, population de référence
-12 agents LLM + 48 à règles (X4 varie).
-**6 906 appels LLM, 6 906 succès, aucun repli règles.**
+Campagne du **2026-11-01** : **260 runs**, 16 protocoles, 5 graines par bras
+pour X1, X3, X3K, X3M, X4, X8–X13 et **10 graines** pour X2, X5, X6, X7 et
+X14 ; population de référence 12 agents LLM + 48 à règles (X4 varie).
+**14 181 appels LLM, 14 181 succès, aucun repli règles.**
 
 Les tableaux, médianes, intervalles et tests sont dans
 [`rapport-v2.md`](rapport-v2.md), généré par
@@ -22,7 +22,7 @@ journaux, pas des agrégats.
 
 ## Ce qui a été corrigé avant de mesurer
 
-Une campagne ne vaut que par ce qu'elle mesure. Six corrections ont
+Une campagne ne vaut que par ce qu'elle mesure. Sept corrections ont
 précédé celle-ci, chacune parce que l'indicateur ou le modèle ne faisait
 pas ce qu'il annonçait :
 
@@ -34,214 +34,219 @@ pas ce qu'il annonçait :
 | **X4 sur scénario piège** | sans fermeture d'issue, I6 valait 0 dans les trois bras : H4 était intestable. |
 | **I7 — délai signal → dernier sorti** | I4 est une horloge : il inclut l'attente avant le signal et se fige au plafond `max_ticks` dès qu'une partie de la foule ne sort pas. I7 part du premier signal de danger et s'arrête au dernier sorti ; il reste défini sous censure. |
 | **fuite de connaissance** | une cible `go_exit` était validée contre le plan, pas contre les sorties connues du profil. Un visiteur pouvait nommer B — et y aller. |
+| **collections du RAG** | le plan de signalétique s'appelait `plan_signaletique` dans un corpus accentué (44 passages invisibles), et le profil `visiteur` déclarait une collection où **aucun** passage ne l'autorisait : zéro récupération à vie. |
 
 **La fuite n'était pas marginale.** Comptée sur les journaux de la
 campagne antérieure, elle touchait un tiers à la moitié des cibles
-physiques des agents LLM :
+physiques des agents LLM (X4 : 349 décisions sur 769). Depuis le
+correctif, toute cible est validée contre `Profile.knows` et un échec
+replie sur les règles en le journalisant (`unknown_exit`, `out_of_role`) :
+aucune cible hors savoir n'est appliquée.
 
-| protocole | cibles LLM hors savoir (avant) | après correctif |
-|---|---|---|
-| X1 | 108 / 318 | **0 / 248** |
-| X2 | 60 / 199 | **0 / 158** |
-| X3 | 69 / 182 | **0 / 140** |
-| X4 | **349 / 769** | **0 / 845** |
-| X5 | 42 / 166 | **0 / 270** |
-| X6 | 12 / 48 | **0 / 88** |
-| X7 | 29 / 159 | **0 / 273** |
-
-Les X1–X4 de la campagne du 2026-10-28 mesuraient donc un modèle
-différent : ils sont conservés dans
-`runs/experiment_x*_avant_correctif.json`, et **toute la campagne a été
-rejouée** après le correctif. Ce n'est pas un détail de méthode : c'est
-ce qui renverse H4 (voir plus bas).
+**La campagne entière a été rejouée deux fois** — après le correctif de
+connaissance, puis après celui des collections RAG (2026-11-01). Les
+résultats d'avant sont conservés (`runs/experiment_x*_avant_correctif.json`,
+`runs/avant_correctif_rag/`) et **ne sont pas publiés** : deux runs
+séparés par une version de code ne comparent rien. C'est ce qui renverse
+H7 (voir plus bas) et affaiblit H1.
 
 ---
 
 ## H1 — une annonce claire et précoce accélère l'évacuation
 
-**Soutenue sur la clarté, pas sur l'heure de l'annonce.**
+**Soutenue sur la clarté (le nombre de sortis), non soutenue sur l'heure.**
 
-| bras | I7 (s) | I3 | runs non terminés |
-|---|---|---|---|
-| clair, tôt (t17) | **160 [160–160]** | 1,00 | 0/5 |
-| ambigu, tôt (t17) | **260 [260–260]** | 0,98 | **4/5** |
-| clair, tard (t30) | 280 [270–290] | 1,00 | 0/5 |
-| ambigu, tard (t30) | 270 [270–270] | 0,98 | **3/5** |
+| bras | I7 (s) | I3 | I2 | runs non terminés |
+|---|---|---|---|---|
+| clair, tôt (t17) | 380 [380–390] | **1,00** | 0,57 | 1/5 |
+| ambigu, tôt (t17) | 370 [260–440] | 0,95 | 0,56 | **5/5** |
+| clair, tard (t30) | 280 [280–290] | **1,00** | 0,51 | 1/5 |
+| ambigu, tard (t30) | 440 [270–560] | 0,95 | 0,54 | **5/5** |
 
-Clarté à délai égal : p = 0,0185 (tôt). Délai à clarté égale :
-p = 0,0107 (clair tôt contre clair tard) — mais l'écart vaut 120 s : le
-dernier sorti recule de 12 ticks quand l'annonce recule de 13. **I7 n'efface pas
-l'heure de l'annonce** : il compte depuis la fumée de t5, pas depuis
-l'annonce. Ce qu'il retire, c'est le temps d'avant-signal et le plancher
-de censure.
+Clarté à délai égal : le **délai** ne bouge pas (380 contre 370 s,
+p = 0,67) et l'**entropie** non plus (0,57 contre 0,56, p = 0,55). Ce que
+la clarté achète, c'est le **nombre de sortis** : I3 1,00 contre 0,95
+(p = 0,0095), et **10 runs censurés sur 10** dans les bras ambigus contre
+2 sur 10 dans les bras clairs. Une consigne vague ne ralentit pas la
+foule : elle laisse une partie des agents en `STAY` jusqu'au plafond.
 
-Ce que la clarté achète vraiment, c'est le **nombre de sortis** : 1,00
-partout avec un ordre clair, 0,98 sans, et 7 runs censurés sur 10 dans
-les bras ambigus contre 0 sur 10 dans les bras clairs. Une consigne vague
-ne ralentit pas la foule : elle laisse une partie des agents à règles en
-`STAY` jusqu'au plafond.
+Sur l'heure, l'effet va dans le sens **inverse** : l'annonce claire et
+tardive sort en 280 s, l'annonce claire et précoce en 380 s (p = 0,0097).
+Ce n'est pas la foule, c'est **un agent** : dans les cinq runs
+`clair_tot`, le dernier sorti est A57 (vendeur, petit modèle), qui répond
+`RESTER` à la fumée de t5, à l'annonce de t17 et à chaque rappel, puis
+obéit au rappel de t41. Dans `clair_tard`, la même annonce tombe à t30 et
+il obéit aussitôt (dernière sortie t33, dernier sorti à règles dans 4
+runs sur 5). C'est la limite déjà consignée du petit modèle sur les
+annonces (2/6), pas un effet de l'heure.
 
-La mesure tient : l'annonce est délivrée dans **5 runs sur 5** dans les
-quatre bras. Et I2 le confirme (0,47 clair contre 0,58 ambigu,
-p = 0,0079) : l'ambiguïté se lit dans l'incertitude des croyances.
+L'ancien chiffre (160 s contre 260 s) mesurait un autre protocole de
+modèles : il n'était pas faux, il ne parlait pas de la même chose.
 
 ---
 
 ## H2 — les meneurs piègent davantage de monde
 
-**Non soutenue, avec un signal faible dans le sens prévu.**
+**Non soutenue : l'écart de délai a disparu à 10 graines.**
 
 | bras | I6 | I3 | I7 (s) | I5 (pers/m²) |
 |---|---|---|---|---|
-| avec meneurs | 1,00 | 0,90 | **220 [220–220]** | 0,40 |
-| sans meneurs | 1,00 | 0,92 | **150 [150–150]** | 0,48 |
+| avec meneurs | 1,00 | 0,90 | **265 [250–270]** | 0,48 |
+| sans meneurs | 1,00 | 0,89 | **265 [250–270]** | 0,56 |
 
-p = 0,75 (I3), 0,74 (I5), **0,083 (I7)**. Quatre runs sur cinq sont
-censurés dans les deux bras : la foule laisse 8 à 10 % de ses membres
-derrière elle, avec ou sans agents de sécurité.
-
-Le seul écart notable est le délai : 220 s contre 150 s, soit 7 ticks de
-plus pour le dernier sorti quand des guides orientent. L'intervalle
-n'est pas significatif à 5 graines et les deux bras sont censurés ; à
-lire comme une piste, pas comme un résultat. Il faudrait 10 graines.
+p = 0,62 (I3), **0,91 (I7)**, **0,058 (I5)**. Les 20 runs sont censurés :
+la foule laisse 10 à 11 % de ses membres derrière elle, avec ou sans
+guides. L'écart de 70 s observé à 5 graines (220 contre 150 s) n'existe
+plus. La densité est plus haute **sans** meneurs — l'inverse du mécanisme
+attendu — et frôle le seuil sans l'atteindre : à lire comme une piste
+négative, pas comme un résultat.
 
 **I6 = 1,00 dans les deux bras** : au moment de la fermeture, tout le
-monde croit en A — tautologie du scénario, pas un résultat. I6 saturé ne
-discrimine rien.
+monde croit en A — tautologie du scénario, pas un résultat.
 
 ---
 
 ## H3 — synchrone contre asynchrone
 
-**Effet nul sur la dynamique, gain mural net** — exactement ce que le
-protocole prévoyait.
+**Effet nul sur la dynamique ; le gain mural est là, mais 5 graines ne
+suffisent pas à le trancher.**
 
 | bras | I1 | I5 | I7 (s) | temps mural |
 |---|---|---|---|---|
-| synchrone (1 appel) | 0,96 | 0,48 | 100 | 34,0 s |
-| asynchrone (4 appels) | 0,96 | 0,40 | 100 | **20,9 s** |
+| synchrone | 0,98 | 0,40 | 220 | 18,1 s |
+| asynchrone | 0,97 | 0,40 | 220 | **14,1 s** |
 
-p = 0,84 (I1), 0,58 (I5), 0,54 (I7), **0,0117** (mural) — facteur
-**1,63×**.
+p = 0,84 (I1), 0,82 (I5), 0,82 (I7). C'est la démonstration que la
+perception figée et l'ordre canonique `agent_id` font leur travail :
+l'ordre d'arrivée des réponses ne contamine pas la dynamique.
 
-C'est la démonstration que la perception figée et l'ordre canonique
-`agent_id` font leur travail : l'ordre d'arrivée des réponses ne
-contamine pas la dynamique. Le parallélisme n'achète que du temps réel.
+Le temps mural baisse sur **les cinq paires de graines** (17,8→14,9 ;
+18,1→13,0 ; 21,1→14,1 ; 27,4→25,3 ; 16,6→14,0), médiane 18,1 → 14,1 s
+(×1,28). À cinq paires, un test apparié ne peut pas descendre sous
+p = 0,0625 : on constate l'effet 5 fois sur 5 sans pouvoir le trancher.
+
+En mode réellement asynchrone (X11), la latence devient un fait du monde
+mais reste petite : I7 220 → 230 s (p = 0,041), `lag_ticks_median` 0 → 4,
+6 au maximum.
 
 ---
 
 ## H4 — LLM contre règles sur l'écart croyance/réalité
 
-**Réfutée — et le résultat est l'inverse de celui publié hier.**
+**Réfutée — et le résultat est l'inverse de celui publié avant le
+correctif de connaissance.**
 
 | bras | I3 | runs non terminés | I7 (s) | appels LLM | mural |
 |---|---|---|---|---|---|
-| hybride 12 LLM + 48 règles | 0,92 | 5/5 | 220 | 43 | 30,9 s |
-| 60 règles | 0,92 | 4/5 | **150** | 0 | **9,6 s** |
-| 60 LLM | **0,67** | 5/5 | **350** | **520** | **234,8 s** |
+| hybride 12 LLM + 48 règles | 0,88 | 5/5 | 270 | 78 | 24,7 s |
+| 60 règles | 0,92 | 4/5 | **150** | 0 | **11,1 s** |
+| 60 LLM | **0,70** | 5/5 | **440** | **477** | **89,5 s** |
 
-Le tout-LLM est le **pire** bras : 40 agents sortis sur 60 en médiane,
-contre 55 pour les règles (p = 0,0117 sur I3 et sur I7). Il coûte 12× le
-temps mural et 520 appels pour arriver à ce résultat.
+Le tout-LLM est le **pire** bras : 42 agents sortis sur 60 en médiane,
+contre 55 pour les règles (p = 0,008 sur I3, 0,011 sur I7). Il coûte 8×
+le temps mural et 477 appels pour arriver à ce résultat.
 
-Qui reste piégé ? **Des visiteurs, dans les trois bras** — c'est voulu,
-ils ne connaissent que A et A ferme à t14. Mais le nombre varie
-énormément :
+Qui reste piégé ? Des **visiteurs** — c'est voulu, ils ne connaissent que
+A et A ferme à t14 — mais le nombre varie énormément, et le correctif RAG
+a changé la composition :
 
-| bras | visiteurs piégés par run (5 graines) |
-|---|---|
-| 60 règles | 0, 3, 5, 6, 8 |
-| hybride | 1, 5, 5, 6, 16 |
-| 60 LLM | **17, 19, 20, 20, 23** |
+| bras | visiteurs piégés par run (5 graines) | habitués piégés |
+|---|---|---|
+| 60 règles | 6, 5, 0, 8, 3 | 0, 0, 0, 0, 0 |
+| hybride | 11, 7, 2, 8, 5 | 0, 0, 0, 1, 0 |
+| 60 LLM | **14, 16, 9, 19, 12** | 7, 2, 1, 3, 5 |
 
 Les agents à règles visiteurs se rabattent sur ce qu'ils savent faire :
 suivre quelqu'un, attendre, sortir par où la foule sort. Les agents LLM
 visiteurs, eux, explorent (`search`), tournent, et ne sortent pas.
 
-**Pourquoi le résultat d'hier était faux.** Dans la campagne
-pré-correctif, `llm_60` sortait 60/60. Ce n'était pas la cognition : les
-agents LLM visiteurs nommaient B et C — des sorties que leur profil ne
-connaît pas — et y allaient. Le correctif de connaissance leur a retiré
-cette possibilité, et 17 à 23 visiteurs sur 24 restent sur place. **Le
-« 60/60 » était un artefact de la fuite.** C'est le résultat le plus
-important de cette reprise : il contredit l'argument qui avait motivé
-l'hybride. Ce n'est pas le LLM qui rattrape les règles, c'est l'inverse.
+**Pourquoi le résultat d'avant le correctif était faux.** Dans la
+campagne pré-correctif, `llm_60` sortait 60/60. Ce n'était pas la
+cognition : les agents LLM visiteurs nommaient B et C — des sorties que
+leur profil ne connaît pas — et y allaient. Le correctif de connaissance
+leur a retiré cette possibilité, et 9 à 19 visiteurs sur 24 restent sur
+place. **Le « 60/60 » était un artefact de la fuite.** C'est le résultat
+le plus important de cette reprise : il contredit l'argument qui avait
+motivé l'hybride. Ce n'est pas le LLM qui rattrape les règles, c'est
+l'inverse.
 
 **Réserve** : I4 = 900 s dans tous les runs censurés est le plafond
-`max_ticks` (90 ticks × 10 s), pas une durée. C'est précisément ce que I7 répare :
-350 s contre 150 s reste lisible alors que 900 = 900 ne dit rien.
+`max_ticks` (90 ticks × 10 s), pas une durée. C'est précisément ce que I7
+répare : 440 s contre 150 s reste lisible alors que 900 = 900 ne dit rien.
 
 ---
 
 ## H5 — la mémoire change le choix de sortie
 
-**Soutenue sur les décisions, invisible dans les agrégats** — et l'effet
-n'est pas celui qu'on croyait.
+**Soutenue sur les décisions et sur l'incertitude, pas sur l'errance.**
 
-| bras | I1 | I2 | I7 | `search` | `stay` | LLM → C | LLM → B |
-|---|---|---|---|---|---|---|---|
-| avec mémoire | 0,96 | 0,44 | 100 | **5,0** | **143** | **2,0** | 2,0 |
-| sans mémoire | 0,96 | 0,44 | 100 | **8,5** | **134** | **1,0** | 2,0 |
+| bras | I1 | I2 | I7 | `search` | `stay` | `guide` |
+|---|---|---|---|---|---|---|
+| avec mémoire | 0,98 | **0,52** | 220 | 5,0 | **29,0** | **1,0** |
+| sans mémoire | 0,98 | **0,50** | 220 | 5,5 | **24,5** | **2,0** |
 
-p = 0,68 (I1), 0,52 (I2), 0,54 (I7) — aucun agrégat ne bouge, à
-10 graines. Au niveau des décisions : `search` p = 0,0015, `stay`
-p = 0,0006, C p = 0,050. Avec mémoire, les agents LLM **cherchent moins,
-restent plus, et vont davantage vers C**.
+I2 diffère (p = 0,0073), et au niveau des décisions `stay` (p = 0,0087) et
+`guide` (p = 0,0050) aussi. `search` (p = 0,56) et le choix de sortie
+(C : p = 0,33) ne bougent pas. Avec mémoire, les agents LLM **restent
+davantage et guident moins** — la préhistoire de J−3 donne de quoi
+hésiter, pas de quoi mieux se diriger.
 
-La campagne d'hier trouvait « B 42 contre 16 » : c'était encore la fuite.
-B était la sortie que les visiteurs LLM pouvaient nommer à tort ; le
-correctif la referme, et l'effet de la mémoire se reporte sur C, la
-sortie que les habitués connaissent et que le RAG documente.
+La campagne d'hier trouvait « B 42 contre 16 » — c'était encore la fuite :
+B était la sortie que les visiteurs LLM pouvaient nommer à tort. Après le
+correctif de connaissance, l'effet s'était reporté sur C ; après celui des
+collections RAG, **ni B ni C ne diffèrent** (5 contre 7 et 3 contre 6 sur
+les 10 runs, p ≥ 0,33). Ce qui reste de la mémoire, c'est le fait de
+rester.
 
 Leçon de méthode inchangée : pour H5, **l'indicateur est la distribution
-des décisions**, pas la moyenne de la foule. Douze agents sur soixante
-ne déplacent aucun agrégat.
+des décisions**, pas la moyenne de la foule. Douze agents sur soixante ne
+déplacent qu'un agrégat, et de peu.
 
 ---
 
 ## H6 — le profil change la décision
 
-**Soutenue, et maintenant propre.**
+**Soutenue, et propre.**
 
 | bras | I1 | I3 | I7 (s) | LLM → A * | LLM → B * | règles → B * |
 |---|---|---|---|---|---|---|
 | visiteurs seuls | **1,00** | 1,00 | **90** | 40 | **0** | 0 |
-| habitués seuls | 0,93 | 1,00 | 100 | 31 | 13 | 66 |
+| habitués seuls | 0,94 | 1,00 | 100 | 27 | 14 | 67 |
 
 \* total des décisions `go_exit` sur les 10 runs.
 
-p = 0,0001 (I1), **0,0252** (I7), constante (I3). Un visiteur ne
-connaît que A et ne choisit que A — côté LLM **comme** côté règles, ce
-qui n'était pas le cas hier (12 décisions LLM vers B). Le savoir définit
-l'ensemble des sorties atteignables, et il le fait **plus vite** : 90 s
-contre 100 s, parce qu'il n'y a rien à arbitrer.
+p = 0,0001 (I1), **0,0021** (I7), constante (I3). Un visiteur ne connaît
+que A et ne choisit que A — côté LLM **comme** côté règles, ce qui
+n'était pas le cas avant le correctif (12 décisions LLM vers B). Le
+savoir définit l'ensemble des sorties atteignables, et il le fait **plus
+vite** : 90 s contre 100 s, parce qu'il n'y a rien à arbitrer.
 
-L'ancienne réserve (« fuite constatée ») est levée : 0 cible hors savoir
-sur 88 dans ce protocole.
+L'ancienne réserve (« fuite constatée ») est levée : la garde est dans le
+code et aucun repli hors savoir n'est appliqué dans la campagne rejouée.
 
 ---
 
 ## H7 — le RAG change la croyance
 
-**Soutenue à 10 graines, sur la cognition et sur la foule.**
+**Soutenue sur la cognition, non soutenue sur les agrégats.**
 
-| bras | I2 | I1 | I3 | I7 (s) | `search` | LLM → B | LLM → C |
-|---|---|---|---|---|---|---|---|
-| avec RAG | **0,44** | 0,96 | 1,00 | **100 [100–100]** | **4,0** | 1,5 | 2,0 |
-| sans RAG | **0,54** | 0,96 | 1,00 (3/10 censurés) | **150 [102–160]** | **21,5** | 0,0 | 1,0 |
+| bras | I2 | I1 | I3 | I7 (s) | `search` | décisions LLM |
+|---|---|---|---|---|---|---|
+| avec RAG | 0,53 | 0,98 | 1,00 | 220 | **5,0** | 46,0 |
+| sans RAG | 0,54 | 0,98 | 1,00 | 220 | **9,5** | 49,5 |
 
-p = 0,0008 (I2), 0,43 (I1), 0,0776 (I3), **0,016 (I7)**. Au niveau des
-décisions : `search` p = 0,0002, `stay` p = 0,0045, total des décisions
-LLM 44 contre 49,5 (p = 0,0005), B p = 0,038, C p = 0,023.
+`search` divise par deux (p = 0,0002) et le total des décisions baisse
+(46,0 contre 49,5, p = 0,062 — direction nette, seuil non atteint) : sans
+RAG, les agents LLM errent deux fois plus. Mais ni
+l'entropie (p = 0,47) ni le délai (p = 0,83) ni l'évacuation (I3 1,00 des
+deux côtés, 1 run censuré de chaque côté) ne bougent.
 
-Sans RAG, les agents LLM **errent cinq fois plus** (21,5 recherches par
-run contre 4,0), prennent plus de décisions, et la foule met 50 s de
-plus à finir — 3 runs sur 10 sont même censurés à 720 s. Le RAG ne se
-contente pas de changer ce que les agents croient : il change le temps
-que met la foule.
-
-C'est l'hypothèse que la campagne d'hier laissait ouverte faute de
-puissance. À 10 graines, elle est tranchée.
+C'était l'inverse avant le correctif des collections (I2 0,44 contre
+0,54, I7 100 contre 150 s). Depuis que le visiteur lit les annonces et
+que les habitués lisent le plan, le RAG nourrit des sources qui se
+contredisent (Q5), et l'écart d'entropie entre les deux bras disparaît.
+Le RAG change **ce que font** les agents ; il ne change plus **ce que met
+la foule à sortir**.
 
 ---
 
@@ -252,15 +257,12 @@ puissance. À 10 graines, elle est tranchée.
    chiffre. Un protocole qui voudrait isoler la réaction à l'annonce
    devrait compter depuis l'annonce, pas depuis le premier danger.
 2. **« Dernier sorti » n'est pas « dernier piégé ».** En X4 hybride, le
-   dernier sorti est un agent LLM dans 4 runs sur 5, alors que les
-   piégés sont tous des visiteurs. Les deux mesures disent des choses
-   différentes ; ne pas lire l'une pour l'autre.
+   dernier sorti est un agent LLM dans 5 runs sur 5, alors que les piégés
+   sont des visiteurs (moins un habitué dans un run sur cinq).
 3. **La connaissance est statique.** Un message qui dit « la sortie B
    est libre » ne fait pas entrer B dans le savoir d'un visiteur : la
    garde s'appuie sur `Profile.knows`, comme `_known_open` pour les
-   règles. C'est le modèle existant, pas une conséquence du correctif —
-   mais c'est une limite : un agent ne peut pas apprendre la géographie
-   par ouï-dire.
+   règles. Un agent ne peut pas apprendre la géographie par ouï-dire.
 4. **I5 ne dépasse jamais ~0,6 pers/m².** La foule n'est jamais dense :
    le goulot de ce scénario est le **savoir**, pas l'encombrement. Un
    noyau de 2 m suffit, mais il ne faudra pas conclure « pas de
@@ -269,21 +271,23 @@ puissance. À 10 graines, elle est tranchée.
    au moment de la fermeture. Il mesure l'instant, pas la récupération.
 6. **Reproductibilité** : deux runs de même configuration donnent les
    mêmes comptes, pas les mêmes décisions (batching concurrent). D'où
-   l'agrégation par graines — jamais de comparaison appariée.
-7. **Puissance** : X1–X4 restent à 5 graines. Les p-values exactes à
-   5 contre 5 valent 0,0079 au mieux ; X2 (p = 0,083) et X4 hybride
-   contre règles (p = 0,12) ne sont pas tranchés.
+   l'agrégation par graines — jamais de comparaison appariée, sauf pour
+   un coût mesuré sur le même monde (X3K/X3M, où l'appariement est
+   explicite).
+7. **Puissance** : X1 et X3–X4 restent à 5 graines. Les p-values exactes
+   à 5 contre 5 valent 0,0079 au mieux ; le temps mural de X3 (p = 0,095)
+   et I3 de X4 hybride contre règles (p = 0,35) ne sont pas tranchés.
 
 ---
 
 ## Ce qu'il faut faire ensuite
 
 1. **X4 : comprendre l'écart visiteurs.** Pourquoi les agents LLM
-   visiteurs restent-ils 20 sur 24 quand les agents à règles n'en
+   visiteurs restent 9 à 19 sur 24 quand les agents à règles n'en
    laissent que 0 à 8 ? La réponse est dans les journaux (déclencheurs,
    `search`, messages reçus) et vaut plus que le chiffre de I3.
-2. **X2 à 10 graines.** L'écart I7 (220 contre 150 s) va dans le sens de
-   H2 et n'est pas significatif à 5 graines.
+2. **Les habitués piégés en tout-LLM** (1 à 7 par run) n'existaient pas
+   dans la campagne précédente : à expliquer, pas à ignorer.
 3. **Trancher la connaissance apprise.** Faut-il qu'un message puisse
    ajouter une sortie au savoir d'un agent ? Si oui, la garde doit
    interroger les croyances, pas seulement le profil.

@@ -173,13 +173,15 @@ rejouable de bout en bout.
   100 Ko par trame.
 - **Le corpus d'annonces contient douze variantes contradictoires**, toutes
   disponibles à partir de t10 : une décision qui interroge `annonces/`
-  reçoit trois consignes nommant des sorties différentes (478 décisions
-  sur 565 en X12). Le percept porte la vraie annonce à part, et le seuil de
-  `rag.suspect` (0,17) ne voit rien — le score est bon (0,29). À filtrer
-  par le texte diffusé si l'on veut un modèle propre ; consigné en Q5.
-- **L'inspection d'un indicateur n'est pas un clic.** `sources` porte la
-  plage de `seq` et `maree trace` remonte la chaîne ; Godot ne le fait pas.
-  C'est écrit dans `docs/cadrage-maree.md` plutôt que promis.
+  reçoit trois consignes nommant des sorties différentes (483 décisions
+  en retrouvent une en X12, 358 en reçoivent de contradictoires). Le
+  percept porte la vraie annonce à part, et le seuil de `rag.suspect`
+  (0,17) ne voit rien — le score est bon (0,27). À filtrer par le texte
+  réellement diffusé si l'on veut un modèle propre ; consigné en Q5.
+- **L'inspection d'un indicateur était un chemin en CLI, pas un geste.**
+  `sources` porte la plage de `seq`, `maree trace` remonte la chaîne, et
+  depuis le 2026-11-01 **Godot fait le clic** (`indicators.sources` →
+  `event`) : testé par `make godot-test`, pas seulement documenté.
 - **Le dernier tick d'indicateurs est dégénéré** : tout le monde est
   sorti, donc I1/I2/I5/I6 valent 0. Utiliser `metrics.summarise()` (pic
   pour I5/I6, moyenne sur la partie **active** pour I1/I2) et non
@@ -214,10 +216,12 @@ rejouable de bout en bout.
   `_known_open`. **Corollaire** : deux tests de `test_graph.py`
   passaient par la fuite (profil `visiteur` + cible B ou C) ; ils
   utilisent désormais `habitue`.
-- **I5 sature à 2.0 avec 60 agents.** Grille de 1 m et séparation
-  minimale de 0,4 m : au plus 2 agents par cellule. Le pic vaut 2 dans
-  tous les runs, donc l'indicateur n'a aucune variance. À 60 agents, I5
-  ne mesure rien ; il faudrait une cellule plus fine ou un noyau.
+- **I5 saturait à 2.0 avec une grille de 1 m.** Séparation minimale de
+  0,4 m : au plus 2 agents par cellule, donc le pic valait 2 dans tous
+  les runs, sans variance. Corrigé : I5 est un **noyau circulaire de
+  2 m** (0,08 à 1,51 pers/m² selon le bras) ; la grille de 1 m reste
+  calculée pour l'affichage du client (`density_cells`), pas pour
+  l'indicateur.
 - Les protocoles `configs/experiment/*.yaml` sont le **contenu** du
   groupe Hydra : pas de `# @package _global_`, pas de clé `experiment:`
   englobante, sinon `cfg.experiment.experiment.arms`.
@@ -391,14 +395,14 @@ rejouable de bout en bout.
 | Run 60 agents à règles, démo (v2) | 20 ticks, 1 023 événements, **0,8 s**, 60/60 sortis | `run_demo_02` |
 | Run 60 agents à règles, piège (v2) | 90 ticks, 1 204 événements, 1,1 s, **54/60** (6 visiteurs piégés) | `run_trap_07` |
 | Décisions, scénario piège | **259** (dont 22 `sortie_fermee`, 142 périodiques) | `run_trap_07` |
-| Protocole X1, 5 graines × 4 bras | I7 clair_tôt **160 s**, ambigu_tôt **260 s** (4/5 censurés), clair_tard 280 s, ambigu_tard 270 s (3/5) ; I3 1,00 / 0,98 / 1,00 / 0,98 | `experiment_x1` |
-| Protocole X3, 5 graines × 2 bras | I1 et I5 **identiques**, I7 100 s des deux côtés, mural **34,0 → 20,9 s** (×1,63, p = 0,0117) | `experiment_x3` |
-| Protocole X4, 5 graines × 3 bras | `llm_60` **40/60 sortis** (5/5 censurés, 520 appels, 234,8 s), hybride 55/60 (5/5), règles 55/60 (4/5, 9,6 s) ; **tous les piégés sont des visiteurs** (17 à 23 sur 24 en tout-LLM) | `experiment_x4` |
-| Campagne X1–X7 | **115 runs, 6 906 appels LLM / 6 906 succès**, 0 repli, **0 cible hors savoir** sur 2 022 | `runs/experiment_x*.json` |
-| Campagne complète (X1–X14 + les deux témoins C1) | **250 runs, 14 804 appels / 14 804 succès, 0 repli** | `runs/experiment_x*.json` |
-| C1, le bus ne touche pas aux indicateurs | X3K (Redpanda) contre X3M (mémoire) : I1 0,97 / I3 1,00 / I5 0,48 / I7 220 s **identiques**, p = 1,000 ; mural 28,3 contre 22,9 s (+24 %) | `experiment_x3k` / `experiment_x3m` |
-| C1, volume publié | 10 538 événements sur 4 topics pour 10 runs (414 instantanés exclus) | journaux `run_x3k_*` |
-| I5 par noyau de 2 m | 0,32 à 0,56 pers/m² (la grille de 1 m valait 2,0 partout) | campagne X1–X7 |
+| Protocole X1, 5 graines × 4 bras | I7 clair_tôt 380 s, ambigu_tôt 370 s, clair_tard 280 s, ambigu_tard 440 s (p = 0,67 sur la clarté) ; I3 **1,00 / 0,95 / 1,00 / 0,95** (p = 0,0095) ; **2/10 censurés** avec un ordre clair, **10/10** sans | `experiment_x1` |
+| Protocole X2 (meneurs), 10 graines × 2 bras | I7 **265 s des deux côtés** (p = 0,91), I3 0,90 / 0,89 (p = 0,62) ; I5 0,48 contre 0,56 (p = 0,058, sens inverse) : aucun effet mesurable | `experiment_x2` |
+| Protocole X3, 5 graines × 2 bras | I1 0,98 / 0,97, I5 0,40 / 0,40, I7 220 s des deux côtés ; mural **18,1 → 14,1 s** (5 paires sur 5, p = 0,095, non tranché à 5 paires) | `experiment_x3` |
+| Protocole X4, 5 graines × 3 bras | `llm_60` **42/60 sortis** (5/5 censurés, 477 appels, 89,5 s), hybride 53/60 (5/5), règles 55/60 (4/5, 11,1 s) ; piégés : 0 à 8 visiteurs en tout-règles, **9 à 19 visiteurs sur 24 + 1 à 7 habitués** en tout-LLM | `experiment_x4` |
+| Campagne rejouée (X1–X14 + témoins C1) | **260 runs, 14 181 appels / 14 181 succès, 0 repli** ; 1 409 incidents (9,9 % des appels) | `runs/experiment_x*.json` |
+| C1, le bus ne touche pas aux indicateurs | X3K (Redpanda) contre X3M (mémoire) : médianes I1 0,98 / I3 1,00 / I5 0,48 / I7 220 s identiques (p ≥ 0,60) ; mural 24,2 contre 18,2 s (**+33 %**, 5 paires sur 5) | `experiment_x3k` / `experiment_x3m` |
+| C1, volume publié | **10 084 événements** sur 4 topics pour 10 runs (453 instantanés exclus) | journaux `run_x3k_*` |
+| I5 par noyau de 2 m | 0,08 à 1,51 pers/m² selon le bras (0,32–0,56 pour la population de référence) ; la grille de 1 m, elle, valait 2,0 partout | campagne 2026-11-01 |
 | Preset 8192/4 (E2B) + bge-m3 | `n_slots = 4`, `n_ctx_slot = 2048`, **1 980 Mo / 4 096** | `nvidia-smi`, RTX 3050 |
 | Débit LLM, concurrence 1 / 4 | 0,69 / **1,94** décision/s | 12 appels, ~700 tokens |
 | Run hybride 12 LLM + 48 règles, démo | 21 ticks, **44 appels / 44 succès**, 21,9 s, **60/60** | `run_hybrid_08` |
@@ -408,19 +412,20 @@ rejouable de bout en bout.
 | Chaîne causale (B4) | **820 / 1 023** événements avec `causation_id`, 160 chaînes | run `demo_replay` |
 | Récupération (F2) | P@1 **0,417**, P@3 **0,750**, MRR **0,569** sur 24 requêtes annotées | `eval/rag_queries.yaml` |
 | Rejeu E3 | `ok: true`, 49/49 décisions concordantes, 3 replis annoncés | `maree replay --run-id demo_replay` |
-| Protocole X10, 4 bras × 5 graines | `lag_llm` 0 (sync) → **5,5** (20 agents async) → **8,0** (60 async) ; `lag_indicator` 1,5 → 3,5 → 2,5 | `experiment_x10` |
-| Protocole X11, 2 bras × 5 graines | sync I3 1,00 / I7 220 s / lag 0 ; async **0,98 / 470 s** / lag médian 5, max 12 | `experiment_x11` |
-| Protocole X12 (E5), 5 bras × 5 graines | `tous_grand` 48 appels, 20 456 jetons, I3 1,00, I7 110 s ; `tiers_regles` **25 / 12 385 (−39 %) / 1,00 / 110 s** ; `protocole_seul` 45 / 14 847 (−27 %) / 1,00 / 160 s ; `deux_tiers` 47 / 14 027 (−31 %) / 1,00 / 220 s ; `petit_json_ouvert` 83 / 42 376 (+107 %) / 0,95 / 390 s | `experiment_x12` |
-| Protocole X13 (sécurité), 4 bras × 5 | **rien de significatif** : I3 0,92/0,90, I7 270/250 s, p ≥ 0,50 — les habitués savent déjà ce que la sécurité sait | `experiment_x13` |
-| Protocole X14 (familles), 2 bras × **10 graines** | I2 **0,55 [0,53–0,77] contre 0,46 [0,42–0,69]**, p = 0,031 ; I3 1,00 / I7 220-225 s : les familles font douter, pas ralentir | `experiment_x14` |
-| O2, posture « assistant prudent » | **62 cas sur 1 287 appels X12 (4,8 %)**, tous « cible générique : la sortie la plus proche », `fallback=false` | journaux X12 |
-| Q5, récupération douteuse | **115 `rag.suspect`** sur 25 runs X12 (tous en ont un) ; le seuil 0,17 ne voit **pas** les annonces contradictoires (478 décisions sur 565) | `experiment_x12` |
-| B3, 3ᵉ contrôle (diversité) | intra-modèle **0,425**, inter-modèle **0,467**, rapport 0,91 sur 950 justifications X12 (450 775 paires) | `scripts/diversite.py` |
+| Protocole X10, 4 bras × 5 graines | `lag_llm` 0 (sync) → **2** (async, les deux tailles) ; `lag_ticks_median` 0 → 4 (5 au maximum) ; `lag_indicator` 1 à 2 | `experiment_x10` |
+| Protocole X11, 2 bras × 5 graines | sync I3 1,00 / I7 220 s / lag 0 ; async **1,00 / 230 s** / `lag_ticks_median` 4, max 6 | `experiment_x11` |
+| Protocole X12 (E5), 5 bras × 5 graines | `tous_grand` 43 appels, 20 073 jetons, I3 1,00, I7 100 s ; `tiers_regles` **21 / 10 724 (−47 %) / 1,00 / 100 s** ; `protocole_seul` 40 / 13 207 (−34 %) / 1,00 / 110 s ; `deux_tiers` 43 / 13 069 (−35 %) / 1,00 / 220 s ; `petit_json_ouvert` 88 / 47 959 (+139 %) / 0,93 / 460 s | `experiment_x12` |
+| Protocole X13 (sécurité), 4 bras × 5 | **rien de significatif** : I3 1,00/1,00 en `demo`, 0,90/0,90 en `e2e` ; I7 220/220 et 270/250 s, p ≥ 0,14 — les habitués savent déjà ce que la sécurité sait | `experiment_x13` |
+| Protocole X14 (familles), 2 bras × **10 graines** | I2 **0,52 [0,51–0,54] contre 0,41 [0,40–0,44]**, p = 0,017 (9 graines sur 10) ; I3 1,00, I7 220-225 s : les familles font douter, pas ralentir | `experiment_x14` |
+| O2, posture « assistant prudent » | **62 cas sur 1 196 appels X12 (5,2 %)**, tous « cible générique : la sortie la plus proche », `fallback=false` | journaux X12 |
+| Q5, récupération douteuse | **100 `rag.suspect`** sur 25 runs X12 (4 par run) ; le seuil 0,17 ne voit **pas** les annonces contradictoires (483 décisions en retrouvent une, 358 en reçoivent de contradictoires) | `experiment_x12` |
+| B3, 3ᵉ contrôle (diversité) | intra-modèle **0,400**, inter-modèle **0,472**, rapport 0,85 sur 939 justifications X12 (440 391 paires) | `scripts/diversite.py` |
+| E4, énergie par bras | **0,163 Wh** actifs (60 règles) à **1,673 Wh** (60 LLM) ; hybride 0,397 ; `tiers_regles` 0,217 contre `tous_grand` 0,370 ; repos 6,5 W | `scripts/energie.py` |
 | C8, paire versionnée | `demo20` 200 s, 20/20 ; `demo60` 200 s, 60/60 ; I7 100 s des deux côtés, rejeu `ok: true` | `make replay-pair` |
 | F3, état courant | `state.json` **70 581 octets** contre 1 777 302 de journal (77 % d'instantanés) ; `maree state` 0,40 s | `f3_state_01` |
 | F5, requêtes reproductibles | **449 970 événements, 451 runs, 3,4 s** sur 1,2 Go de JSONL | `maree query runs` |
 | Petit modèle, 4 formats | JSON ouvert : `search` 55/55 ; liste : **1re option** 100 % ; oui/non : instable ; **règle + drapeaux** : calme 6/6, fumée 6/6, annonce 2/6 | essais directs sur `qwen3-0-6b` |
-| Petit modèle contre grand, sous charge | `lag_ticks` 5 (petit) contre 6 à 8,5 (grand) : la file mange l'écart de vitesse | `experiment_x11` |
+| Petit modèle contre grand, sous charge | `lag_ticks_median` **4 pour les deux** (5 au maximum) : la file mange l'écart de vitesse | `experiment_x10` |
 | C1, Redpanda réel | **1 002 messages** sur 4 topics pour un run de 1 023 événements (21 instantanés exclus) | `scripts/kafka_check.py` |
 | A4, incidents réels | 8 incidents / 2 causes en async 60 agents, 3 en sync ; run allé au bout | `c4_async_02`, `c4_sync_01` |
 
@@ -428,8 +433,8 @@ rejouable de bout en bout.
 Le repli `parallel=2` n'est pas nécessaire.
 
 **Non mesuré en v2** : le bras E4B, la reproductibilité exacte d'un run
-LLM (voir §6), et X2 à 10 graines (l'écart I7 de 220 contre 150 s,
-p = 0,083, n'est pas tranché).
+LLM (voir §6), et l'énergie au compteur matériel (le chiffre par bras
+vient de `power.draw`, échantillonné à 1 Hz).
 
 ---
 
@@ -523,17 +528,21 @@ moteur.
   « connecté » juste après `end`, d'où « déconnecté » sur une diffusion
   pourtant terminée. Rappel : `Node2D` n'a **pas** de `size` (c'est
   `Control`) — utiliser `get_viewport_rect().size`.
-- **X1–X7** : campagne complète rejouée le 2026-10-29 (115 runs,
-  5 graines pour X1–X4 et 10 pour X5–X7, 6 906 appels LLM sans échec,
-  **0 cible hors savoir**). Résultats : `docs/resultats/rapport-v2.md`
+- **X1–X14** : campagne complète rejouée le 2026-11-01 (260 runs,
+  5 graines pour X1, X3, X3K, X3M, X4, X8–X13 et 10 pour X2, X5, X6, X7,
+  X14 ; 14 181 appels LLM, 14 181 succès, 0 repli). Résultats :
+  `docs/resultats/rapport-v2.md`
   (tables) et `conclusions-v2.md` (lecture par hypothèse). **I4 est
   censuré à `max_ticks`** dès qu'une partie de la foule ne sort pas
-  (X1 ambigu, X2, X4) : lire I3 et I7 avec. La campagne du 2026-10-28
-  est conservée dans `runs/experiment_x*_avant_correctif.json` — elle
-  mesurait un modèle où un visiteur LLM pouvait nommer B.
+  (X1 ambigu, X2, X4) : lire I3 et I7 avec. Les campagnes antérieures
+  sont conservées (`runs/experiment_x*_avant_correctif.json`,
+  `runs/avant_correctif_rag/`) — elles mesuraient un modèle où un
+  visiteur LLM pouvait nommer B, puis un corpus où le profil `visiteur`
+  ne lisait aucune annonce. Elles ne sont pas publiées.
 - **Le LLM n'aidait pas les visiteurs avec le protocole ouvert** : en X4
-  `llm_60`, 17 à 23 visiteurs sur 24 restaient piégés, contre 0 à 8 en
-  tout-règles (le « 60/60 » de la campagne précédente était l'artefact de
+  `llm_60`, 9 à 19 visiteurs sur 24 restaient piégés (plus 1 à 7
+  habitués), contre 0 à 8 en tout-règles (le « 60/60 » de la campagne
+  précédente était l'artefact de
   la fuite de connaissance). Avec la politique explicite de la vague 4,
   ils sortent : X12 `deux_tiers` évacue 1,00 à 60 agents. Ce qui reste
   ouvert n'est donc plus « pourquoi ils restent » mais **« ce qu'ils
@@ -545,10 +554,11 @@ moteur.
 - **Le corpus d'annonces rend des variantes contradictoires** : douze
   annonces nommant des sorties différentes, toutes disponibles dès t10.
   Une décision qui interroge `annonces/` en reçoit trois qui se
-  contredisent (478 sur 565 en X12). Le percept porte la vraie annonce à
+  contredisent (483 décisions en retrouvent une en X12, 358 en reçoivent
+  de contradictoires). Le percept porte la vraie annonce à
   part, donc le dégât est borné, mais un modèle peut préférer ses
   « souvenirs ». Le seuil `rag.suspect` (0,17) ne voit rien — le score
-  est bon (0,29). À filtrer sur le texte réellement diffusé.
+  est bon (0,27). À filtrer sur le texte réellement diffusé.
 - **Le rapport hybride existe** : `docs/resultats/rapport-hybride.md`
   assemble partie technique, mini-article, bilan de sobriété et réponses
   Q1–Q6. Les autres documents sont des notes ; celui-là se lit seul.
@@ -558,7 +568,7 @@ moteur.
   une barrière physique.
 - **Les visiteurs restent piégés** dans le scénario `e2e` : c'est voulu
   (ils ne connaissent que A, et A ferme à t14), mais le nombre dépend
-  fortement du bras — 0 à 8 en tout-règles, jusqu'à 23 en tout-LLM. Le
-  run consomme alors `max_ticks` et le filet périodique les fait
-  redécider jusqu'au bout : c'est là que passe le coût LLM (520 appels
-  pour `llm_60`).
+  fortement du bras — 0 à 8 en tout-règles, 9 à 19 sur 24 en tout-LLM
+  (plus 1 à 7 habitués). Le run consomme alors `max_ticks` et le filet
+  périodique les fait redécider jusqu'au bout : c'est là que passe le
+  coût LLM (477 appels pour `llm_60`, 89,5 s).
