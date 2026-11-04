@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="MARÉE : observer une simulation d'évacuation de foule, personne par personne.">
+  <title>MARÉE · Observatoire d'évacuation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2318181b'/%3E%3Cpath d='M6 20c3-4 6-4 10 0s7 4 10 0' fill='none' stroke='%23fafafa' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#side">Aller au panneau d'information</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M6 20c3-4 6-4 10 0s7 4 10 0"/></svg>
+      <div>
+        <strong>MARÉE</strong>
+        <span id="runTitle">Évacuation de l'esplanade de Port-Aubel</span>
+      </div>
+    </div>
+
+    <div class="topbar-status">
+      <span class="status-pill" id="statusPill" data-state="offline"><i aria-hidden="true"></i><span id="statusLabel">Hors ligne</span></span>
+      <div class="clock" aria-live="off">
+        <span class="clock-label">Temps simulé</span>
+        <strong id="simClock">—</strong>
+        <span class="clock-tick" id="simTick"></span>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="pauseButton" type="button" aria-pressed="false" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="pauseIconPath" d="M8 5v14M16 5v14"/></svg>
+        <span id="pauseLabel">Figer</span>
+      </button>
+      <button class="btn btn-ghost" id="replayButton" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4"/></svg>
+        <span>Rejouer</span>
+      </button>
+      <button class="btn btn-primary" id="interveneButton" type="button" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 4 14h7l-1 7 9-11h-7z"/></svg>
+        <span>Intervenir</span>
+      </button>
+      <button class="btn btn-icon" id="helpButton" type="button" aria-haspopup="dialog" aria-label="Comment lire cet écran">?</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Colonne principale : la carte, puis le déroulé -->
+    <section class="map-column" aria-labelledby="mapTitle">
+      <div class="card map-card">
+        <div class="card-head">
+          <div>
+            <h1 id="mapTitle">Qui va où&nbsp;?</h1>
+            <p class="card-sub">Chaque symbole est une personne. Sa couleur et sa forme indiquent la sortie qu'elle vise.</p>
+          </div>
+          <button class="btn btn-ghost" id="findButton" type="button" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>
+            <span>Chercher une personne</span>
+          </button>
+        </div>
+
+        <ul class="exit-legend" id="exitLegend" aria-label="Répartition des personnes encore présentes, par sortie visée">
+          <!-- rempli par app.js à partir du plan réel -->
+        </ul>
+
+        <div class="map-wrap" id="mapWrap">
+          <canvas id="worldCanvas" tabindex="0" role="img"
+                  aria-label="Plan de l'esplanade. Flèches gauche et droite : passer d'une personne à l'autre. Entrée : ouvrir la liste des personnes."></canvas>
+
+          <div class="map-empty" id="mapEmpty">
+            <div class="map-empty-box">
+              <span class="spinner" id="emptySpinner" aria-hidden="true"></span>
+              <h2 id="emptyTitle">Connexion au moteur…</h2>
+              <p id="emptyText">Recherche d'une simulation sur <code id="endpointLabel">ws://127.0.0.1:8765</code>.</p>
+              <div class="empty-commands" id="emptyCommands" hidden>
+                <p>Lancez l'une de ces commandes à la racine du dépôt&nbsp;:</p>
+                <dl>
+                  <div><dt>Revoir le dernier run enregistré</dt><dd><code>uv run maree serve</code></dd></div>
+                  <div><dt>Lancer une simulation en direct</dt><dd><code>uv run maree live</code></dd></div>
+                </dl>
+                <button class="btn btn-primary" id="retryButton" type="button">Réessayer maintenant</button>
+                <p class="empty-retry" id="retryLabel" aria-live="polite"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="map-tools" role="toolbar" aria-label="Outils de la carte">
+            <button type="button" id="zoomInButton" aria-label="Agrandir">+</button>
+            <button type="button" id="zoomOutButton" aria-label="Réduire">−</button>
+            <button type="button" id="zoomResetButton" aria-label="Revenir à la vue complète">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+            </button>
+            <button type="button" id="layersButton" aria-expanded="false" aria-controls="layersMenu" aria-label="Choisir ce qui est affiché">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg>
+            </button>
+          </div>
+          <fieldset class="layers-menu" id="layersMenu" hidden>
+            <legend>Afficher sur la carte</legend>
+            <label><input type="checkbox" data-layer="zones" checked> Noms des zones</label>
+            <label><input type="checkbox" data-layer="smoke" checked> Fumée</label>
+            <label><input type="checkbox" data-layer="density" checked> Zones denses</label>
+            <label><input type="checkbox" data-layer="messages" checked> Paroles échangées</label>
+            <label><input type="checkbox" data-layer="trail" checked> Trajet de la personne choisie</label>
+          </fieldset>
+
+          <div class="map-banner" id="announcementBanner" hidden>
+            <span>Annonce officielle</span>
+            <p id="announcementText"></p>
+          </div>
+          <div class="map-hint" id="smokeHint" hidden role="status">Cliquez sur la carte pour placer la fumée · <kbd>Échap</kbd> pour annuler</div>
+        </div>
+
+        <div class="map-foot">
+          <span><i class="key key-smoke" aria-hidden="true"></i>Fumée</span>
+          <span><i class="key key-density" aria-hidden="true"></i>Foule dense</span>
+          <span><i class="key key-closed" aria-hidden="true"></i>Sortie fermée</span>
+          <span><i class="key key-talk" aria-hidden="true"></i>Une personne parle à une autre</span>
+        </div>
+      </div>
+
+      <div class="card timeline-card">
+        <div class="card-head">
+          <div>
+            <h2>Déroulé</h2>
+            <p class="card-sub">Personnes sorties au fil du temps et événements du monde. Cliquez sur la courbe pour revoir un tick.</p>
+          </div>
+        </div>
+        <div class="timeline" id="timeline">
+          <svg id="timelineSvg" role="img" aria-labelledby="timelineDesc"></svg>
+          <p class="sr-only" id="timelineDesc">Aucune donnée pour l'instant.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Colonne latérale : chiffres clés, fil des événements ou fiche personne, indicateurs -->
+    <aside class="side" id="side" aria-label="Informations">
+      <section class="card kpis" aria-label="Chiffres clés">
+        <div class="kpi kpi-main">
+          <span class="kpi-label">Sorties</span>
+          <strong id="kpiEvacuated">—</strong>
+          <div class="progress" role="progressbar" aria-label="Part de la foule évacuée" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="kpiProgress"><i></i></div>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Encore sur place</span>
+          <strong id="kpiRemaining">—</strong>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Depuis l'alerte</span>
+          <strong id="kpiAlert">—</strong>
+        </div>
+      </section>
+
+      <section class="card panel" id="feedPanel" aria-labelledby="feedTitle">
+        <div class="card-head">
+          <div>
+            <h2 id="feedTitle">Ce qui se passe</h2>
+            <p class="card-sub">Les événements du run, du plus récent au plus ancien.</p>
+          </div>
+        </div>
+        <ol class="feed" id="feed"></ol>
+        <p class="feed-empty" id="feedEmpty">Rien pour l'instant : le fil se remplit dès que le moteur envoie des événements.</p>
+      </section>
+
+      <section class="card panel" id="personPanel" aria-labelledby="personId" hidden>
+        <div class="person-head">
+          <button class="btn btn-ghost btn-small" id="backButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+            <span>Retour au fil</span>
+          </button>
+        </div>
+        <div class="person-id">
+          <span class="person-shape" id="personShape" aria-hidden="true"></span>
+          <div>
+            <h2 id="personId" tabindex="-1">—</h2>
+            <p id="personRole">—</p>
+          </div>
+        </div>
+        <p class="person-headline" id="personHeadline">—</p>
+
+        <div class="person-section">
+          <h3>Pourquoi</h3>
+          <blockquote id="personReason">—</blockquote>
+          <p class="meta" id="personTrigger"></p>
+        </div>
+
+        <div class="person-section">
+          <h3>Ce qu'elle croit sur les sorties</h3>
+          <div class="belief-bars" id="personBeliefs"></div>
+        </div>
+
+        <div class="person-section">
+          <h3>Ce qu'elle a perçu</h3>
+          <ul class="chips" id="personPerceived"></ul>
+        </div>
+
+        <div class="person-section">
+          <h3>Ce qu'on lui a dit</h3>
+          <ol class="mini-list" id="personHeard"></ol>
+        </div>
+
+        <details class="person-section">
+          <summary>Historique de ses décisions</summary>
+          <ol class="mini-list" id="personHistory"></ol>
+        </details>
+
+        <details class="person-section">
+          <summary>Documents consultés pour la dernière décision</summary>
+          <ol class="mini-list docs" id="personDocs"></ol>
+        </details>
+      </section>
+
+      <details class="card indicators" id="indicators">
+        <summary>
+          <span>
+            <strong>Indicateurs scientifiques</strong>
+            <span class="card-sub">I1 à I7 : ce que le protocole mesure, avec leur explication.</span>
+          </span>
+        </summary>
+        <ul class="indicator-list" id="indicatorList"></ul>
+      </details>
+    </aside>
+  </main>
+
+  <!-- Liste des personnes : alternative clavier au plan -->
+  <dialog class="dialog" id="findDialog" aria-labelledby="findTitle">
+    <div class="dialog-head">
+      <h2 id="findTitle">Chercher une personne</h2>
+      <form method="dialog"><button class="btn btn-icon" aria-label="Fermer">×</button></form>
+    </div>
+    <label class="field-label" for="findInput">Identifiant, profil ou sortie visée</label>
+    <input class="field" id="findInput" type="search" placeholder="Ex. A07, famille, sortie B" autocomplete="off">
+    <p class="meta" id="findCount" aria-live="polite"></p>
+    <ul class="person-list" id="findList"></ul>
+  </dialog>
+
+  <!-- Intervenir dans le monde (mode direct uniquement) -->
+  <dialog class="dialog" id="interveneDialog" aria-labelledby="interveneTitle">
+    <div class="dialog-head">
+      <h2 id="interveneTitle">Intervenir dans la simulation</h2>
+      <form method="dialog"><button class="btn btn-icon" aria-label="Fermer">×</button></form>
+    </div>
+    <p class="notice" id="interveneNotice"></p>
+    <div class="intervene-grid" id="interveneControls">
+      <section>
+        <h3>Diffuser une annonce</h3>
+        <p class="meta">Une annonce n'est un ordre que si elle en contient un, et elle peut nommer une sortie.</p>
+        <label class="field-label" for="announceInput">Texte de l'annonce</label>
+        <input class="field" id="announceInput" value="Évacuation immédiate, sortie B" autocomplete="off">
+        <button class="btn btn-primary" id="announceButton" type="button">Diffuser</button>
+      </section>
+      <section>
+        <h3>Fermer une sortie</h3>
+        <p class="meta">Les personnes ne le sauront que si elles le perçoivent.</p>
+        <label class="field-label" for="exitSelect">Sortie</label>
+        <select class="field" id="exitSelect"></select>
+        <button class="btn btn-danger" id="closeExitButton" type="button">Fermer cette sortie</button>
+      </section>
+      <section>
+        <h3>Déclencher une fumée</h3>
+        <p class="meta">Choisissez ensuite l'endroit en cliquant sur la carte.</p>
+        <button class="btn btn-ghost" id="smokeButton" type="button">Placer une fumée sur la carte</button>
+      </section>
+    </div>
+    <p class="feedback" id="interveneFeedback" role="status" aria-live="polite"></p>
+  </dialog>
+
+  <!-- Trace d'un indicateur -->
+  <dialog class="dialog dialog-wide" id="traceDialog" aria-labelledby="traceTitle">
+    <div class="dialog-head">
+      <h2 id="traceTitle">Indicateur</h2>
+      <form method="dialog"><button class="btn btn-icon" aria-label="Fermer">×</button></form>
+    </div>
+    <p id="traceDefinition"></p>
+    <dl class="trace-method" id="traceMethod"></dl>
+    <h3>D'où vient ce chiffre&nbsp;?</h3>
+    <div id="traceBody" aria-live="polite"></div>
+  </dialog>
+
+  <!-- Aide -->
+  <dialog class="dialog dialog-wide" id="helpDialog" aria-labelledby="helpTitle">
+    <div class="dialog-head">
+      <h2 id="helpTitle">Comment lire cet écran</h2>
+      <form method="dialog"><button class="btn btn-icon" aria-label="Fermer">×</button></form>
+    </div>
+    <ol class="help-steps">
+      <li><strong>La situation.</strong> 60 personnes sont sur une esplanade pendant une fête. Un danger survient (fumée, annonce, sortie fermée). Il y a trois sorties.</li>
+      <li><strong>La carte.</strong> Chaque symbole est une personne. Couleur et forme = la sortie qu'elle croit la bonne. Un losange gris = personne qui n'a pas encore choisi.</li>
+      <li><strong>Une personne.</strong> Cliquez sur un symbole (ou « Chercher une personne ») pour lire ce qu'elle croit, ce qu'elle a perçu, ce qu'on lui a dit et pourquoi elle agit ainsi.</li>
+      <li><strong>Le déroulé.</strong> La courbe montre les sorties au fil du temps, et les traits verticaux les événements du monde.</li>
+      <li><strong>Les indicateurs.</strong> Ce sont les mesures du protocole scientifique. Chacun est expliqué, et « D'où vient ce chiffre ? » remonte au journal.</li>
+      <li><strong>Intervenir.</strong> Seulement quand une simulation tourne en direct (<code>uv run maree live</code>). Un run enregistré ne peut pas être modifié.</li>
+    </ol>
+    <p class="meta">Toutes les données affichées viennent du moteur via WebSocket. Sans moteur, l'écran reste vide : rien n'est inventé.</p>
+  </dialog>
+
+  <div class="sr-only" id="announcer" aria-live="polite"></div>
+  <script defer src="./app.js"></script>
+</body>
+</html>
