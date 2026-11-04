@@ -438,9 +438,11 @@ function handleWorld(msg) {
     state.smokeEvent = { position: msg.position, radius: msg.radius, tick };
     state.smokeBorn = performance.now();
     state.worldMarkers.push({ tick, kind: "smoke", label: "Fumée" });
-    pushFeed(tick, "danger", "Alerte", "De la fumée apparaît près de la scène.");
-    announcePolite("Alerte : de la fumée apparaît près de la scène.");
-    alertMap("De la fumée apparaît près de la scène", "danger");
+    const zone = zoneNameAt(msg.position);
+    const where = zone ? `De la fumée apparaît : ${zone}` : "De la fumée apparaît";
+    pushFeed(tick, "danger", "Alerte", `${where}.`);
+    announcePolite(`Alerte : ${where}.`);
+    alertMap(where, "danger");
   } else if (msg.kind === "announcement") {
     state.announcement = { text: msg.text, tick };
     state.worldMarkers.push({ tick, kind: "announcement", label: "Annonce" });
@@ -1102,7 +1104,13 @@ function renderTimeline() {
   if (past.length > 1) svg.append(svgEl("polyline", { points: toPoints(past), class: "curve" }));
 
   const rowEnds = [-Infinity, -Infinity];
-  for (const m of [...state.worldMarkers].sort((a, b) => a.tick - b.tick)) {
+  const byTick = new Map();
+  for (const m of state.worldMarkers) {
+    const same = byTick.get(m.tick);
+    if (same) same.label = `${same.label} + ${m.label}`;
+    else byTick.set(m.tick, { ...m });
+  }
+  for (const m of [...byTick.values()].sort((a, b) => a.tick - b.tick)) {
     const x = xOf(m.tick);
     const g = svgEl("g", { class: `marker ${m.kind}` });
     g.append(svgEl("line", { x1: x, y1: padT - 4, x2: x, y2: padT + plotH }));
