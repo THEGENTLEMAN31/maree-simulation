@@ -64,8 +64,9 @@
         </div>
 
         <div class="map-wrap" id="mapWrap">
+          <canvas id="sceneCanvas" aria-hidden="true" hidden></canvas>
           <canvas id="worldCanvas" tabindex="0" role="img"
-                  aria-label="Plan de l'esplanade. Flèches : passer d'une personne à l'autre. Entrée : ouvrir la liste des personnes."></canvas>
+                  aria-label="Plan de l'esplanade. Flèches : passer d'une personne à l'autre. Entrée : ouvrir la liste des personnes. Q et E : tourner la vue 3D."></canvas>
 
           <div class="map-tip" id="mapTip" hidden></div>
 
@@ -104,12 +105,19 @@
             <button type="button" id="zoomResetButton" aria-label="Revenir à la vue complète">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
             </button>
+            <button type="button" id="orbitLeftButton" aria-label="Tourner la vue vers la gauche" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.3 5.7M4 20v-5h5"/></svg>
+            </button>
+            <button type="button" id="orbitRightButton" aria-label="Tourner la vue vers la droite" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 0-2.3 5.7M20 20v-5h-5"/></svg>
+            </button>
             <button type="button" id="layersButton" aria-expanded="false" aria-controls="layersMenu" aria-label="Choisir ce qui est affiché">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg>
             </button>
           </div>
           <fieldset class="layers-menu" id="layersMenu" hidden>
             <legend>Afficher sur la carte</legend>
+            <label id="view3dLabel" hidden><input type="checkbox" id="view3dToggle" checked> Vue 3D</label>
             <label><input type="checkbox" data-layer="zones" checked> Noms des zones</label>
             <label><input type="checkbox" data-layer="smoke" checked> Fumée</label>
             <label><input type="checkbox" data-layer="density" checked> Zones denses</label>
@@ -303,13 +311,13 @@
     </div>
     <ol class="help-steps">
       <li><strong>La situation.</strong> 60 personnes sont sur une esplanade pendant une fête. Un danger survient (fumée, annonce, sortie fermée). Il y a trois sorties.</li>
-      <li><strong>La carte.</strong> Chaque symbole est une personne. Couleur et forme = la sortie qu'elle croit la bonne. Un losange gris = personne qui n'a pas encore choisi. Molette ou boutons pour zoomer, glisser pour se déplacer.</li>
+      <li><strong>La carte.</strong> Chaque symbole est une personne. Couleur et forme = la sortie qu'elle croit la bonne. Un losange gris = personne qui n'a pas encore choisi. Molette ou boutons pour zoomer ; en 3D, glisser ou touches Q et E pour tourner. La vue 2D reste disponible dans le menu des calques.</li>
       <li><strong>Une personne.</strong> Cliquez sur un symbole (ou « Chercher une personne ») pour lire ce qu'elle croit, ce qu'elle a perçu, ce qu'on lui a dit, ce dont elle se souvient et pourquoi elle agit ainsi.</li>
       <li><strong>Le déroulé.</strong> La courbe montre les sorties au fil du temps, les traits verticaux les événements du monde. Faites-la glisser (ou flèches du clavier) : carte, fil et fiches reviennent à cet instant.</li>
       <li><strong>Les indicateurs.</strong> Ce sont les mesures du protocole scientifique. Cliquez-en un pour lire sa définition et remonter au journal.</li>
       <li><strong>Intervenir.</strong> Seulement quand une simulation tourne en direct (<code>uv run maree live</code>). Un run enregistré ne peut pas être modifié.</li>
     </ol>
-    <p class="meta">Toutes les données affichées viennent du moteur via WebSocket. Sans moteur, l'écran reste vide : rien n'est inventé. Entre deux ticks, le mouvement des personnes est une interpolation d'affichage ; les positions de référence sont celles du journal.</p>
+    <p class="meta">Toutes les données affichées viennent du moteur via WebSocket. Sans moteur, l'écran reste vide : rien n'est inventé. Entre deux ticks, le mouvement des personnes est une interpolation d'affichage ; les positions de référence sont celles du journal. En 3D, les hauteurs sont un choix d'affichage : le moteur travaille sur un plan.</p>
   </dialog>
 
   <div class="sr-only" id="announcer" aria-live="polite"></div>

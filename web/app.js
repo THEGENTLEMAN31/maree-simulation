@@ -161,6 +161,7 @@ const state = {
   placeAt: null,
   zoom: 1,
   pan: { x: 0, y: 0 },
+  view3d: true,
   layers: { zones: true, smoke: true, density: true, messages: true, trail: true },
   socket: null,
   retryTimer: null,
@@ -177,6 +178,9 @@ const state = {
 };
 
 const canvas = $("#worldCanvas");
+const sceneCanvas = $("#sceneCanvas");
+let scene3d = null; // null : pas de WebGL, la carte 2D reste complète
+const in3d = () => Boolean(scene3d) && state.view3d;
 const ctx = canvas.getContext("2d");
 const ground = document.createElement("canvas");
 let groundKey = "";
@@ -353,6 +357,7 @@ function handleFrame(msg) {
       setConnectionState(state.live ? "live" : "replay");
       populateExitSelect();
       buildLegend();
+      scene3d?.build(state.plan);
       computeView();
       break;
 
@@ -1179,6 +1184,7 @@ function resizeCanvas() {
   canvas.width = Math.round(rect.width * dpr);
   canvas.height = Math.round(rect.height * dpr);
   box = { width: rect.width, height: rect.height, dpr };
+  scene3d?.resize(rect.width, rect.height, dpr);
   computeView();
   paint();
   renderTimeline();
@@ -1193,6 +1199,17 @@ function planBounds() {
 
 function computeView() {
   if (!box.width || !state.plan) return;
+  if (in3d()) {
+    // Échelle au centre du plan : dimensionne les marques et les ondes.
+    const c = planBounds();
+    const a = scene3d.project((c.minX + c.maxX) / 2 - .5, (c.minY + c.maxY) / 2);
+    const b = scene3d.project((c.minX + c.maxX) / 2 + .5, (c.minY + c.maxY) / 2);
+    view = { scale: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 3), x: 0, y: 0 };
+    $("#mapWrap").dataset.pan = "false";
+    $("#mapWrap").dataset.orbit = "true";
+    return;
+  }
+  $("#mapWrap").dataset.orbit = "false";
   const b = planBounds();
   const compact = box.width < 640;
   const padX = compact ? 16 : 92;
@@ -1213,7 +1230,8 @@ function computeView() {
   $("#mapWrap").dataset.pan = String(state.zoom > 1);
 }
 
-function toScreen(pt) {
+function toScreen(pt, height = 0) {
+  if (in3d()) return scene3d.project(pt[0], pt[1], height);
   return {
     x: view.x + pt[0] * view.scale,
     y: view.y + (state.plan.height - pt[1]) * view.scale,
@@ -1221,6 +1239,10 @@ function toScreen(pt) {
 }
 
 function toWorld(px) {
+  if (in3d()) {
+    const hit = scene3d.groundAt(px.x, px.y);
+    if (hit) return [clamp(hit[0], 0, state.plan.width), clamp(hit[1], 0, state.plan.height)];
+  }
   return [
     clamp((px.x - view.x) / view.scale, 0, state.plan.width),
     clamp(state.plan.height - (px.y - view.y) / view.scale, 0, state.plan.height),
@@ -1228,6 +1250,12 @@ function toWorld(px) {
 }
 
 function setZoom(next, anchor = { x: box.width / 2, y: box.height / 2 }) {
+  if (in3d()) {
+    scene3d.zoomBy(next > state.zoom ? .86 : 1 / .86);
+    computeView();
+    paint();
+    return;
+  }
   const zoom = clamp(next, 1, 4);
   const ratio = zoom / state.zoom;
   state.pan.x = (state.pan.x + box.width / 2 - anchor.x) * ratio + anchor.x - box.width / 2;
@@ -1412,14 +1440,22 @@ function drawObstacle(c, ob) {
 /* ---------- Carte : ce qui bouge ---------- */
 function paint(now = performance.now()) {
   if (!box.width || !state.plan || !state.snapshot) return;
-  drawGround();
   const { width, height, dpr } = box;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(ground, 0, 0);
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  if (state.layers.density) drawDensity();
-  if (state.layers.smoke) drawSmoke(now);
+  if (in3d()) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    paintScene(now);
+    if (state.layers.zones) drawPlaceLabels();
+    if (state.layers.smoke) drawSmokeLabel();
+  } else {
+    drawGround();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(ground, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (state.layers.density) drawDensity();
+    if (state.layers.smoke) drawSmoke(now);
+  }
   drawExits(now);
   if (state.layers.trail) drawSelectedTrail();
   if (state.layers.messages) drawTalk(now);
@@ -1440,6 +1476,66 @@ function paint(now = performance.now()) {
       ctx.fillRect(0, 0, width, height);
     }
   }
+}
+
+function paintScene(now) {
+  const positions = new Map();
+  const agents = state.snapshot.agents || [];
+  for (const a of agents) if (!a.evacuated && a.pos) positions.set(a.id, displayPos(a, now));
+  const chosen = agents.find((a) => a.id === state.selectedId);
+  const focus = chosen && !chosen.evacuated ? chosen.id : null;
+  scene3d.syncAgents(agents, positions, focus, now, MOTION.matches);
+  scene3d.syncWorld(state.snapshot, currentSmoke(), state.layers, now, MOTION.matches);
+  scene3d.render();
+}
+
+// Noms posés au sol : ils suivent la caméra. Ombre portée pour le contraste.
+function drawPlaceLabels() {
+  ctx.font = "600 11px Inter, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  for (const z of view.scale >= 9 ? state.plan.zones || [] : []) {
+    if (z.hidden || !z.polygon?.length) continue;
+    const xs = z.polygon.map((p) => p[0]);
+    const ys = z.polygon.map((p) => p[1]);
+    const p = toScreen([Math.min(...xs) + 1, Math.max(...ys) - 1.2]);
+    const text = (z.label || z.id).toUpperCase();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(0, 0, 0, .75)";
+    ctx.strokeText(text, p.x, p.y);
+    ctx.fillStyle = "#e4e4e7";
+    ctx.fillText(text, p.x, p.y);
+  }
+  for (const ob of state.plan.obstacles || []) {
+    if (ob.kind !== "tour" || !ob.polygon?.length) continue;
+    const c = ob.polygon.reduce((s, p) => [s[0] + p[0], s[1] + p[1]], [0, 0]).map((v) => v / ob.polygon.length);
+    const p = toScreen(c, 6);
+    pill(ctx, p.x, p.y, ob.label || "Tour", { fg: "#e4e4e7", bg: "rgba(20, 21, 26, .85)", border: "rgba(255, 255, 255, .16)" });
+  }
+}
+
+function drawSmokeLabel() {
+  const smoke = currentSmoke();
+  if (!smoke) return;
+  const p = toScreen(smoke.position, 3);
+  pill(ctx, p.x, p.y - 30, "FUMÉE", { fg: "#e4e4e7", bg: "rgba(20, 21, 26, .78)", border: "rgba(228, 228, 231, .3)" });
+}
+
+function setView3d(on) {
+  state.view3d = on;
+  sceneCanvas.hidden = !in3d();
+  $("#orbitLeftButton").hidden = !in3d();
+  $("#orbitRightButton").hidden = !in3d();
+  groundKey = "";
+  computeView();
+  paint();
+}
+
+function turn(degrees) {
+  if (!in3d()) return;
+  scene3d.orbit(degrees, 0);
+  computeView();
+  paint();
 }
 
 function busy(now) {
@@ -1600,17 +1696,19 @@ function drawExits(now) {
     const mx = (a.x + b.x) / 2;
     const my = (a.y + b.y) / 2;
 
-    ctx.save();
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#08090c";
-    ctx.lineWidth = 9;
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.shadowColor = col;
-    ctx.shadowBlur = open ? 16 : 10;
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.restore();
+    if (!in3d()) {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#08090c";
+      ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.shadowColor = col;
+      ctx.shadowBlur = open ? 16 : 10;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.restore();
+    }
 
     if (open) {
       // Chevrons qui filent vers l'extérieur.
@@ -1657,6 +1755,7 @@ function drawExits(now) {
     const gap = 26;
     let lx = mx + out.x * gap - (out.x === 0 ? w / 2 : out.x < 0 ? w : 0);
     let ly = my + out.y * gap - (out.y === 0 ? h / 2 : out.y < 0 ? h : 0);
+    if (in3d() && out.x !== 0) ly = my + 12; // sous le portique, qui a de la hauteur
     lx = clamp(lx, 6, box.width - w - 6);
     ly = clamp(ly, 6, box.height - h - 6);
 
@@ -1763,6 +1862,8 @@ function agentShape(c, shape, x, y, r) {
   }
 }
 
+const MARK_HEIGHT = 2.35; // en 3D, le code couleur + forme flotte au-dessus de la tête
+
 function agentRadius() { return clamp(view.scale * .38, 5.5, 9); }
 
 function drawGhosts(now) {
@@ -1773,7 +1874,7 @@ function drawGhosts(now) {
       state.bursts.push({ exit: g.exit, start: now });
       return false;
     }
-    const p = toScreen([g.from[0] + (g.to[0] - g.from[0]) * t, g.from[1] + (g.to[1] - g.from[1]) * t]);
+    const p = toScreen([g.from[0] + (g.to[0] - g.from[0]) * t, g.from[1] + (g.to[1] - g.from[1]) * t], MARK_HEIGHT);
     const pal = EXIT_PALETTE[g.belief] || EXIT_PALETTE.none;
     ctx.globalAlpha = 1 - t * t;
     agentShape(ctx, pal.shape, p.x, p.y, r);
@@ -1806,11 +1907,12 @@ function drawAgents(now) {
   const active = (state.snapshot.agents || []).filter((a) => !a.evacuated && a.pos);
   const r = agentRadius();
   const selected = state.selectedId;
-  const positions = active.map((a) => ({ a, pos: displayPos(a, now), p: toScreen(displayPos(a, now)) }));
+  const flat = !in3d();
+  const positions = active.map((a) => ({ a, pos: displayPos(a, now), p: toScreen(displayPos(a, now), MARK_HEIGHT) }));
 
   // Ombres d'abord : aucune ne doit passer sur une personne voisine.
   ctx.fillStyle = "rgba(0, 0, 0, .42)";
-  for (const { p } of positions) {
+  for (const { p } of flat ? positions : []) {
     ctx.beginPath();
     ctx.ellipse(p.x + 1.5, p.y + r * .7, r * 1.05, r * .5, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -1819,12 +1921,12 @@ function drawAgents(now) {
   for (const { a, p } of positions) {
     const key = a.belief && EXIT_PALETTE[a.belief] ? a.belief : "none";
     const pal = EXIT_PALETTE[key];
-    const dimmed = selected && selected !== a.id;
+    const dimmed = selected && selected !== a.id && active.some((x) => x.id === selected);
     ctx.globalAlpha = dimmed ? .38 : 1;
 
     // Traînée : le mouvement de ce tick, tel qu'il est dans le journal.
     const from = state.tween.from.get(a.id);
-    if (from && state.tween.duration) {
+    if (flat && from && state.tween.duration) {
       const d = Math.hypot(a.pos[0] - from[0], a.pos[1] - from[1]);
       if (d > .4) {
         const len = Math.min(r * 2.4, d * view.scale * .4);
@@ -1865,8 +1967,14 @@ function drawAgents(now) {
 
   const chosen = positions.find(({ a }) => a.id === selected);
   if (chosen) {
-    const { a, p } = chosen;
+    const { a, p, pos } = chosen;
     const pulse = MOTION.matches ? 0 : (now / 1300) % 1;
+    if (!flat) {
+      const feet = toScreen(pos);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(feet.x, feet.y, r + 6, (r + 6) * .6, 0, 0, Math.PI * 2); ctx.stroke();
+    }
     ctx.strokeStyle = `rgba(255, 255, 255, ${(.7 * (1 - pulse)).toFixed(3)})`;
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(p.x, p.y, r + 5 + pulse * 11, 0, Math.PI * 2); ctx.stroke();
@@ -1881,11 +1989,16 @@ function drawSmokePreview() {
   const at = state.placeAt;
   if (!at) return;
   const c = toScreen(at);
-  const r = 15 * view.scale;
   ctx.setLineDash([6, 6]);
   ctx.strokeStyle = "rgba(251, 138, 138, .9)";
   ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i <= 64; i += 1) {
+    const angle = (i / 64) * Math.PI * 2;
+    const p = toScreen([at[0] + Math.cos(angle) * 15, at[1] + Math.sin(angle) * 15]);
+    if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+  }
+  ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillStyle = "rgba(248, 113, 113, .1)";
   ctx.fill();
@@ -2163,7 +2276,7 @@ function agentAt(pt, radius) {
   const now = performance.now();
   for (const a of state.snapshot?.agents || []) {
     if (a.evacuated || !a.pos) continue;
-    const p = toScreen(displayPos(a, now));
+    const p = toScreen(displayPos(a, now), in3d() ? 1 : 0);
     const d = Math.hypot(pt.x - p.x, pt.y - p.y);
     if (d < bestDist) { best = a; bestDist = d; }
   }
@@ -2179,7 +2292,7 @@ function canvasPoint(ev) {
 let drag = null;
 
 canvas.addEventListener("pointerdown", (ev) => {
-  drag = { x: ev.clientX, y: ev.clientY, panX: state.pan.x, panY: state.pan.y, moved: false };
+  drag = { x: ev.clientX, y: ev.clientY, lastX: ev.clientX, lastY: ev.clientY, panX: state.pan.x, panY: state.pan.y, moved: false };
   canvas.setPointerCapture(ev.pointerId);
 });
 
@@ -2190,11 +2303,17 @@ canvas.addEventListener("pointermove", (ev) => {
     const dx = ev.clientX - drag.x;
     const dy = ev.clientY - drag.y;
     if (Math.hypot(dx, dy) > 4) drag.moved = true;
-    if (drag.moved && state.zoom > 1 && !state.placingSmoke) {
+    if (drag.moved && in3d() && !state.placingSmoke) {
+      scene3d.orbit(-(ev.clientX - drag.lastX) * .25, (ev.clientY - drag.lastY) * .2);
+      computeView();
+      paint();
+    } else if (drag.moved && state.zoom > 1 && !state.placingSmoke) {
       state.pan = { x: drag.panX + dx, y: drag.panY + dy };
       computeView();
       paint();
     }
+    drag.lastX = ev.clientX;
+    drag.lastY = ev.clientY;
   }
   if (state.placingSmoke) {
     state.placeAt = toWorld(pt);
@@ -2215,7 +2334,7 @@ canvas.addEventListener("pointermove", (ev) => {
   const aim = hit.belief ? ` · vise ${hit.belief} (${Math.round((hit.confidence ?? 0) * 100)} %)` : " · sans sortie";
   detail.textContent = ` ${hit.label || hit.profile || ""}${aim}`;
   tip.replaceChildren(strong, detail);
-  const p = toScreen(displayPos(hit, performance.now()));
+  const p = toScreen(displayPos(hit, performance.now()), MARK_HEIGHT);
   tip.style.left = `${clamp(p.x, 120, box.width - 120)}px`;
   tip.style.top = `${p.y}px`;
   tip.hidden = false;
@@ -2243,6 +2362,12 @@ canvas.addEventListener("pointerup", (ev) => {
 canvas.addEventListener("wheel", (ev) => {
   if (!state.plan) return;
   ev.preventDefault();
+  if (in3d()) {
+    scene3d.zoomBy(ev.deltaY < 0 ? .92 : 1 / .92);
+    computeView();
+    paint();
+    return;
+  }
   setZoom(state.zoom * (ev.deltaY < 0 ? 1.15 : 1 / 1.15), canvasPoint(ev));
 }, { passive: false });
 
@@ -2261,6 +2386,11 @@ canvas.addEventListener("keydown", (ev) => {
       ];
       paint();
     }
+    return;
+  }
+  if (ev.key === "q" || ev.key === "e") {
+    ev.preventDefault();
+    turn(ev.key === "q" ? 10 : -10);
     return;
   }
   if (ev.key === "Enter") {
@@ -2359,7 +2489,19 @@ $("#helpButton").addEventListener("click", () => $("#helpDialog").showModal());
 
 $("#zoomInButton").addEventListener("click", () => setZoom(state.zoom + .5));
 $("#zoomOutButton").addEventListener("click", () => setZoom(state.zoom - .5));
-$("#zoomResetButton").addEventListener("click", () => { state.pan = { x: 0, y: 0 }; setZoom(1); });
+$("#zoomResetButton").addEventListener("click", () => {
+  if (in3d()) {
+    scene3d.resetView();
+    computeView();
+    paint();
+    return;
+  }
+  state.pan = { x: 0, y: 0 };
+  setZoom(1);
+});
+$("#orbitLeftButton").addEventListener("click", () => turn(15));
+$("#orbitRightButton").addEventListener("click", () => turn(-15));
+$("#view3dToggle").addEventListener("change", (ev) => setView3d(ev.target.checked));
 
 $("#layersButton").addEventListener("click", (ev) => {
   const menu = $("#layersMenu");
@@ -2383,3 +2525,15 @@ new ResizeObserver(() => renderTimeline()).observe(timelineEl);
 buildIndicators();
 renderIndicators();
 connect();
+
+// La 3D est une amélioration : sans WebGL, la carte 2D reste complète.
+import("./esplanade3d.js").then(({ createEsplanade }) => {
+  scene3d = createEsplanade(sceneCanvas);
+  scene3d.onTexture(() => paint());
+  $("#view3dLabel").hidden = false;
+  scene3d.resize(box.width || 1, box.height || 1, box.dpr);
+  if (state.plan) scene3d.build(state.plan);
+  setView3d(true);
+}).catch((error) => {
+  console.info("Vue 3D indisponible, carte 2D conservée :", error.message);
+});

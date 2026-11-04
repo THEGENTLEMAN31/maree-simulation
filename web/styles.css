@@ -218,10 +218,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   position: relative; min-height: 0; overflow: hidden;
   border-top: 1px solid var(--line); background: #08090c;
 }
-#worldCanvas { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
+#worldCanvas { position: relative; display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
+#sceneCanvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 #worldCanvas:focus-visible { outline-offset: -3px; }
 .map-wrap[data-hover="true"] #worldCanvas { cursor: pointer; }
 .map-wrap[data-pan="true"] #worldCanvas { cursor: grab; }
+.map-wrap[data-orbit="true"] #worldCanvas { cursor: grab; }
+.map-wrap[data-orbit="true"][data-hover="true"] #worldCanvas { cursor: pointer; }
 .map-wrap[data-placing="true"] #worldCanvas { cursor: crosshair; }
 
 .glass {
@@ -603,7 +606,7 @@ blockquote { margin: 0; padding: 9px 12px; border-left: 2px solid var(--accent);
   .deck-indicators { border-left: 0; border-top: 1px solid var(--line); }
   .map-keys { display: none; }
   .map-wrap { height: 420px; min-height: 0; }
-  .map-tools { top: auto; bottom: 8px; right: 8px; grid-auto-flow: column; }
+  .map-tools { top: auto; bottom: 8px; right: 8px; grid-auto-flow: column; max-width: calc(100% - 16px); }
   .layers-menu { top: auto; right: 8px; bottom: 62px; }
   .map-banner { max-width: calc(100% - 16px); left: 8px; top: 8px; }
   .map-toast { bottom: 64px; max-width: calc(100% - 24px); white-space: normal; border-radius: 16px; }
