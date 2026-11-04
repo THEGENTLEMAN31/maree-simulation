@@ -1116,11 +1116,12 @@ function renderTimeline() {
     g.append(svgEl("line", { x1: x, y1: padT - 4, x2: x, y2: padT + plotH }));
     const text = `${m.label} · t${m.tick}`;
     const estimate = text.length * 6.6;
-    const row = x >= rowEnds[0] ? 0 : 1;
-    const flip = x + estimate > padL + plotW;
-    const label = svgEl("text", { x: flip ? x - 4 : x + 4, y: 10 + row * 13, "text-anchor": flip ? "end" : "start" });
+    // Rangée la moins encombrée ; le libellé glisse plutôt que de chevaucher.
+    const row = rowEnds[0] <= rowEnds[1] ? 0 : 1;
+    const labelX = Math.min(Math.max(x + 4, rowEnds[row]), padL + plotW - estimate);
+    const label = svgEl("text", { x: labelX, y: 10 + row * 13 });
     label.textContent = text;
-    rowEnds[row] = x + estimate + 8;
+    rowEnds[row] = labelX + estimate + 8;
     g.append(label);
     svg.append(g);
   }

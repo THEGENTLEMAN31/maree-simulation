@@ -22,5 +22,7 @@ window/stretch/mode="canvas_items"
 
 [rendering]
 
+environment/defaults/default_clear_color=Color(0.047, 0.051, 0.067, 1)
+
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
