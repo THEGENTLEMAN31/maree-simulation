@@ -13,6 +13,8 @@ extends Node2D
 ## L'interpolation entre deux ticks et les effets sont de l'affichage : aucun
 ## chiffre n'en dépend, tout découle de l'instantané affiché (`_snap`).
 
+const Esplanade := preload("res://scripts/esplanade.gd")
+
 const GAP := 12.0
 const TOP_H := 60.0
 const RAIL_W := 392.0
@@ -110,6 +112,8 @@ var _theme: Theme
 var _box_style := StyleBoxFlat.new()
 var _glow: Texture2D
 var _assets: Dictionary = {}
+var _world: Esplanade
+var _orbiting := false
 var _px := 11.0
 var _off := Vector2.ZERO
 var _bounds := Rect2(0, 0, 60, 40)
@@ -169,6 +173,9 @@ func _ready() -> void:
 	_load_fonts()
 	_glow = _make_glow()
 	_load_assets()
+	_world = Esplanade.new()
+	add_child(_world)
+	_world.setup(_assets, _glow)
 	_build_theme()
 	_build_inject_ui()
 	_screenshot_path = OS.get_environment("MAREE_SCREENSHOT")
@@ -396,6 +403,7 @@ func _handle(text: String) -> void:
 				_reset_run()
 			_run_id = str(message.get("run_id", ""))
 			_plan = message.get("plan", {})
+			_world.build(_plan)
 			_live = bool(message.get("live", false))
 			if _plan.has("smoke") and typeof(_plan["smoke"]) == TYPE_DICTIONARY:
 				_world_smoke = _plan["smoke"]
@@ -885,12 +893,9 @@ func _draw() -> void:
 	if not _plan.is_empty() and not _snap.is_empty():
 		_fit()
 		var now_s := _now()
-		_draw_ground()
-		_draw_obstacles()
-		_draw_density()
-		_draw_smoke(now_s)
-		_mask_outside_plan(view)
-		_draw_walls()
+		_sync_world(now_s)
+		draw_texture_rect(_world.get_texture(), _map_rect, false)
+		_draw_place_labels()
 		_draw_smoke_label()
 		_draw_exits(now_s)
 		_draw_selected_trail()
@@ -1074,184 +1079,61 @@ func _fit_text(text: String, width: float, font_size: int) -> String:
 
 
 # ------------------------------------------------------------------
-# Carte : sol, décor
+# Carte : la scène 3D (esplanade.gd) et ce qui se dessine par-dessus
 # ------------------------------------------------------------------
-func _hash2(i: int, j: int) -> float:
-	var s := sin(float(i) * 127.1 + float(j) * 311.7) * 43758.5453
-	return s - floor(s)
+func _sync_world(now_s: float) -> void:
+	var size := Vector2i(_map_rect.size)
+	if _world.size != size:
+		_world.size = size
+		_world.frame()
+	var positions := {}
+	for agent in _snap.get("agents", []):
+		if not bool(agent.get("evacuated", false)):
+			positions[str(agent.get("id", ""))] = _display_pos(agent, now_s)
+	_world.sync_agents(_snap.get("agents", []), positions, _focus(), now_s)
+	_world.sync_world(_snap, _current_smoke(), true)
 
 
-func _plan_rect() -> Rect2:
-	var a := _to_screen([_bounds.position.x, _bounds.end.y])
-	var b := _to_screen([_bounds.end.x, _bounds.position.y])
-	return Rect2(a, b - a)
-
-
-func _draw_ground() -> void:
-	var r := _plan_rect()
-	# Ombre du plan sur la nuit.
-	draw_texture_rect(_glow, r.grow(r.size.x * 0.12), false, Color(0, 0, 0, 0.9))
-	draw_rect(r, Color("#22232b"))
-	if _assets.has("paving"):
-		# La tuile couvre 12,5 m ; le dépassement est masqué par _mask_outside_plan.
-		var tile := 12.5 * _px
-		var ty := r.position.y
-		while ty < r.end.y:
-			var tx := r.position.x
-			while tx < r.end.x:
-				draw_texture_rect(_assets["paving"], Rect2(tx, ty, tile, tile), false)
-				tx += tile
-			ty += tile
-		draw_rect(r, Color(0.07, 0.075, 0.1, 0.22))
-
-	# Éclairage : nappe centrale, bords qui tombent dans le noir.
-	draw_texture_rect(_glow, Rect2(r.get_center() - r.size * 0.62, r.size * 1.24), false, Color(0.75, 0.77, 1.0, 0.09))
-	var edge := Color(0, 0, 0, 0.42)
-	var clear := Color(0, 0, 0, 0)
-	var depth := minf(r.size.x, r.size.y) * 0.24
-	_gradient_quad(r.position, Vector2(r.end.x, r.position.y), Vector2(r.end.x, r.position.y + depth), Vector2(r.position.x, r.position.y + depth), edge, clear)
-	_gradient_quad(Vector2(r.position.x, r.end.y), r.end, Vector2(r.end.x, r.end.y - depth), Vector2(r.position.x, r.end.y - depth), edge, clear)
-	draw_polygon(PackedVector2Array([r.position, Vector2(r.position.x + depth, r.position.y), Vector2(r.position.x + depth, r.end.y), Vector2(r.position.x, r.end.y)]), PackedColorArray([edge, clear, clear, edge]))
-	draw_polygon(PackedVector2Array([Vector2(r.end.x, r.position.y), Vector2(r.end.x - depth, r.position.y), Vector2(r.end.x - depth, r.end.y), r.end]), PackedColorArray([edge, clear, clear, edge]))
-
-	if _px < 9.0:
-		return
+## Noms de zones et de la tour, posés au sol : ils suivent la caméra.
+func _draw_place_labels() -> void:
 	for z in _plan.get("zones", []):
 		if bool(z.get("hidden", false)):
 			continue
 		var zpts: Array = z.get("polygon", [])
 		if zpts.size() < 3:
 			continue
-		var left := INF
-		var top := INF
-		var screen := PackedVector2Array()
+		var r := Rect2(_vec(zpts[0]), Vector2.ZERO)
 		for pt in zpts:
-			var sp := _to_screen(pt)
-			screen.append(sp)
-			left = minf(left, sp.x)
-			top = minf(top, sp.y)
-		for i in range(screen.size()):
-			draw_dashed_line(screen[i], screen[(i + 1) % screen.size()], Color(1, 1, 1, 0.05), 1.0, 3.0)
-		_text_b(Vector2(left + 10.0, top + 20.0), str(z.get("label", z.get("id", ""))).to_upper(), 11, Color(0.894, 0.894, 0.906, 0.62))
+			r = r.expand(_vec(pt))
+		var at := _to_screen([r.position.x + 1.0, r.end.y - 1.2])
+		_text_b(at + Vector2(1, 1), str(z.get("label", z.get("id", ""))).to_upper(), 11, Color(0, 0, 0, 0.7))
+		_text_b(at, str(z.get("label", z.get("id", ""))).to_upper(), 11, Color(0.894, 0.894, 0.906, 0.82))
+	for obstacle in _plan.get("obstacles", []):
+		if str(obstacle.get("kind", "")) == "tour":
+			var poly: Array = obstacle.get("polygon", [])
+			var c := Vector2.ZERO
+			for pt in poly:
+				c += _vec(pt)
+			_pill(_project(c / float(maxi(poly.size(), 1)), 6.0), str(obstacle.get("label", "Tour")), Color("#e4e4e7"), Color(0.078, 0.082, 0.102, 0.85), LINE_STRONG)
+
+
+## La personne à mettre en avant : personne, si la fiche ouverte est déjà sortie.
+func _focus() -> String:
+	var agent := _agent_by_id(_selected)
+	return "" if agent.is_empty() or bool(agent.get("evacuated", false)) else _selected
+
+
+func _project(point: Vector2, height: float = 0.0) -> Vector2:
+	return _map_rect.position + _world.project(point, height)
 
 
 func _gradient_quad(a: Vector2, b: Vector2, c: Vector2, d: Vector2, near: Color, far: Color) -> void:
 	draw_polygon(PackedVector2Array([a, b, c, d]), PackedColorArray([near, near, far, far]))
 
 
-func _draw_obstacles() -> void:
-	var lifts := {"tour": 15.0, "scene": 8.0, "stand": 6.0, "fontaine": 3.0}
-	var faces := {
-		"tour": [Color("#50525f"), Color("#3b3d48")],
-		"scene": [Color("#4b4238"), Color("#39322b")],
-		"stand": [Color("#474957"), Color("#363742")],
-		"fontaine": [Color("#5a5c69"), Color("#44464f")],
-	}
-	for obstacle in _plan.get("obstacles", []):
-		var base := PackedVector2Array()
-		for point in obstacle.get("polygon", []):
-			base.append(_to_screen(point))
-		if base.size() < 3:
-			continue
-		var kind := str(obstacle.get("kind", ""))
-		var h: float = float(lifts.get(kind, 5.0)) * clampf(_px / 16.0, 0.6, 1.6)
-
-		# Ombre portée, lumière venant du nord-ouest.
-		for step in [1.0, 0.6]:
-			var shade := PackedVector2Array()
-			for p in base:
-				shade.append(p + Vector2(h * 0.5, h * 0.8) * float(step) + Vector2(2, 3))
-			draw_colored_polygon(shade, Color(0, 0, 0, 0.3))
-
-		# Flancs.
-		var dy := 0.0
-		while dy < h:
-			var slice := PackedVector2Array()
-			for p in base:
-				slice.append(p - Vector2(0, dy))
-			draw_colored_polygon(slice, Color("#23242c"))
-			dy += 1.0
-
-		# Dessus, dégradé nord-sud.
-		var top := PackedVector2Array()
-		var colors := PackedColorArray()
-		var box := Rect2(base[0] - Vector2(0, h), Vector2.ZERO)
-		for p in base:
-			box = box.expand(p - Vector2(0, h))
-		var pair: Array = faces.get(kind, faces["stand"])
-		for p in base:
-			var q := p - Vector2(0, h)
-			top.append(q)
-			var t := (q.y - box.position.y) / maxf(box.size.y, 1.0)
-			colors.append((pair[0] as Color).lerp(pair[1], t))
-		draw_polygon(top, colors)
-
-		if _assets.has(kind):
-			draw_texture_rect(_assets[kind], box, false)
-			if kind == "tour":
-				_pill(box.get_center() + Vector2(0, box.size.y * 0.3), str(obstacle.get("label", "Tour")), Color("#e4e4e7"), Color(0.078, 0.082, 0.102, 0.85), LINE_STRONG)
-		elif kind == "stand":
-			var band := maxf(4.0, _px * 0.4)
-			var x := box.position.x
-			var i := 0
-			while x < box.end.x:
-				if i % 2 == 1:
-					draw_rect(Rect2(x, box.position.y, minf(band, box.end.x - x), box.size.y), Color(1, 1, 1, 0.07))
-				x += band
-				i += 1
-		elif kind == "scene":
-			var y := box.position.y
-			while y < box.end.y:
-				draw_line(Vector2(box.position.x, y), Vector2(box.end.x, y), Color(0, 0, 0, 0.28), 1.0)
-				y += maxf(4.0, _px * 0.35)
-		elif kind == "tour":
-			draw_line(box.position, box.end, Color(1, 1, 1, 0.09), 1.0, true)
-			draw_line(Vector2(box.end.x, box.position.y), Vector2(box.position.x, box.end.y), Color(1, 1, 1, 0.09), 1.0, true)
-			_text_center(box.get_center() + Vector2(0, 4), str(obstacle.get("label", "Tour")), 11, Color("#e4e4e7"), true)
-		elif kind == "fontaine":
-			var c := box.get_center()
-			var inner := PackedVector2Array()
-			for q in top:
-				inner.append(c + (q - c) * 0.74)
-			draw_colored_polygon(inner, Color("#173a4d"))
-			draw_texture_rect(_glow, Rect2(c - box.size * 0.36, box.size * 0.72), false, Color("#3a7f9e"))
-			for ring in [0.16, 0.3]:
-				draw_arc(c, box.size.x * float(ring), 0.0, TAU, 40, Color(0.745, 0.902, 1.0, 0.22), 1.0, true)
-
-		var outline := top.duplicate()
-		outline.append(top[0])
-		draw_polyline(outline, Color(1, 1, 1, 0.13), 1.0, true)
-
-
-func _draw_walls() -> void:
-	var r := _plan_rect()
-	draw_rect(r.grow(2.0), Color("#050507"), false, 5.0)
-	draw_rect(r, WALL, false, 2.0)
-
-
-## Le plan est un rectangle : quatre bandes suffisent à borner la fumée.
-func _mask_outside_plan(view: Vector2) -> void:
-	var r := _plan_rect()
-	draw_rect(Rect2(0, 0, view.x, r.position.y), MAP_BG)
-	draw_rect(Rect2(0, r.end.y, view.x, view.y - r.end.y), MAP_BG)
-	draw_rect(Rect2(0, r.position.y, r.position.x, r.size.y), MAP_BG)
-	draw_rect(Rect2(r.end.x, r.position.y, view.x - r.end.x, r.size.y), MAP_BG)
-
-
 # ------------------------------------------------------------------
 # Carte : ce qui bouge
 # ------------------------------------------------------------------
-func _draw_density() -> void:
-	var r := _px * 1.9
-	for cell in _snap.get("density_grid", []):
-		var n := int(cell.get("n", 0))
-		if n < 2:
-			continue
-		var p := _to_screen([float(cell["x"]) + 0.5, float(cell["y"]) + 0.5])
-		var alpha: float = minf(0.13 * float(n), 0.42)
-		draw_texture_rect(_glow, Rect2(p - Vector2(r, r), Vector2(r, r) * 2.0), false, Color(0.984, 0.573, 0.235, alpha))
-
-
 func _current_smoke() -> Dictionary:
 	if not bool(_snap.get("smoke_active", false)):
 		return {}
@@ -1264,35 +1146,12 @@ func _current_smoke() -> Dictionary:
 	return smoke
 
 
-func _draw_smoke(now_s: float) -> void:
-	var smoke := _current_smoke()
-	if smoke.is_empty():
-		return
-	var centre := _to_screen(smoke["position"])
-	var age := clampf((now_s - _smoke_born) / 1.4, 0.0, 1.0)
-	var grow := 1.0 - pow(1.0 - age, 3.0)
-	var radius := float(smoke["radius"]) * _px * (1.0 if _paused else grow)
-	for i in range(18):
-		var angle := _hash2(i, 1) * TAU + now_s * (_hash2(i, 4) - 0.5) * 0.12
-		var wobble := sin(now_s * 0.35 + _hash2(i, 5) * TAU) * 0.05
-		var dist := 0.08 + _hash2(i, 2) * 0.66 + wobble
-		var size := radius * (0.26 + _hash2(i, 3) * 0.3)
-		var at := centre + Vector2(cos(angle), sin(angle)) * radius * dist
-		draw_texture_rect(_glow, Rect2(at - Vector2(size, size), Vector2(size, size) * 2.0), false, Color(0.8, 0.81, 0.85, 0.17))
-	var dashes := 150
-	for i in range(dashes):
-		if i % 2 == 0:
-			var a0 := TAU * float(i) / float(dashes)
-			draw_arc(centre, radius, a0, a0 + TAU / float(dashes), 4, Color(0.894, 0.894, 0.906, 0.34), 1.25, true)
-
-
 func _draw_smoke_label() -> void:
 	var smoke := _current_smoke()
 	if smoke.is_empty():
 		return
-	var centre := _to_screen(smoke["position"])
-	var y := maxf(centre.y - float(smoke["radius"]) * _px + 18.0, _plan_rect().position.y + 18.0)
-	_pill(Vector2(centre.x, y), "FUMÉE", Color("#e4e4e7"), Color(0.078, 0.082, 0.102, 0.8), Color(0.894, 0.894, 0.906, 0.3))
+	var centre := _project(_vec(smoke["position"]), 3.0)
+	_pill(centre + Vector2(0, -30), "FUMÉE", Color("#e4e4e7"), Color(0.078, 0.082, 0.102, 0.8), Color(0.894, 0.894, 0.906, 0.3))
 
 
 func _pill(center: Vector2, text: String, ink: Color, fill: Color, border: Color) -> void:
@@ -1323,11 +1182,6 @@ func _draw_exits(now_s: float) -> void:
 		var mid := (a + b) * 0.5
 		var out := _exit_outward(exit)
 
-		var glow := maxf(a.distance_to(b), 30.0) * 1.1
-		draw_texture_rect(_glow, Rect2(mid - Vector2(glow, glow) * 0.5, Vector2(glow, glow)), false, Color(col.r, col.g, col.b, 0.34))
-		draw_line(a, b, Color("#08090c"), 9.0, true)
-		draw_line(a, b, col, 5.0, true)
-
 		if open:
 			var side := Vector2(-out.y, out.x)
 			for i in range(2):
@@ -1354,6 +1208,8 @@ func _draw_exits(now_s: float) -> void:
 		var gap := 26.0
 		var lx := mid.x + out.x * gap - (w * 0.5 if out.x == 0.0 else (w if out.x < 0.0 else 0.0))
 		var ly := mid.y + out.y * gap - (h * 0.5 if out.y == 0.0 else (h if out.y < 0.0 else 0.0))
+		if out.x != 0.0:
+			ly = mid.y + 12.0 # sous le portique, qui a de la hauteur
 		lx = clampf(lx, _map_rect.position.x + 6.0, _map_rect.end.x - w - 6.0)
 		ly = clampf(ly, _map_rect.position.y + 6.0, _map_rect.end.y - h - 6.0)
 		_card(Rect2(lx, ly, w, h), Color(0.063, 0.067, 0.086, 0.92), Color(col.r, col.g, col.b, 0.55 if open else 1.0), 9)
@@ -1415,7 +1271,7 @@ func _draw_talk(now_s: float) -> void:
 
 
 func _agent_radius() -> float:
-	return clampf(_px * 0.38, 5.5, 9.0)
+	return clampf(_px * 0.34, 5.0, 8.0)
 
 
 func _draw_ghosts(now_s: float) -> void:
@@ -1432,7 +1288,7 @@ func _draw_ghosts(now_s: float) -> void:
 		var belief := str(g["belief"])
 		var col: Color = BELIEF_COLORS.get(belief, UNKNOWN)
 		col.a = 1.0 - t * t
-		_draw_agent_shape(_to_screen_v(from.lerp(to, t)), r, belief, col)
+		_draw_agent_shape(_project(from.lerp(to, t), 2.35), r, belief, col)
 	_ghosts = kept
 
 
@@ -1448,53 +1304,35 @@ func _draw_bursts(now_s: float) -> void:
 			draw_arc(p, 6.0 + t * 26.0, 0.0, TAU, 32, col, 1.5, true)
 
 
+## Les corps sont en 3D ; le code couleur + forme flotte au-dessus de chacun.
+## C'est lui qui reste lisible à distance et pour les daltoniens.
 func _draw_agents(now_s: float) -> void:
 	var r := _agent_radius()
-	var moving := _tween_dur > 0.0
-	var items: Array = []
-	for agent in _snap.get("agents", []):
-		if not bool(agent.get("evacuated", false)):
-			items.append([agent, _to_screen_v(_display_pos(agent, now_s))])
-
-	# Ombres d'abord : aucune ne doit passer sur une personne voisine.
-	for item in items:
-		var p: Vector2 = item[1]
-		draw_set_transform(p + Vector2(1.5, r * 0.7), 0.0, Vector2(1.0, 0.48))
-		draw_circle(Vector2.ZERO, r * 1.05, Color(0, 0, 0, 0.42), true, -1.0, true)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
 	var chosen: Array = []
-	for item in items:
-		var agent: Dictionary = item[0]
-		var p: Vector2 = item[1]
+	for agent in _snap.get("agents", []):
+		if bool(agent.get("evacuated", false)):
+			continue
 		var aid := str(agent["id"])
 		var belief := str(agent.get("belief", ""))
 		var colour: Color = BELIEF_COLORS.get(belief, UNKNOWN)
-		var dimmed := _selected != "" and aid != _selected
+		var dimmed := _focus() != "" and aid != _focus()
 		var alpha := 0.38 if dimmed else 1.0
-
-		# Traînée : le mouvement de ce tick, tel qu'il est dans le journal.
-		if moving and _tween_from.has(aid):
-			var from: Vector2 = _tween_from[aid]
-			var to := _vec(agent["pos"])
-			var d := from.distance_to(to)
-			if d > 0.4:
-				var dir := (to - from) / d
-				var length := minf(r * 2.4, d * _px * 0.4)
-				draw_line(p, p - Vector2(dir.x, -dir.y) * length, Color(colour.r, colour.g, colour.b, alpha * 0.4), r * 0.8, true)
-
+		var p := _project(_display_pos(agent, now_s), 2.35)
 		_draw_agent_shape(p, r, belief, Color(colour.r, colour.g, colour.b, alpha), true)
 		if belief != "" and not _is_open(belief):
-			draw_arc(p, r + 3.5, 0.0, TAU, 24, Color(DANGER_LINE.r, DANGER_LINE.g, DANGER_LINE.b, alpha), 1.75, true)
+			draw_arc(p, r + 3.0, 0.0, TAU, 24, Color(DANGER_LINE.r, DANGER_LINE.g, DANGER_LINE.b, alpha), 1.75, true)
 		if aid == _selected:
 			chosen = [agent, p]
 
 	if not chosen.is_empty():
 		var p: Vector2 = chosen[1]
+		var feet := _project(_display_pos(chosen[0], now_s))
 		var pulse := fmod(now_s / 1.3, 1.0)
-		draw_arc(p, r + 5.0 + pulse * 11.0, 0.0, TAU, 32, Color(1, 1, 1, 0.7 * (1.0 - pulse)), 1.5, true)
-		draw_arc(p, r + 4.5, 0.0, TAU, 32, Color.WHITE, 2.0, true)
-		_pill(p - Vector2(0, r + 20.0), str(chosen[0]["id"]), BG_SHELL, TEXT, TEXT)
+		draw_set_transform(feet, 0.0, Vector2(1.0, 0.6))
+		draw_arc(Vector2.ZERO, r + 6.0 + pulse * 12.0, 0.0, TAU, 32, Color(1, 1, 1, 0.7 * (1.0 - pulse)), 1.5, true)
+		draw_arc(Vector2.ZERO, r + 5.0, 0.0, TAU, 32, Color.WHITE, 2.0, true)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		_pill(p - Vector2(0, r + 16.0), str(chosen[0]["id"]), BG_SHELL, TEXT, TEXT)
 
 
 func _draw_agent_shape(center: Vector2, r: float, belief: String, col: Color, outlined: bool = false) -> void:
@@ -1664,8 +1502,8 @@ func _draw_bottom_deck(deck: Rect2) -> void:
 		_ind_boxes.append({"rect": rect, "key": key})
 
 	var keys := Rect2(ix + 3.0 * (cell_w + gap), deck.position.y + 40.0 + cell_h + gap, cell_w, cell_h)
-	_text(keys.position + Vector2(4, 18), "Espace : figer", 12, SUBTLE)
-	_text(keys.position + Vector2(4, 36), "Flèches : choisir", 12, SUBTLE)
+	_text(keys.position + Vector2(4, 18), "Clic droit : tourner", 12, SUBTLE)
+	_text(keys.position + Vector2(4, 36), "Molette : zoomer", 12, SUBTLE)
 
 
 ## Le JSON de Godot rend tous les nombres en flottants : « 54.0 personnes ».
@@ -2093,37 +1931,21 @@ func _fit() -> void:
 		_bounds = b
 	else:
 		_bounds = Rect2(0, 0, float(_plan.get("width", 60.0)), float(_plan.get("height", 40.0)))
-	var pad_x := 92.0
-	var pad_top := 62.0
-	var pad_bottom := 58.0
-	var avail := _map_rect.size - Vector2(pad_x * 2.0, pad_top + pad_bottom)
-	_px = maxf(minf(avail.x / _bounds.size.x, avail.y / _bounds.size.y), 3.0)
-	var height := float(_plan.get("height", 40.0))
-	var center := Vector2(_map_rect.get_center().x, _map_rect.position.y + pad_top + avail.y * 0.5)
-	_off = Vector2(
-		center.x - (_bounds.position.x + _bounds.size.x * 0.5) * _px,
-		center.y - (height - _bounds.position.y - _bounds.size.y * 0.5) * _px,
-	)
+	# Échelle au centre du plan : sert à dimensionner les marques et les ondes.
+	var c := _bounds.get_center()
+	_px = maxf(_project(c + Vector2(0.5, 0)).distance_to(_project(c - Vector2(0.5, 0))), 3.0)
 
 
 func _to_screen(point: Variant) -> Vector2:
-	var height := float(_plan.get("height", 40.0))
-	return Vector2(
-		_off.x + float(point[0]) * _px,
-		_off.y + (height - float(point[1])) * _px,
-	)
+	return _project(Vector2(float(point[0]), float(point[1])))
 
 
 func _to_screen_v(point: Vector2) -> Vector2:
-	return _to_screen([point.x, point.y])
+	return _project(point)
 
 
 func _to_world(click: Vector2) -> Vector2:
-	var height := float(_plan.get("height", 40.0))
-	return Vector2(
-		(click.x - _off.x) / _px,
-		height - (click.y - _off.y) / _px,
-	)
+	return _world.ground_at(click - _map_rect.position)
 
 
 func _is_open(exit_id: String) -> bool:
@@ -2239,6 +2061,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if _rail_rect.has_point(event.position):
 				_rail_scroll = maxf(0.0, _rail_scroll + (48.0 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else -48.0))
+			elif _map_rect.has_point(event.position):
+				_world.zoom_by(0.92 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.08)
+			return
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			_orbiting = _map_rect.has_point(event.position)
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if not _trace.is_empty():
@@ -2249,6 +2076,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			_last_click_m = _to_world(event.position)
 			_select_at(event.position)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		_orbiting = false
+	elif event is InputEventMouseMotion and _orbiting:
+		_world.orbit(-event.relative.x * 0.25, event.relative.y * 0.2)
 	elif event is InputEventKey and event.pressed:
 		if event.keycode == KEY_SPACE:
 			_toggle_pause()
@@ -2314,7 +2145,7 @@ func _select_at(click: Vector2) -> void:
 	for agent in _snap.get("agents", []):
 		if bool(agent.get("evacuated", false)):
 			continue
-		var distance := _to_screen_v(_display_pos(agent, now_s)).distance_to(click)
+		var distance := _project(_display_pos(agent, now_s), 1.0).distance_to(click)
 		if distance < best_distance:
 			best_distance = distance
 			best = str(agent["id"])
