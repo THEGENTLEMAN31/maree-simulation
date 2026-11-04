@@ -109,7 +109,7 @@ var _font_b: Font
 var _theme: Theme
 var _box_style := StyleBoxFlat.new()
 var _glow: Texture2D
-var _paving: Texture2D
+var _assets: Dictionary = {}
 var _px := 11.0
 var _off := Vector2.ZERO
 var _bounds := Rect2(0, 0, 60, 40)
@@ -168,6 +168,7 @@ var _close_trace_rect := Rect2()
 func _ready() -> void:
 	_load_fonts()
 	_glow = _make_glow()
+	_load_assets()
 	_build_theme()
 	_build_inject_ui()
 	_screenshot_path = OS.get_environment("MAREE_SCREENSHOT")
@@ -201,6 +202,15 @@ func _load_fonts() -> void:
 	bold.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 650}
 	_font = regular
 	_font_b = bold
+
+
+## Décor généré par scripts/generate_assets.py. Lu à l'exécution, comme la
+## police ; un asset absent laisse le dessin de repli, le client tourne quand même.
+func _load_assets() -> void:
+	for key in ["paving", "tour", "scene", "stand", "fontaine"]:
+		var image := Image.load_from_file("res://assets/%s.png" % key)
+		if image != null and not image.is_empty():
+			_assets[key] = ImageTexture.create_from_image(image)
 
 
 func _make_glow() -> Texture2D:
@@ -386,7 +396,6 @@ func _handle(text: String) -> void:
 				_reset_run()
 			_run_id = str(message.get("run_id", ""))
 			_plan = message.get("plan", {})
-			_paving = null
 			_live = bool(message.get("live", false))
 			if _plan.has("smoke") and typeof(_plan["smoke"]) == TYPE_DICTIONARY:
 				_world_smoke = _plan["smoke"]
@@ -1072,25 +1081,6 @@ func _hash2(i: int, j: int) -> float:
 	return s - floor(s)
 
 
-## Pavage cuit une fois par plan : 8 pixels par mètre, dalles de 2,5 m.
-func _bake_paving() -> void:
-	var ppm := 8
-	var w := int(_bounds.size.x) * ppm
-	var h := int(_bounds.size.y) * ppm
-	var image := Image.create(maxi(w, 1), maxi(h, 1), false, Image.FORMAT_RGB8)
-	image.fill(Color8(31, 32, 39))
-	var tile := int(2.5 * ppm)
-	var rows := int(ceil(float(h) / float(tile)))
-	var cols := int(ceil(float(w) / float(tile))) + 1
-	for j in range(rows):
-		var offset := tile / 2 if j % 2 == 1 else 0
-		for i in range(cols):
-			var light := 31 + int(_hash2(i, j) * 4.0)
-			var rect := Rect2i(i * tile - offset, j * tile, tile - 1, tile - 1)
-			image.fill_rect(rect, Color8(light, light + 1, light + 8))
-	_paving = ImageTexture.create_from_image(image)
-
-
 func _plan_rect() -> Rect2:
 	var a := _to_screen([_bounds.position.x, _bounds.end.y])
 	var b := _to_screen([_bounds.end.x, _bounds.position.y])
@@ -1098,12 +1088,21 @@ func _plan_rect() -> Rect2:
 
 
 func _draw_ground() -> void:
-	if _paving == null:
-		_bake_paving()
 	var r := _plan_rect()
 	# Ombre du plan sur la nuit.
 	draw_texture_rect(_glow, r.grow(r.size.x * 0.12), false, Color(0, 0, 0, 0.9))
-	draw_texture_rect(_paving, r, false)
+	draw_rect(r, Color("#22232b"))
+	if _assets.has("paving"):
+		# La tuile couvre 12,5 m ; le dépassement est masqué par _mask_outside_plan.
+		var tile := 12.5 * _px
+		var ty := r.position.y
+		while ty < r.end.y:
+			var tx := r.position.x
+			while tx < r.end.x:
+				draw_texture_rect(_assets["paving"], Rect2(tx, ty, tile, tile), false)
+				tx += tile
+			ty += tile
+		draw_rect(r, Color(0.07, 0.075, 0.1, 0.22))
 
 	# Éclairage : nappe centrale, bords qui tombent dans le noir.
 	draw_texture_rect(_glow, Rect2(r.get_center() - r.size * 0.62, r.size * 1.24), false, Color(0.75, 0.77, 1.0, 0.09))
@@ -1187,7 +1186,11 @@ func _draw_obstacles() -> void:
 			colors.append((pair[0] as Color).lerp(pair[1], t))
 		draw_polygon(top, colors)
 
-		if kind == "stand":
+		if _assets.has(kind):
+			draw_texture_rect(_assets[kind], box, false)
+			if kind == "tour":
+				_pill(box.get_center() + Vector2(0, box.size.y * 0.3), str(obstacle.get("label", "Tour")), Color("#e4e4e7"), Color(0.078, 0.082, 0.102, 0.85), LINE_STRONG)
+		elif kind == "stand":
 			var band := maxf(4.0, _px * 0.4)
 			var x := box.position.x
 			var i := 0

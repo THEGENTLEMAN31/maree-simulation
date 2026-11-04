@@ -184,6 +184,12 @@ let box = { width: 0, height: 0, dpr: 1 };
 let view = { scale: 1, x: 0, y: 0 };
 let loopHandle = null;
 let lastPaint = 0;
+const assets = {};
+for (const name of ["paving", "tour", "scene", "stand", "fontaine"]) {
+  const image = new Image();
+  image.onload = () => { assets[name] = image; groundKey = ""; paint(); };
+  image.src = `./assets/${name}.png`;
+}
 let toastTimer = null;
 let traceTimer = null;
 
@@ -1284,26 +1290,17 @@ function drawGround() {
   polyPath(c, walk);
   c.clip();
 
-  // Pavage : dalles de 2,5 m, teinte légèrement différente d'une dalle à l'autre.
+  // Pavés : la tuile couvre 12,5 m, le dépassement est coupé par le clip.
   const b = planBounds();
-  const tile = 2.5;
-  for (let i = 0; i * tile < b.maxX - b.minX; i += 1) {
-    for (let j = 0; j * tile < b.maxY - b.minY; j += 1) {
-      const offset = j % 2 ? tile / 2 : 0;
-      const wx = b.minX + i * tile - offset;
-      const wy = b.minY + j * tile;
-      const p = toScreen([wx, wy + tile]);
-      const n = hash2(i, j);
-      const light = 31 + Math.round(n * 4);
-      c.fillStyle = `rgb(${light}, ${light + 1}, ${light + 8})`;
-      c.fillRect(p.x, p.y, tile * view.scale, tile * view.scale);
-      if (offset && i === Math.floor((b.maxX - b.minX) / tile)) {
-        c.fillRect(p.x + tile * view.scale, p.y, tile * view.scale, tile * view.scale);
-      }
-      c.strokeStyle = "rgba(0, 0, 0, .2)";
-      c.lineWidth = 1;
-      c.strokeRect(p.x + .5, p.y + .5, tile * view.scale, tile * view.scale);
+  if (assets.paving) {
+    const tile = 12.5 * view.scale;
+    const origin = toScreen([b.minX, b.maxY]);
+    const end = toScreen([b.maxX, b.minY]);
+    for (let y = origin.y; y < end.y; y += tile) {
+      for (let x = origin.x; x < end.x; x += tile) c.drawImage(assets.paving, x, y, tile, tile);
     }
+    c.fillStyle = "rgba(18, 19, 26, .22)";
+    c.fillRect(origin.x, origin.y, end.x - origin.x, end.y - origin.y);
   }
 
   // Éclairage : une nappe centrale, des bords qui tombent dans le noir.
@@ -1398,47 +1395,9 @@ function drawObstacle(c, ob) {
   c.fillStyle = face;
   c.fill();
 
-  c.save();
-  polyPath(c, top);
-  c.clip();
   const minX = Math.min(...top.map((p) => p.x));
   const maxX = Math.max(...top.map((p) => p.x));
-  if (ob.kind === "stand") {
-    c.fillStyle = "rgba(255, 255, 255, .07)";
-    const band = Math.max(4, view.scale * .4);
-    for (let x = minX, i = 0; x < maxX; x += band, i += 1) if (i % 2) c.fillRect(x, minY, band, maxY - minY);
-  } else if (ob.kind === "scene") {
-    c.strokeStyle = "rgba(0, 0, 0, .28)";
-    c.lineWidth = 1;
-    c.beginPath();
-    for (let y = minY; y < maxY; y += Math.max(4, view.scale * .35)) { c.moveTo(minX, y); c.lineTo(maxX, y); }
-    c.stroke();
-  } else if (ob.kind === "tour") {
-    c.strokeStyle = "rgba(255, 255, 255, .09)";
-    c.lineWidth = 1;
-    c.beginPath();
-    c.moveTo(minX, minY); c.lineTo(maxX, maxY);
-    c.moveTo(maxX, minY); c.lineTo(minX, maxY);
-    c.stroke();
-  } else if (ob.kind === "fontaine") {
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    const inner = top.map((p) => ({ x: cx + (p.x - cx) * .74, y: cy + (p.y - cy) * .74 }));
-    const water = c.createRadialGradient(cx, cy, 1, cx, cy, (maxX - minX) / 2);
-    water.addColorStop(0, "#3a7f9e");
-    water.addColorStop(1, "#173a4d");
-    polyPath(c, inner);
-    c.fillStyle = water;
-    c.fill();
-    c.strokeStyle = "rgba(190, 230, 255, .22)";
-    c.lineWidth = 1;
-    for (const r of [.16, .3]) {
-      c.beginPath();
-      c.arc(cx, cy, (maxX - minX) * r, 0, Math.PI * 2);
-      c.stroke();
-    }
-  }
-  c.restore();
+  if (assets[ob.kind]) c.drawImage(assets[ob.kind], minX, minY, maxX - minX, maxY - minY);
 
   polyPath(c, top);
   c.strokeStyle = "rgba(255, 255, 255, .13)";
@@ -1446,11 +1405,7 @@ function drawObstacle(c, ob) {
   c.stroke();
 
   if (ob.kind === "tour") {
-    c.font = "650 11px Inter, sans-serif";
-    c.textAlign = "center";
-    c.textBaseline = "middle";
-    c.fillStyle = "#e4e4e7";
-    c.fillText(ob.label || "Tour", (minX + maxX) / 2, (minY + maxY) / 2);
+    pill(c, (minX + maxX) / 2, minY + (maxY - minY) * .8, ob.label || "Tour", { fg: "#e4e4e7", bg: "rgba(20, 21, 26, .85)", border: "rgba(255, 255, 255, .16)" });
   }
 }
 

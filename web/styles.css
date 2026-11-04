@@ -2,8 +2,8 @@
    la seule source de lumière. Neutres zinc, un accent indigo (éclairci pour le
    texte sur fond sombre, plein pour les boutons), sorties Okabe-Ito codées aussi
    par la forme, rouge réservé au danger.
-   Contraste WCAG AA vérifié sur --ink-1 (#14151a) : --text 16:1, --muted 7.8:1,
-   --subtle 5.2:1, --accent 7:1, --danger 7.3:1. Corps de texte >= 14px,
+   Contraste WCAG AA vérifié sur --ink-1 (#14151a) : --text 16.6:1, --muted 7.8:1,
+   --subtle 5.6:1, --accent 8:1, --danger 7.9:1. Corps de texte >= 14px,
    cibles tactiles 44px. Thème miroir : godot/project/scripts/main.gd. */
 
 @font-face {
