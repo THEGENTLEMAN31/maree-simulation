@@ -328,7 +328,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .map-banner span { display: block; color: var(--warn); font-size: .75rem; font-weight: 650; line-height: 1.3; text-transform: uppercase; letter-spacing: .06em; }
 .map-banner p { font-size: .875rem; line-height: 1.3; }
 .map-hint {
-  position: absolute; top: 14px; left: 50%; z-index: 3; transform: translateX(-50%);
+  position: absolute; top: 66px; left: 50%; z-index: 3; transform: translateX(-50%);
   padding: 8px 16px; border: 1px solid var(--line-strong); border-radius: 999px;
   background: rgba(20, 21, 26, .92); box-shadow: var(--shadow-2); font-size: .875rem; font-weight: 500; white-space: nowrap;
 }

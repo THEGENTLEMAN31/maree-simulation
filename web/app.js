@@ -1129,11 +1129,14 @@ function renderTimeline() {
     const estimate = text.length * 6.6;
     // Rangée la moins encombrée ; le libellé glisse plutôt que de chevaucher.
     const row = rowEnds[0] <= rowEnds[1] ? 0 : 1;
-    const labelX = Math.min(Math.max(x + 4, rowEnds[row]), padL + plotW - estimate);
-    const label = svgEl("text", { x: labelX, y: 10 + row * 13 });
-    label.textContent = text;
-    rowEnds[row] = labelX + estimate + 8;
-    g.append(label);
+    const labelX = Math.max(x + 4, rowEnds[row]);
+    // Plus de place : le trait reste, le détail est dans le fil.
+    if (labelX + estimate <= padL + plotW + 6) {
+      const label = svgEl("text", { x: labelX, y: 10 + row * 13 });
+      label.textContent = text;
+      rowEnds[row] = labelX + estimate + 8;
+      g.append(label);
+    }
     svg.append(g);
   }
 

@@ -1615,10 +1615,10 @@ func _draw_timeline(tick: int) -> void:
 		var row := 0 if float(row_ends[0]) <= float(row_ends[1]) else 1
 		var y := r.position.y - 20.0 + float(row) * 13.0
 		var lx := maxf(x + 4.0, float(row_ends[row]))
-		if lx + w > r.end.x:
-			lx = r.end.x - w
-		_text_b(Vector2(lx, y), label, 12, col)
-		row_ends[row] = lx + w + 10.0
+		# Plus de place : le trait reste, le détail est dans le fil.
+		if lx + w <= r.end.x + 6.0:
+			_text_b(Vector2(lx, y), label, 12, col)
+			row_ends[row] = lx + w + 10.0
 
 	var cx := _tl_x(tick)
 	draw_line(Vector2(cx, r.position.y - 4.0), Vector2(cx, r.end.y), TEXT, 1.25)
