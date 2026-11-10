@@ -137,6 +137,7 @@ class Agent:
                         f"hazard:{label}",
                         Belief("sortie bloquée", weight, Source.ENTENDU, tick),
                     )
+                    self.memory.learn(f"{label} est bloquée", Source.ENTENDU, tick, weight)
                 else:
                     # ouï-dire : j'apprends / renforce la sortie, sourcée et
                     # pondérée par la confiance (un bruit reste un bruit).
@@ -144,6 +145,7 @@ class Agent:
                         f"exit:{label}",
                         Belief(label, weight, Source.ENTENDU, tick),
                     )
+                    self.memory.learn(f"{label} est praticable", Source.ENTENDU, tick, weight)
 
         # épisode de décision + oubli (les fronts restent, la confiance décroît)
         self.memory.log_episode(

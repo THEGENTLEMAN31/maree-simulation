@@ -59,3 +59,8 @@ graphify-out/
 !runs/demo20/events.jsonl
 !runs/demo60/
 !runs/demo60/events.jsonl
+
+# V3 — le run canonique de la pipeline réelle (jumeaux LLM). Versionné comme
+# référence auditable de la divergence par mémoire.
+!runs/v3/
+!runs/v3/*.jsonl

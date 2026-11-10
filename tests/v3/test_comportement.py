@@ -99,6 +99,19 @@ def test_un_message_positif_apprend_une_croyance_sourcee() -> None:
     assert belief.confidence > 0.0
 
 
+def test_un_message_negatif_ecrit_le_recu_en_memoire() -> None:
+    """La croyance de danger (et son reçu) doit être tracée pour la divergence."""
+    from maree.v3.agents.knowledge import Source as Src
+
+    a = _sage()
+    a.react(_perception(heard=(Message("B est bloquée", AgentId(3), 10),)))
+    recu = a.memory.receipt_for("B est bloquée")
+    assert recu is not None
+    assert recu.source == Src.ENTENDU
+    hazard = a.knowledge.beliefs.get("hazard:B")
+    assert hazard is not None and hazard.confidence >= 0.5
+
+
 # ---------------------------------------------------------------
 # fronts mémorisés : un signal déjà vu ne re-décide pas
 # ---------------------------------------------------------------

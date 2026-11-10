@@ -112,6 +112,10 @@ report-v3:  ## rapport de divergence des jumeaux (semaine 3)
 report-v3-bench:  ## tableau comparatif des politiques (semaine 4)
 	uv run python scripts/v3_bench_report.py
 
+v3-pipeline:  ## lance la pipeline réelle (monde -> agents -> vrai LLM -> mémoire)
+	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} V3_SEED=42 \
+		uv run python scripts/v3_pipeline.py
+
 # ------------------------------------------------------------
 # Diagnostic
 # ------------------------------------------------------------
@@ -140,4 +144,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline spike vram graph graph-update graph-report graph-html graph-query

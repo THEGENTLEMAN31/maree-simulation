@@ -18,10 +18,10 @@ from maree.v3.adapters.chat_stub import StubChat
 from maree.v3.agents.agent import make_agent
 from maree.v3.agents.appraisal import Action, appraise
 from maree.v3.agents.catalog import chat_for, register_provider
-from maree.v3.agents.perception import Perception
+from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy_llm import LLMPolicy, hybrid_decide
 from maree.v3.agents.state import State
-from maree.v3.core.ids import ZoneId
+from maree.v3.core.ids import AgentId, ZoneId
 from maree.v3.core.ports import LLMMessage, LLMRequest
 
 
@@ -198,4 +198,28 @@ def test_catalogue_resout_et_rejette_les_inconnus() -> None:
     assert spec[1].resolved.startswith("stub")
     with pytest.raises(KeyError):
         from maree.v3.agents.catalog import resolve_model
+
         resolve_model("n-existe-pas")
+
+
+def test_le_prompt_transporte_les_messages_recus() -> None:
+    """Le LLM doit pouvoir raisonner sur ce qu'il vient d'entendre."""
+    from maree.v3.agents.policy_llm import build_inputs
+
+    a = _visitor()
+    perc = Perception(
+        tick=10,
+        zone=ZoneId("z1"),
+        state=State(),
+        heard=(Message("B est bloquée", AgentId(3), 10),),
+        seen_agents=(),
+        exits_visible=frozenset(),
+    )
+    inputs = build_inputs(
+        perception=perc,
+        traits=a.traits,
+        appraisal=_appr(a, perc),
+        knowledge=a.knowledge,
+    )
+    assert "messages_recus" in inputs
+    assert "B est bloquée" in str(inputs["messages_recus"])

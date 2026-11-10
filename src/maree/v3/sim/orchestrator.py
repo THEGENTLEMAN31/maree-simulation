@@ -77,6 +77,7 @@ class Simulation:
     """
 
     def __init__(self, seed: int = 42, policy: PolicyName = PolicyName.RULES) -> None:
+        self.seed = seed
         self._rng = np.random.default_rng(seed)
         self.policy = policy
         self.navgraph: NavigationGraph | None = None

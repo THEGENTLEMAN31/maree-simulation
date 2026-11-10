@@ -26,10 +26,13 @@ from maree.v3.agents.traits import Traits
 from maree.v3.core.ports import ChatModelPort, LLMMessage, LLMRequest, LLMTrace
 
 SYSTEM_PROMPT = (
-    "Tu es un piéton en évacuation dans un bâtiment. Réponds UNIQUEMENT en "
-    "JSON valide au format {\"action\": \"evacuer|rester|chercher|suivre|aider|"
-    "chercher_proche\", \"cible\": \"<sortie connue> ou null\", \"confiance\": 0..1}."
-    "La cible 'evacuer' doit être une sortie que le piéton connaît."
+    "Tu es un piéton en évacuation dans un bâtiment. Décide une action, et si tu "
+    "évacues, choisis la sortie la plus sûre en pesant TOUTES tes croyances : ne "
+    "jamais emprunter une sortie citée dans 'dangers' (bloquée), et préfère celle "
+    "de 'sorties_connues' avec la plus haute confiance. Réponds UNIQUEMENT en JSON "
+    "valide au format {\"action\": \"evacuer|rester|chercher|suivre|aider|"
+    "chercher_proche\", \"cible\": \"<une sortie connue> ou null\", "
+    "\"confiance\": 0..1}."
 )
 
 
@@ -57,6 +60,10 @@ def build_inputs(
     hazards = sorted(
         (k[7:], b.fact) for k, b in knowledge.beliefs.items() if k.startswith("hazard:")
     )
+    heard = [
+        {"fact": m.fact, "from": str(m.from_agent), "tick": m.tick, "confiance": m.confidence}
+        for m in perception.heard
+    ]
     return {
         "tick": perception.tick,
         "smoke": perception.smoke_visible,
@@ -64,9 +71,9 @@ def build_inputs(
         "menace": {k: round(v, 2) for k, v in appraisal.dimensions.items()},
         "sorties_connues": known,
         "dangers": hazards,
+        "messages_recus": heard,
         "stress": round(perception.state.stress, 2),
         "herding": traits.herding,
-        "kin": bool(getattr(perception, "heard", ())),
     }
 
 
