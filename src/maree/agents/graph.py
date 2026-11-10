@@ -205,6 +205,7 @@ class DecisionGraph:
             and bool(self._models)
             and self._small_closed
         )
+        known_exits = self._known_exits(state) if small else None
         if small:
             prompt = self._build_choice_prompt(state)
             system = self._choice_system(state)
@@ -218,7 +219,7 @@ class DecisionGraph:
             max_tokens=48 if small else self._max_tokens,
         )
         parsed = (
-            parse_choice(result.text, known_exits=self._known_exits(state))
+            parse_choice(result.text, known_exits=known_exits or [])
             if small
             else parse_decision(result.text)
         )
@@ -240,6 +241,11 @@ class DecisionGraph:
                 #: qui prouve que la lecture est reproductible, sans avoir
                 #: à rejouer la validation (qui dépend du plan et du profil).
                 "parsed": parsed,
+                #: Entrées du protocole fermé (`small`) : sans elles, le
+                #: rejeu devrait reconstruire les sorties connues depuis les
+                #: croyances et les snapshots. On les écrit pour que le
+                #: journal soit auto-suffisant.
+                "known_exits": known_exits,
                 "raw_output": result.text,
                 "tokens_in": result.tokens_in,
                 "tokens_out": result.tokens_out,

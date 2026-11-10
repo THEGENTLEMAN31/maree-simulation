@@ -87,3 +87,23 @@ def test_report_ignore_le_tick_degenere() -> None:
     assert found == (2, 0.90, 0.55)
     out = report(events, key="I1_consensus")
     assert out["found"] and out["tick"] == 2
+
+
+def test_report_retourne_des_etapes_lisibles_pour_la_cli() -> None:
+    """La CLI lit `tick` et `label`, pas les champs bruts d'un `Event`.
+
+    `report()` renvoyait des `Event.to_dict()` dans `chains` (`t_prod`,
+    `data`) alors que `maree trace` attendait des `Step` (`tick`, `label`) :
+    la commande plantait en `KeyError: 'tick'` sur le run réel.
+    """
+    events = [
+        *_chain(),
+        _event(6, 6, EventType.INDICATORS, {"tick": 6, "I1_consensus": 0.8}),
+        _event(7, 7, EventType.INDICATORS, {"tick": 7, "I1_consensus": 0.5}),
+    ]
+    out = report(events, key="I1_consensus", lookback=10)
+    assert out["found"]
+    assert out["chains"]
+    for chain in out["chains"]:
+        for step in chain:
+            assert {"seq", "tick", "type", "label"} <= set(step)

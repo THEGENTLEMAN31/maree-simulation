@@ -133,6 +133,106 @@ def test_decision_sans_trace_nest_pas_reconstructible() -> None:
     assert check.reconstructed == 0
 
 
+def test_le_tier_small_est_reparse_avec_ses_sorties_connues(tmp_path: Path) -> None:
+    """`RESTER`/`SORTIR` ne sont pas du JSON : le rejeu doit utiliser le bon parseur.
+
+    Constaté sur `pipeline_20261103` : 70 des 89 décisions du tier `small`
+    étaient déclarées non parsables, alors que leur `parsed` journalisé était
+    correct. Le journal produit désormais `known_exits` ; le rejeu l'utilise.
+    """
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _event(
+            2,
+            EventType.SNAPSHOT,
+            {"tick": 0, "agents": 1, "exits_open": ["A", "B"]},
+        ),
+        _event(
+            3,
+            EventType.DECISION,
+            {
+                "agent_id": "A29",
+                "kind": "llm",
+                "trigger": "premiere_decision",
+                "beliefs": {"A": {"confidence": 0.3}, "B": {"confidence": 0.3}},
+                "intention": {"kind": "stay", "target": None, "reason": "RESTER", "tick": 1},
+                "llm": {
+                    "prompt": "…",
+                    "seed": 42,
+                    "tier": "small",
+                    "known_exits": ["A", "B"],
+                    "raw_output": "RESTER",
+                    "parsed": {
+                        "action": "stay",
+                        "target": None,
+                        "confidence": 0.6,
+                        "reason": "RESTER",
+                    },
+                },
+            },
+            tick=1,
+        ),
+        _event(4, EventType.RUN_ENDED, {}),
+    ]
+    result = replay(RUN, _write(tmp_path, events))
+    assert result.ok, result.problems
+    assert result.decisions.reconstructed == 1
+    assert result.decisions.matching == 1
+
+
+def test_le_rejeu_reconstruit_les_sorties_ouvertes_si_known_exits_manque(
+    tmp_path: Path,
+) -> None:
+    """Journaux antérieurs : croyances + snapshots suffisent à re-parser.
+
+    Après la fermeture de A, un visiteur qui ne connaît que A répond
+    `SORTIR` ; il n'a plus de sortie connue ouverte, donc le parseur doit
+    produire `search`, comme le journal l'indique.
+    """
+    events = [
+        _event(1, EventType.RUN_STARTED, {}),
+        _event(
+            2,
+            EventType.SNAPSHOT,
+            {"tick": 0, "agents": 1, "exits_open": ["A", "B"]},
+        ),
+        _event(
+            3,
+            EventType.SNAPSHOT,
+            {"tick": 2, "agents": 1, "exits_open": ["B"]},
+        ),
+        _event(
+            4,
+            EventType.DECISION,
+            {
+                "agent_id": "A30",
+                "kind": "llm",
+                "trigger": "sortie_fermee",
+                "beliefs": {"A": {"confidence": 0.3}},
+                "intention": {"kind": "search", "target": None, "reason": "SORTIR", "tick": 2},
+                "llm": {
+                    "prompt": "…",
+                    "seed": 42,
+                    "tier": "small",
+                    "raw_output": "SORTIR",
+                    "parsed": {
+                        "action": "search",
+                        "target": None,
+                        "confidence": 0.6,
+                        "reason": "SORTIR",
+                    },
+                },
+            },
+            tick=2,
+        ),
+        _event(5, EventType.RUN_ENDED, {}),
+    ]
+    result = replay(RUN, _write(tmp_path, events))
+    assert result.ok, result.problems
+    assert result.decisions.reconstructed == 1
+    assert result.decisions.matching == 1
+
+
 # ------------------------------------------------------------
 # Le rejeu ne doit pas confondre normalisation, repli et divergence
 # ------------------------------------------------------------

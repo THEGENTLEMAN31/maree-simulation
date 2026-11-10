@@ -179,7 +179,7 @@ def report(
         "lookback": lookback,
         "events": [to_step(e).to_dict() for e in window],
         "chains": [
-            [s.to_dict() for s in ancestors(by_id, e)]
+            [to_step(s).to_dict() for s in ancestors(by_id, e)]
             for e in window
             if e.type is EventType.DECISION
         ],

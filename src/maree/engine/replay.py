@@ -19,7 +19,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 
-from maree.agents.parsing import parse_decision
+from maree.agents.parsing import parse_choice, parse_decision
 from maree.domain.events import Event, EventType
 from maree.domain.ids import RunId
 from maree.ports import JournalPort
@@ -35,6 +35,11 @@ class DecisionCheck:
     #: Ce n'est pas une divergence : c'est un repli journalisé.
     fallbacks: int = 0
     mismatches: tuple[dict[str, object], ...] = ()
+    #: Nombre réel d'anomalies, même si `mismatches` est tronqué pour
+    #: l'affichage. Sans ce champ, un run à 70 sorties non parsables était
+    #: annoncé « 20 divergences » (la taille de la fenêtre), ce qui masquait
+    #: l'ampleur du problème.
+    mismatch_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,23 +86,87 @@ def _is_normalisation(parsed: dict, applied: dict) -> bool:
     return action == "follow" and kind == "go_exit" and target == kept
 
 
+def _open_exits_by_tick(events: list[Event]) -> dict[int, frozenset[str]]:
+    """État des sorties ouvertes, tick par tick, tel que journalisé.
+
+    Les décisions sont produites avant le snapshot du même tick ; le dernier
+    snapshot antérieur ou égal porte donc bien l'état du monde au moment de
+    la décision (une fermeture a lieu plus tôt dans le tick).
+    """
+    snapshots: dict[int, frozenset[str]] = {}
+    for event in events:
+        if event.type is not EventType.SNAPSHOT:
+            continue
+        tick = event.data.get("tick")
+        exits = event.data.get("exits_open")
+        if isinstance(tick, int) and isinstance(exits, list):
+            snapshots[tick] = frozenset(str(exit_id) for exit_id in exits)
+    return snapshots
+
+
+def _open_exits_at(snapshots: dict[int, frozenset[str]], tick: int) -> frozenset[str]:
+    earlier = [snapshot_tick for snapshot_tick in snapshots if snapshot_tick <= tick]
+    return snapshots[max(earlier)] if earlier else frozenset()
+
+
+def _known_exits_for_replay(
+    event: Event, trace: dict, snapshots: dict[int, frozenset[str]]
+) -> list[str]:
+    """Sorties montrées au petit modèle, ou reconstruction depuis le journal.
+
+    Les runs produits après ce correctif écrivent `known_exits` dans la
+    trace. Les journaux antérieurs ne l'ont pas : on le reconstruit alors
+    avec les croyances de l'agent (les sorties qu'il connaît) et l'état
+    ouvert du monde. C'est exactement ce que le prompt du tier `small`
+    contenait, mais sans avoir à le ré-analyser.
+    """
+    recorded = trace.get("known_exits")
+    if isinstance(recorded, list):
+        return [str(exit_id) for exit_id in recorded]
+    beliefs = event.data.get("beliefs") or {}
+    if not isinstance(beliefs, dict):
+        return []
+    open_exits = _open_exits_at(snapshots, event.t_prod)
+    return sorted(str(exit_id) for exit_id in beliefs if str(exit_id) in open_exits)
+
+
+def _reparse(event: Event, trace: dict, snapshots: dict[int, frozenset[str]]) -> dict | None:
+    """Re-parse une sortie brute avec le protocole du tier qui l'a produite.
+
+    Le tier `small` répond `RESTER`/`SORTIR` ; le tier `big` répond du JSON.
+    Utiliser le parseur JSON pour tout le monde faisait échouer 70 des 89
+    décisions du run `pipeline_20261103` alors qu'elles étaient valides.
+    """
+    raw = str(trace.get("raw_output") or "")
+    if trace.get("tier") == "small":
+        return parse_choice(
+            raw,
+            known_exits=_known_exits_for_replay(event, trace, snapshots),
+        )
+    return parse_decision(raw)
+
+
 def check_decisions(events: list[Event]) -> DecisionCheck:
     """Re-parse la sortie brute et vérifie que l'intention appliquée en découle.
 
     Deux contrôles distincts, parce qu'ils ne prouvent pas la même chose :
 
-      1. `parse_decision(raw_output)` redonne le `parsed` journalisé — la
-         lecture du modèle est reproductible ;
+      1. le parseur du tier (`parse_choice` pour `small`, `parse_decision`
+         pour `big`) redonne le `parsed` journalisé — la lecture du modèle
+         est reproductible ;
       2. `parsed` mène à `intention` par les seules normalisations connues
          (`stay`/`search` sans cible, `follow <sortie>` lu `go_exit`) — la
          validation ne réécrit pas la décision en douce.
 
     Confondre les deux faisait échouer le rejeu sur 20 décisions sur 49 :
-    elles étaient *normalisées*, pas divergentes.
+    elles étaient *normalisées*, pas divergentes. Utiliser le parseur JSON
+    pour le tier `small` faisait échouer 70 des 89 décisions d'un run réel :
+    elles étaient en langage fermé (`RESTER`/`SORTIR`), pas invalides.
     """
     decisions = [
         e for e in events if e.type is EventType.DECISION and e.data.get("kind") == "llm"
     ]
+    snapshots = _open_exits_by_tick(events)
     complete = reconstructed = matching = normalised = fallbacks = 0
     mismatches: list[dict[str, object]] = []
     for event in decisions:
@@ -105,7 +174,7 @@ def check_decisions(events: list[Event]) -> DecisionCheck:
         raw = trace.get("raw_output")
         if raw is not None and trace.get("prompt") is not None and trace.get("seed") is not None:
             complete += 1
-        parsed = parse_decision(raw or "")
+        parsed = _reparse(event, trace, snapshots)
         if parsed is None:
             mismatches.append({"seq": event.seq, "reason": "sortie non parsable"})
             continue
@@ -161,6 +230,7 @@ def check_decisions(events: list[Event]) -> DecisionCheck:
         matching=matching,
         fallbacks=fallbacks,
         mismatches=tuple(mismatches[:20]),
+        mismatch_count=len(mismatches),
     )
 
 
@@ -185,8 +255,8 @@ def replay(run_id: RunId, journal: JournalPort) -> ReplayResult:
         problems.append(
             f"{decisions.total - decisions.reconstructed} décision(s) non reconstructible(s)"
         )
-    if decisions.mismatches:
-        problems.append(f"{len(decisions.mismatches)} divergence(s) décision/application")
+    if decisions.mismatch_count:
+        problems.append(f"{decisions.mismatch_count} divergence(s) décision/application")
 
     n_narr, n_valid = check_narratives(events)
     return ReplayResult(
