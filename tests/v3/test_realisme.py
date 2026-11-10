@@ -11,7 +11,7 @@ from maree.v3.agents.agent import make_agent
 from maree.v3.agents.appraisal import appraise
 from maree.v3.agents.perception import Perception
 from maree.v3.agents.state import State
-from maree.v3.core.ids import AgentId, ZoneId
+from maree.v3.core.ids import ZoneId
 
 
 def _perc(distance: float | None, tick: int = 10) -> Perception:
