@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from maree.v3.agents.appraisal import Action, Appraisal
 from maree.v3.agents.catalog import chat_for
 from maree.v3.agents.knowledge import Knowledge
+from maree.v3.agents.memory import Memory
 from maree.v3.agents.perception import Perception
 from maree.v3.agents.policy import Decision, rules_decide
 from maree.v3.agents.social import SocialState
@@ -50,8 +51,14 @@ def build_inputs(
     traits: Traits,
     appraisal: Appraisal,
     knowledge: Knowledge,
+    memory: Memory | None = None,
 ) -> dict[str, object]:
-    """Le contexte compact et auditable envoyé au modèle."""
+    """Le contexte compact et auditable envoyé au modèle.
+
+    ``memory`` rend le **memorandum** personnel : les reçus de l'agent
+    (fait, source, tick, confiance) que le modèle doit intégrer. C'est ce
+    qui rend la mémoire *visible dans le comportement* — la mission.
+    """
     known = sorted(
         (k[5:], round(b.confidence, 2), b.source.value, b.tick)
         for k, b in knowledge.beliefs.items()
@@ -64,6 +71,20 @@ def build_inputs(
         {"fact": m.fact, "from": str(m.from_agent), "tick": m.tick, "confiance": m.confidence}
         for m in perception.heard
     ]
+    memo = []
+    if memory is not None:
+        # reçus ordonnés par confiance décroissante (le plus retenu d'abord)
+        for fact, r in sorted(
+            memory.receipts.items(), key=lambda kv: kv[1].confidence, reverse=True
+        ):
+            memo.append(
+                {
+                    "fait": fact,
+                    "source": r.source.value,
+                    "tick": r.tick,
+                    "confiance": round(r.confidence, 2),
+                }
+            )
     return {
         "tick": perception.tick,
         "smoke": perception.smoke_visible,
@@ -72,6 +93,7 @@ def build_inputs(
         "sorties_connues": known,
         "dangers": hazards,
         "messages_recus": heard,
+        "memoire": memo,
         "stress": round(perception.state.stress, 2),
         "herding": traits.herding,
     }
@@ -100,6 +122,7 @@ class LLMPolicy:
         appraisal: Appraisal,
         known_exits: frozenset[str],
         name: str,
+        memory: Memory | None = None,
     ) -> Decision:
         port, provider, model = self._port()
         inputs = build_inputs(
@@ -107,6 +130,7 @@ class LLMPolicy:
             traits=traits,
             appraisal=appraisal,
             knowledge=knowledge,
+            memory=memory,
         )
         request = LLMRequest(
             messages=_schema_messages(inputs),
@@ -222,6 +246,7 @@ def hybrid_decide(
     appraisal: Appraisal,
     known_exits: frozenset[str],
     name: str,
+    memory: Memory | None = None,
 ) -> Decision:
     """Règles d'abord ; on monte au LLM seulement en ambiguïté."""
     base = rules_decide(
@@ -247,6 +272,7 @@ def hybrid_decide(
             appraisal=appraisal,
             known_exits=known_exits,
             name=name,
+            memory=memory,
         )
         return policy
     return base

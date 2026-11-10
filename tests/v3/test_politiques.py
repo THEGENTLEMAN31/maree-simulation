@@ -18,6 +18,7 @@ from maree.v3.adapters.chat_stub import StubChat
 from maree.v3.agents.agent import make_agent
 from maree.v3.agents.appraisal import Action, appraise
 from maree.v3.agents.catalog import chat_for, register_provider
+from maree.v3.agents.knowledge import Source
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy_llm import LLMPolicy, hybrid_decide
 from maree.v3.agents.state import State
@@ -223,3 +224,24 @@ def test_le_prompt_transporte_les_messages_recus() -> None:
     )
     assert "messages_recus" in inputs
     assert "B est bloquée" in str(inputs["messages_recus"])
+
+
+def test_le_prompt_transporte_la_memoire_personnelle() -> None:
+    """Le « memorandum » : les reçus de l'agent sont visibles par le LLM."""
+    from maree.v3.agents.memory import Memory
+    from maree.v3.agents.policy_llm import build_inputs
+
+    a = _visitor()
+    a.memory = Memory()
+    a.memory.learn("B est bloquée", Source.ENTENDU, tick=10, confidence=0.8)
+    perc = Perception(tick=11, zone=ZoneId("z1"), state=State(), seen_agents=(), exits_visible=frozenset())
+    inputs = build_inputs(
+        perception=perc,
+        traits=a.traits,
+        appraisal=_appr(a, perc),
+        knowledge=a.knowledge,
+        memory=a.memory,
+    )
+    memo = str(inputs["memoire"])
+    assert "B est bloquée" in memo
+    assert "entendu" in memo and "0.8" in memo

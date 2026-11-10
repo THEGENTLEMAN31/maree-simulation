@@ -75,6 +75,7 @@ class Agent:
                 appraisal=ap,
                 known_exits=self.known_exits,
                 name=self.name,
+                memory=self.memory,
             )
         if self.policy is PolicyName.HYBRID:
             return hybrid_decide(
@@ -85,6 +86,7 @@ class Agent:
                 appraisal=ap,
                 known_exits=self.known_exits,
                 name=self.name,
+                memory=self.memory,
             )
         return rules_decide(
             perception=perception,
