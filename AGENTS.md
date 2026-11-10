@@ -154,6 +154,20 @@ rejouable de bout en bout.
   séparément : `parse(raw) == parsed`, puis `parsed → intention` par les
   seules normalisations connues. Un repli règles (`fallback: true`) est
   compté à part (`replis_regles`), pas comme une divergence.
+- **Le rejeu utilisait le parseur JSON pour le tier `small`.** Les réponses
+  `RESTER`/`SORTIR` ne sont pas du JSON : 70 des 89 décisions du run
+  `pipeline_20261103` étaient déclarées non parsables alors que leur `parsed`
+  journalisé était correct. Corrigé : `parse_choice` pour `small`, et
+  `known_exits` est désormais journalisé. Pour les journaux antérieurs, le
+  rejeu reconstruit les sorties connues depuis les croyances et les snapshots.
+  Le run `pipeline_20261103_fix` se rejoue à 86/86 décisions, `ok: true`.
+- **Le compte des divergences était tronqué à 20.** `mismatches` ne garde que
+  les 20 premiers cas pour l'affichage, mais `replay()` utilisait `len()` :
+  un run à 70 sorties invalides annonçait « 20 divergences ». Le champ
+  `mismatch_count` porte le compte réel.
+- **`maree trace` plantait sur les chaînes causales.** `report()` renvoyait
+  des `Event.to_dict()` (`t_prod`, `data`) là où la CLI attendait des `Step`
+  (`tick`, `label`) : `KeyError: 'tick'`. Corrigé et couvert par un test.
 - **Un `run_id` explicite déjà journalisé était accepté** : le journal étant
   en append, deux runs se retrouvaient dans le même `events.jsonl` avec un
   `seq` continu. `maree run` refuse maintenant un `run_id` déjà présent.
@@ -572,3 +586,16 @@ moteur.
   (plus 1 à 7 habitués). Le run consomme alors `max_ticks` et le filet
   périodique les fait redécider jusqu'au bout : c'est là que passe le
   coût LLM (477 appels pour `llm_60`, 89,5 s).
+
+# ------------------------------------------------------------
+# Outils de développement
+# ------------------------------------------------------------
+- **Graphify** (`graphify --version` → 0.9.90) est installé et intégré
+  comme outil de navigation du code, pas comme dépendance runtime :
+  `make graph`, `make graph-update`, `make graph-query Q="..."`.
+  Configuration : `.graphifyrc`, `.graphifyignore`. Sortie
+  `graphify-out/` ignorée par Git. Détails : `docs/v3/graphify.md`.
+- **Le plan de la v3 vit dans `docs/v3/`** : mission, architecture,
+  comportement, monde et rendu, agents et LLM, feu, données/API,
+  feuille de route, ADR. Toute décision structurante doit y être
+  consignée avant d'être implémentée.

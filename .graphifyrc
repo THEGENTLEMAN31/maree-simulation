@@ -1,0 +1,12 @@
+# Graphify — configuration du projet MARÉE
+# Une paire clé=valeur par ligne. Voir docs/v3/graphify.md.
+
+# Budget et profondeur des requêtes (subgraph renvoyé)
+query_budget=4000
+query_depth=3
+
+# Limite de nœuds pour la visualisation HTML
+viz_node_limit=5000
+
+# Le dépôt est en français : les libellés de communautés peuvent l'être aussi.
+language.py=python

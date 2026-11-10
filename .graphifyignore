@@ -1,0 +1,27 @@
+# Graphify — fichiers exclus de l'analyse
+# Le graphe cartographie le code et la documentation, pas les données.
+
+# Données de run et artefacts volumineux
+runs/
+data/
+models/
+world_corpus/
+
+# Environnements, caches, sorties
+.venv/
+.pytest_cache/
+.hypothesis/
+__pycache__/
+*.pyc
+node_modules/
+graphify-out/
+
+# Binaires et médias lourds
+*.gguf
+*.npy
+*.glb
+*.gltf
+*.png
+*.jpg
+*.mp4
+*.pdf

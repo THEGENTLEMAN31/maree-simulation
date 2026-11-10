@@ -44,6 +44,10 @@ src/maree/gen/
 # ---- Secrets ----
 .env
 
+# ---- Outils de développement ----
+# Graphify : carte locale du code, jamais versionnée (docs/v3/graphify.md)
+graphify-out/
+
 # ---- Run enregistré (E3) ----
 # Un seul run est versionné : celui que `make replay-demo` rejoue. Il sert
 # de preuve que le journal suffit à reconstruire un run complet.

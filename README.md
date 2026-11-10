@@ -227,7 +227,10 @@ docs/           cadrage, hypothèses, architecture, résultats
 - **`docs/resultats/rapport-hybride.md` — le rapport demandé** : partie
   technique, partie scientifique en mini-article, bilan de sobriété,
   réponses aux six questions du jury.
+- **`docs/v3/README.md` — le plan de conception v3** : mission, objectifs,
+  décisions structurantes, index des documents.
 - `docs/architecture-v2.md` — décisions, et ce qu'on a écarté
+- `docs/schemas.md` — les schémas Mermaid, du contexte au rejeu
 - `docs/hypotheses.md` — hypothèses préenregistrées H1..H7
 - `docs/protocol-ui.md` — le contrat d'affichage (trames) pour écrire un autre client
 - `docs/cadrage-maree.md` — cadrage du monde

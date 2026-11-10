@@ -113,6 +113,25 @@ spike:  ## vérifie JuPedSim / Mesa / registry
 	uv run python scripts/spike.py
 
 vram:  ## usage VRAM courant
-	nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+	nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report spike vram
+# ------------------------------------------------------------
+# Navigation du code (Graphify, docs/v3/graphify.md)
+# ------------------------------------------------------------
+graph:  ## construit la carte du code (local, sans LLM)
+	graphify extract . --code-only
+
+graph-update:  ## met à jour la carte après modifications
+	graphify update .
+
+graph-report:  ## régénère le rapport et les communautés
+	graphify cluster-only .
+	@echo "rapport : graphify-out/GRAPH_REPORT.md"
+
+graph-html:  ## exporte le call-flow en HTML/Mermaid
+	graphify export callflow-html
+
+graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
+	graphify query "$(Q)"
+
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report spike vram graph graph-update graph-report graph-html graph-query
