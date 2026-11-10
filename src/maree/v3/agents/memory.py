@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import cast
 
 from maree.v3.agents.knowledge import Source
 from maree.v3.core.ids import Tick
@@ -58,6 +59,22 @@ class Receipt:
             raise ValueError(f"confiance {self.confidence} hors de 0..1")
 
 
+@dataclass(frozen=True, slots=True)
+class MemoryOp:
+    """Une opération d'écriture mémoire, journalisée (registre audit).
+
+    Le registre est la partie **rejouable** de la mémoire (event-sourcing) :
+    appliquer toutes les ops reproduit exactement l'état, donc on peut
+    répondre « que savait A19 à t=14, et comment ? » sans reconstruire au
+    hasard, et rejouer une mémoire sans LLM.
+    """
+
+    op: str                          # episode | learn | signal | consol | forget
+    tick: Tick
+    fact: str
+    data: dict[str, object] = field(default_factory=dict)
+
+
 @dataclass(slots=True)
 class Memory:
     """La mémoire individuelle d'un agent."""
@@ -68,6 +85,11 @@ class Memory:
     #: pour un signal déjà mémorisé.
     signals_seen: set[tuple[str, str | int | bool]] = field(default_factory=set)
     consolidated_at: Tick = 0
+    #: registre des opérations d'écriture (audit + rejeu exact).
+    ops: list[MemoryOp] = field(default_factory=list)
+
+    def _record(self, op: str, tick: Tick, fact: str, **data: object) -> None:
+        self.ops.append(MemoryOp(op, tick, fact, data))
 
     def log_episode(
         self,
@@ -82,6 +104,8 @@ class Memory:
         self.episodes.append(
             Episode(tick, kind, content, source, salience)
         )
+        self._record("episode", tick, content, kind=kind.value, source=source,
+                     salience=salience)
 
     def learn(
         self,
@@ -98,16 +122,58 @@ class Memory:
         if existing is None or existing.confidence < confidence:
             self.receipts[fact] = receipt
         self.log_episode(tick, EpisodeKind.RESUME, fact, source.value, confidence)
+        self._record("learn", tick, fact, source=source.value,
+                     confidence=confidence, derived_from=derived_from)
         return receipt
 
-    def mark_signal_seen(self, genre: str, value: str | int | bool) -> None:
+    def mark_signal_seen(self, genre: str, value: str | int | bool, tick: Tick = 0) -> None:
         self.signals_seen.add((genre, value))
+        self._record("signal", tick, f"{genre}:{value}", genre=genre, value=value)
 
     def has_seen_signal(self, genre: str, value: str | int | bool) -> bool:
         return (genre, value) in self.signals_seen
 
     def receipt_for(self, fact: str) -> Receipt | None:
         return self.receipts.get(fact)
+
+    def forget(self, now: Tick, floor: float = 0.1) -> None:
+        """Oubli : retire les reçus sous le plancher de confiance (journalisé)."""
+        for fact in [k for k, r in self.receipts.items() if r.confidence < floor]:
+            self._record("forget", now, fact, confidence=self.receipts[fact].confidence)
+            del self.receipts[fact]
+
+    def replay_register(self) -> Memory:
+        """Reconstruit l'état depuis le registre d'opérations (event-sourcing).
+
+        Le résultat est idempotent : rejouer le registre donne toujours la
+        même mémoire. C'est la preuve « que savait A19 à t, et comment ».
+        """
+        m = Memory()
+        for op in self.ops:
+            if op.op == "episode":
+                m.episodes.append(Episode(
+                    op.tick, EpisodeKind(op.data["kind"]), op.fact,
+                    str(op.data["source"]),
+                    float(cast("float | str", op.data.get("salience", 0.5))),
+                ))
+            elif op.op == "learn":
+                confidence = float(cast("float | str", op.data["confidence"]))
+                existing = m.receipts.get(op.fact)
+                if existing is None or existing.confidence < confidence:
+                    m.receipts[op.fact] = Receipt(
+                        op.fact, Source(op.data["source"]), op.tick, confidence,
+                        cast("str | None", op.data.get("derived_from")),
+                    )
+            elif op.op == "signal":
+                m.signals_seen.add(
+                    (str(op.data["genre"]), cast("str | int | bool", op.data["value"]))
+                )
+            elif op.op == "consol":
+                m.episodes.append(Episode(op.tick, EpisodeKind.RESUME, op.fact, "memoire", 0.5))
+            elif op.op == "forget":
+                m.receipts.pop(op.fact, None)
+        m.consolidated_at = self.consolidated_at
+        return m
 
     def consolidate(self, now: Tick, threshold: int) -> None:
         """Consolidation déterministe : agrège les épisodes vieux en résumé.
@@ -129,6 +195,7 @@ class Memory:
         self.episodes = [e for e in self.episodes if e.tick >= cutoff]
         if summary:
             self.log_episode(now, EpisodeKind.RESUME, f"plus tôt : {summary}", "memoire")
+        self._record("consol", now, summary or "(vide)")
         self.consolidated_at = now
 
 
@@ -136,5 +203,6 @@ __all__ = [
     "Episode",
     "EpisodeKind",
     "Memory",
+    "MemoryOp",
     "Receipt",
 ]

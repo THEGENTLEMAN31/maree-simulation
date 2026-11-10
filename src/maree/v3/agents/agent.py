@@ -16,6 +16,7 @@ from maree.v3.agents.memory import EpisodeKind, Memory
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision, rules_decide
 from maree.v3.agents.policy_llm import LLMPolicy, hybrid_decide
+from maree.v3.agents.prehistory import prehistory_for, seed_prehistory
 from maree.v3.agents.social import SocialState
 from maree.v3.agents.state import State
 from maree.v3.agents.traits import Traits
@@ -121,14 +122,14 @@ class Agent:
         tick = perception.tick
         # fronts mémorisés : on ne re-décide plus pour eux
         if perception.smoke_visible:
-            self.memory.mark_signal_seen("fumée", True)
+            self.memory.mark_signal_seen("fumée", True, tick)
             self.memory.learn("fumée visible", Source.VU, tick, 0.9)
         if perception.announcement:
-            self.memory.mark_signal_seen("annonce", perception.announcement)
+            self.memory.mark_signal_seen("annonce", perception.announcement, tick)
         for k in list(self.social.kin):
-            self.memory.mark_signal_seen("proche", str(k))
+            self.memory.mark_signal_seen("proche", str(k), tick)
         for m in perception.heard:
-            self.memory.mark_signal_seen("message", m.fact)
+            self.memory.mark_signal_seen("message", m.fact, tick)
             # influence sociale : je crois ce que dit un émetteur, pondéré
             # par ma tendance à suivre (herding) et ma confiance en lui.
             weight = m.confidence * (0.3 + 0.7 * self.traits.herding)
@@ -219,12 +220,15 @@ def make_agent(
     archetype: str = "visiteur",
     name: str | None = None,
     known_exits: frozenset[str] = frozenset(),
+    prehistory: bool = False,
 ) -> Agent:
     """Fabrique un agent de l'archétype donné (portail de test et de sim).
 
     La confiance initiale sur chaque sortie connue découle de
     ``spatial_confidence`` : un habitué croit *connaître* une sortie avec
     plus de confiance qu'un visiteur qui ne la connaît pas.
+    ``prehistory=True`` amorce la mémoire avec les échanges J−3 de
+    l'archétype (A1) — le run commence « trois jours avant ».
     """
     traits = archetype_registry(archetype)
     agent = Agent(
@@ -239,6 +243,8 @@ def make_agent(
             f"exit:{label}",
             Belief(label, traits.spatial_confidence, Source.CONNU, 0),
         )
+    if prehistory:
+        seed_prehistory(agent.memory, prehistory_for(archetype))
     return agent
 
 
