@@ -7,6 +7,8 @@ tous les échecs, ``validate_or_raise`` lève si le monde est invalide.
 
 from __future__ import annotations
 
+from typing import Any
+
 import networkx as nx
 from shapely.geometry import LineString, Polygon
 from shapely.geometry import Point as ShapelyPoint
@@ -22,7 +24,7 @@ class ValidationError(ValueError):
         super().__init__("Plan invalide :\n- " + "\n- ".join(errors))
 
 
-def _poly(polygon: object, holes: tuple = ()) -> Polygon:
+def _poly(polygon: Any, holes: Any = ()) -> Polygon:
     ring = list(polygon)
     int_holes = [list(h) for h in holes]
     return Polygon(ring, int_holes)
@@ -121,39 +123,35 @@ def _connectivity_errors(world: WorldSpec) -> list[str]:
     g = nx.Graph()
     space_ids: set[str] = set()
     exit_by_space: dict[str, list[str]] = {}
-    level_by_space: dict[str, str] = {}
 
     for lv in world.levels:
-        _poly(lv.outline, lv.holes)
-        for s in lv.spaces:
-            g.add_node(s.id)
-            space_ids.add(s.id)
-            level_by_space[s.id] = lv.id
+        for sp in lv.spaces:
+            g.add_node(sp.id)
+            space_ids.add(sp.id)
             for e in lv.exits:
                 seg = LineString(e.segment)
                 mid = ShapelyPoint(*seg.interpolate(0.5, normalized=True).coords[0])
-                if _poly(s.polygon).contains(mid) or _poly(s.polygon).covers(mid):
-                    exit_by_space.setdefault(s.id, []).append(e.id)
+                if _poly(sp.polygon).contains(mid) or _poly(sp.polygon).covers(mid):
+                    exit_by_space.setdefault(sp.id, []).append(e.id)
     for lv in world.levels:
         for p in lv.portals:
             a, b = p.between
             if a != "outside" and b != "outside" and p.state == "open":
                 g.add_edge(a, b)
     # un espace isolé (aucune arête) doit quand même exister
-    for s in space_ids:
-        g.add_node(s)
+    for sid in space_ids:
+        g.add_node(sid)
 
     errors: list[str] = []
     # --- 8. chaque espace a un chemin vers une sortie ouverte ---
-    for s in space_ids:
-        if s not in exit_by_space:
-            errors.append(f"espace {s} n'a aucune sortie ouverte")
+    for sid in space_ids:
+        if sid not in exit_by_space:
+            errors.append(f"espace {sid} n'a aucune sortie ouverte")
     # --- 7. tous les espaces atteignables entre eux via portails ouverts ---
     if space_ids:
         comps = list(nx.connected_components(g))
         if len(comps) > 1:
             for comp in comps:
-                space_ids - comp
                 errors.append(
                     f"espace(s) {sorted(comp)} inatteignable(s) depuis "
                     f"{sorted(space_ids - comp)} (portails fermés ?)"

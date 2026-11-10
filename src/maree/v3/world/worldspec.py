@@ -8,6 +8,7 @@ vit dans ``validate.py`` ; la navigation dans ``navgraph.py``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 Point = tuple[float, float]
 PolygonRing = tuple[Point, ...]
@@ -102,11 +103,17 @@ class WorldSpec:
         raise KeyError(f"étage inconnu : {level_id!r}")
 
 
-def _ring(data: object) -> PolygonRing:
-    return tuple((float(x), float(y)) for (x, y) in data)  # type: ignore[misc]
+def _ring(data: Any) -> PolygonRing:
+    return tuple((float(x), float(y)) for (x, y) in data)
 
 
-def from_dict(data: dict[str, object]) -> WorldSpec:
+def _segment(data: Any) -> Segment:
+    """Un segment = deux points de deux coordonnées (pas de longueur variée)."""
+    (x1, y1), (x2, y2) = data
+    return ((float(x1), float(y1)), (float(x2), float(y2)))
+
+
+def from_dict(data: dict[str, Any]) -> WorldSpec:
     """Construit un WorldSpec depuis un dict (venu de YAML/JSON)."""
     levels: list[Level] = []
     for ld in data["levels"]:
@@ -123,7 +130,7 @@ def from_dict(data: dict[str, object]) -> WorldSpec:
             Portal(
                 id=str(p["id"]),
                 between=(str(p["between"][0]), str(p["between"][1])),
-                segment=(tuple(map(float, p["segment"][0])), tuple(map(float, p["segment"][1]))),
+                segment=_segment(p["segment"]),
                 width=float(p.get("width", 1.0)),
                 state=str(p.get("state", "open")),
                 capacity_p_s=float(p.get("capacity_p_s", 1.3)),
@@ -134,7 +141,7 @@ def from_dict(data: dict[str, object]) -> WorldSpec:
             Exit(
                 id=str(e["id"]),
                 level=str(ld["id"]),
-                segment=(tuple(map(float, e["segment"][0])), tuple(map(float, e["segment"][1]))),
+                segment=_segment(e["segment"]),
                 width=float(e.get("width", 1.0)),
                 to=str(e.get("to", "outside")),
             )
