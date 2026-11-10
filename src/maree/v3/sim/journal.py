@@ -54,4 +54,10 @@ def write_jsonl(
     return path
 
 
+def log_digest(log: RunLog) -> str:
+    """Empreinte déterministe des décisions d'un run (base du rejeu E3)."""
+    payload = json.dumps([asdict(r) for r in log.rows], sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 __all__ = ["run_header", "world_hash", "write_jsonl"]

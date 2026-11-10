@@ -20,6 +20,7 @@ from maree.v3.agents.perception import Message
 from maree.v3.agents.policy import Decision
 from maree.v3.core.ids import AgentId
 from maree.v3.core.ports import PolicyName
+from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
 from maree.v3.sim.scene import Scene
 from maree.v3.world.navgraph import NavigationGraph
 from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
@@ -76,10 +77,19 @@ class Simulation:
     ``seed`` pilote tout l'aléa (spawns, etc.) : même graine ⇒ même run.
     """
 
-    def __init__(self, seed: int = 42, policy: PolicyName = PolicyName.RULES) -> None:
+    def __init__(
+        self,
+        seed: int = 42,
+        policy: PolicyName = PolicyName.RULES,
+        bus: EventBus | None = None,
+        run_id: str = "v3",
+    ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
         self.policy = policy
+        self.bus = bus or MemoryBus()
+        self.run_id = run_id
+        self._seq = 0
         self.navgraph: NavigationGraph | None = None
         self.artifact: SimArtifact | None = None
         self.scene = Scene()
@@ -117,6 +127,11 @@ class Simulation:
             self.scene.tick = ts.tick
             self.scene.smoke = ts.smoke
             self.scene.announcement = ts.announcement
+            # signaux du monde diffusés (t_prod == t_trait en mode sync)
+            if ts.smoke:
+                self._emit("world.smoke", ts.tick, {"visible": True})
+            if ts.announcement:
+                self._emit("world.announcement", ts.tick, {"text": ts.announcement})
             # dépôt des messages adressés
             for agent_uid, msg in ts.messages:
                 self.scene.mails.setdefault(AgentId(agent_uid), []).append(msg)
@@ -127,7 +142,30 @@ class Simulation:
                 decision = agent.react(perception)
                 self.scene.drain(agent_id)
                 self.log.rows.append(self._row(agent, decision, ts.tick))
+                self._emit("agent.decision", ts.tick, {
+                    "agent": agent.name,
+                    "archetype": agent.archetype,
+                    "action": decision.action.value,
+                    "target": decision.target,
+                    "fallback": decision.fallback,
+                    "fallback_cause": decision.fallback_cause,
+                    "explanation": decision.explanation,
+                })
         return self.log
+
+    def _emit(self, event_type: str, tick: int, data: dict[str, object]) -> None:
+        """Publie une enveloppe (C1) : seq croissant, t_prod == t_trait (sync)."""
+        self._seq += 1
+        self.bus.publish(
+            EventEnvelope(
+                run_id=self.run_id,
+                seq=self._seq,
+                type=event_type,
+                t_prod=tick,
+                t_trait=tick,
+                data=data,
+            )
+        )
 
     @staticmethod
     def _row(agent: Agent, decision: Decision, tick: int) -> LogRow:
