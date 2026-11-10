@@ -127,6 +127,21 @@ v3-llm-down:  ## arrête le llama-server projet (8081)
 	-@pid=$$(ss -ltnp 2>/dev/null | grep ':8081' | grep -oP 'pid=\K[0-9]+' | head -1); \
 		[ -n "$$pid" ] && kill $$pid && echo "8081 arrêté" || echo "8081 déjà absent"
 
+# Kafka SANS Docker : vrai Apache Kafka KRaft sur l'hôte (C1). Le journal
+# reste la source de vérité ; ce broker sert la preuve C1 et le flux live.
+kafka-up:  ## télécharge (si besoin) + lance Kafka KRaft single-node sur 9092
+	bash scripts/kafka_standalone.sh up
+
+kafka-down:  ## arrête le broker Kafka
+	bash scripts/kafka_standalone.sh down
+
+kafka-topics:  ## crée les topics du projet
+	K=$${KAFKA_DIR:-/mnt/data/kafka}/kafka/bin; \
+	for t in mv.events mv.indicators mv.snapshots mv.control dlq.invalid; do \
+		$$K/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --create \
+			--if-not-exists --topic $$t >/dev/null 2>&1 && echo "topic $$t ok"; \
+	done
+
 # ------------------------------------------------------------
 # Diagnostic
 # ------------------------------------------------------------
@@ -155,4 +170,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
