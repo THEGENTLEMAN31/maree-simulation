@@ -39,6 +39,9 @@ class Perception:
     smoke_visible: bool | None = None
     announcement: str | None = None
     threat: float = 0.0          # 0..1 menace perçue (bruit, densité, cri…)
+    #: distance (m) au danger le plus proche (fumée / feu). None = inconnue.
+    #: Le réalisme : on ne réagit pas pareil à 40 m et à 5 m de la flamme.
+    distance_to_danger: float | None = None
     #: ce qu'on observe des autres (comportement social).
     seen_agents: tuple[AgentId, ...] = field(default_factory=tuple)
     exits_visible: frozenset = frozenset()
@@ -54,7 +57,19 @@ class Perception:
             self.smoke_visible
             or self.announcement
             or self.threat > 0.0
+            or self.distance_to_danger is not None
         )
+
+    @property
+    def danger_proximity(self) -> float:
+        """Intensité de danger tirée de la distance (0..1) : plus proche = plus fort.
+
+        Courbe simple et calibrée : 0 m → 1 ; ~40 m et au-delà → proche de 0.
+        Le ``distance_to_danger is None`` n'ajoute rien (on retombe sur smoke/threat).
+        """
+        if self.distance_to_danger is None:
+            return 0.0
+        return max(0.0, min(1.0, 1.0 - self.distance_to_danger / 40.0))
 
 
 __all__ = ["Message", "Perception"]

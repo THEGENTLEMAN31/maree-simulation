@@ -71,7 +71,7 @@ def appraise(
     raisons: dict[str, str] = {}
     per = perception
 
-    # --- menace : fumée, menace perçue, annonce ---
+    # --- menace : fumée, menace perçue, annonce, distance au danger ---
     menace = per.threat
     if per.smoke_visible:
         menace += 0.5
@@ -82,6 +82,14 @@ def appraise(
         menace += 0.25
         raisons["menace"] = (
             f"{name} entend une annonce : « {per.announcement[:60]} »"
+        )
+    # réalisme spatial : être près du danger monte la menace plus que le voir au loin
+    if per.distance_to_danger is not None:
+        prox = per.danger_proximity
+        menace += 0.55 * prox
+        raisons["menace"] = (
+            f"{name} est à {per.distance_to_danger:.0f} m du danger "
+            f"(proximité {prox:.2f})"
         )
     # la sensibilité au bruit amplifie la menace perçue
     menace *= 0.7 + 0.6 * traits.noise_sensitivity

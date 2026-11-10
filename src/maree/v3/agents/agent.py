@@ -196,6 +196,23 @@ class Agent:
         consolide à la réaction suivante via la perception."""
         self.social.set_trust(message.from_agent, message.confidence)
 
+    # --- déplacement (caractéristiques physiques, pour le moteur) ---
+    @property
+    def speed_max(self) -> float:
+        """Vitesse de déplacement maximale (m/s) du profil, hors fatigue.
+
+        La ``mobility`` du trait (0..1) s'échelonne de marche lente (0,5 m/s)
+        à un pas soutenu (1,4 m/s) — une caractéristique par agent, pas globale.
+        """
+        return 0.5 + 0.9 * self.traits.mobility
+
+    def current_speed(self) -> float:
+        """La vitesse *réelle* maintenant, réduite par la fatigue et la densité."""
+        speed = self.speed_max
+        speed *= 1.0 - 0.5 * self.state.fatigue              # la fatigue ralentit
+        speed *= 1.0 - 0.3 * min(1.0, self.state.crowding / 3.0)  # la foule freine
+        return max(0.0, speed)
+
 
 def make_agent(
     uid: int,
