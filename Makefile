@@ -116,6 +116,17 @@ v3-pipeline:  ## lance la pipeline réelle (monde -> agents -> vrai LLM -> mémo
 	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} V3_SEED=42 \
 		uv run python scripts/v3_pipeline.py
 
+# Le LLM *projet* (jamais le serveur perso 8080). reasoning off = court et propre.
+V3_GGUF=/mnt/data/maree-models/gemma-4-E2B-it-Q4_K_M.gguf
+v3-llm-up:  ## démarre le llama-server projet sur 8081 (E2B, reasoning off)
+	/mnt/data/llama.cpp/build/bin/llama-server -m $(V3_GGUF) --host 127.0.0.1 \
+		--port 8081 --alias gemma4-e2b --ctx-size 4096 --parallel 1 \
+		--n-gpu-layers 99 --flash-attn on --threads 4 --no-webui --reasoning off &
+
+v3-llm-down:  ## arrête le llama-server projet (8081)
+	-@pid=$$(ss -ltnp 2>/dev/null | grep ':8081' | grep -oP 'pid=\K[0-9]+' | head -1); \
+		[ -n "$$pid" ] && kill $$pid && echo "8081 arrêté" || echo "8081 déjà absent"
+
 # ------------------------------------------------------------
 # Diagnostic
 # ------------------------------------------------------------
@@ -144,4 +155,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down spike vram graph graph-update graph-report graph-html graph-query
