@@ -13,6 +13,7 @@ dans `core/` et sera rempli par la suite.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import maree.v3 as _v3
@@ -70,6 +71,7 @@ def assemble() -> Runtime:
     couche n'apparaît ici que si elle est importable ; toute couche absente
     de ``_SUBSYSTEMS`` ferait échouer l'assemblage (pas de trou silencieux).
     """
+    _wire_providers()
     missing = [name for name in _SUBSYSTEMS if name not in _MODULES]
     if missing:
         raise ImportError(f"Sous-paquets v3 manquants : {', '.join(missing)}")
@@ -78,6 +80,25 @@ def assemble() -> Runtime:
         name: _MODULES[name].RESPONSIBILITY for name in _SUBSYSTEMS
     }
     return Runtime(version=_v3.__version__, responsibilities=responsibilities)
+
+
+def _wire_providers() -> None:
+    """Branche les adaptateurs de la passerelle LLM (semaine 4).
+
+    - ``stub`` : pas de réseau ni GPU (tests, ablation du tier LLM) ;
+    - ``llamacpp`` : llama.cpp **natif du projet**, sur ``MAREE_LLM_URL``
+      (défaut port 8081 — jamais le serveur perso sur 8080).
+    Les deux vivent derrière le même ``ChatModelPort`` : interchangeables.
+    """
+    from maree.v3.adapters.chat_openai import OpenAICompatibleChat
+    from maree.v3.adapters.chat_stub import StubChat
+    from maree.v3.agents import catalog
+
+    catalog.register_provider("stub", StubChat())
+    _url = os.environ.get(
+        "MAREE_LLM_URL", "http://127.0.0.1:8081/v1"
+    )
+    catalog.register_provider("llamacpp", OpenAICompatibleChat(base_url=_url))
 
 
 __all__ = ["Runtime", "assemble"]

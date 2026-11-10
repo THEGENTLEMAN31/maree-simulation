@@ -311,3 +311,43 @@ Sans protocole, elle n'est pas défendable.
 - les résultats sont datés, chiffrés, limités ;
 - on ne dira jamais « validé » sans les quatre étapes ;
 - le rapport de validation est un livrable de la semaine 9.
+
+---
+
+## ADR-013 — Passerelle LLM fine (pas LiteLLM) + registre de politiques natif
+
+**Date** : 2026-11-10
+**Statut** : accepté
+
+### Contexte
+
+La semaine 4 doit rendre *deux providers interchangeables* et un registre de
+politiques. La v2 empruntait le SDK `openai` derrière une URL llama.cpp et a
+toujours été légère. LiteLLM (la brique listée en semaine 4 du roadmap) est
+un super-client multi-providers commode, mais lourd et peu utilisé ici : on
+ne parle à *quatre* providers max, tous OpenAI-compatibles. Le LLM du projet
+tourne en natif sur l'hôte (port `8081`), sur ses propres modèles, jamais sur
+le serveur personnel (`8080`).
+
+### Décision
+
+- **passerelle fine** : `ChatModelPort` (contrat) + `OpenAICompatibleChat`
+  (adaptateur via le SDK `openai`) + `StubChat` (tests, ablation) — deux
+  fournisseurs interchangeables derrière un même port ;
+- **pas de LiteLLM** en v3.0 : le catalogue (`ModelSpec`) et le registre de
+  fournisseurs suffisent, et la matrice de traçabilité (provider, modèle,
+  seed, tokens) est déjà dans `LLMTrace` ;
+- **politique par défaut = `hybrid`** (règles, essor LLM seulement en
+  ambiguïté) : c'est ce qui garantit la reproductibilité de la mission 1 ;
+- **l'axe « la taille du modèle compte-t-elle »** est un objectif : les
+  modèles du projet vont de 0,6 Md à ~8 Md, avec offload CPU — la taille et
+  la latence sont **journalisées** (elles se confondent sinon).
+
+### Conséquences
+
+- aucun client HTTP maison, aucune dépendance lourde ;
+- les tests prouvent l'interchangeabilité sans GPU ;
+- OpenJev reste derrière un port (ADR-007) et n'est pas adopté tant que le
+  banc (semaine 4 : `verify/bench`) n'est pas concluant ;
+- le banc actuel met un **stub** en fournisseur : la colonne `llm` mesure le
+  mécanisme, pas un modèle réel — l'évaluation sur modèle natif suit (S4 b).

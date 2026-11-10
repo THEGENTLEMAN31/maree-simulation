@@ -15,10 +15,12 @@ from maree.v3.agents.knowledge import Belief, Knowledge, Source
 from maree.v3.agents.memory import EpisodeKind, Memory
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision, rules_decide
+from maree.v3.agents.policy_llm import LLMPolicy, hybrid_decide
 from maree.v3.agents.social import SocialState
 from maree.v3.agents.state import State
 from maree.v3.agents.traits import Traits
 from maree.v3.core.ids import AgentId
+from maree.v3.core.ports import PolicyName
 
 
 @dataclass(slots=True)
@@ -35,6 +37,8 @@ class Agent:
     state: State = field(default_factory=State)
     #: les sorties que cet agent est *censé* connaître (le plan).
     known_exits: frozenset[str] = frozenset()
+    #: politique de décision (règles par défaut, hybride ou LLM).
+    policy: PolicyName = PolicyName.RULES
     _last_decision: Decision | None = field(default=None, init=False)
 
     # --- réaction ---
@@ -55,7 +59,34 @@ class Agent:
             social=self.social,
             name=self.name,
         )
-        decision = rules_decide(
+        decision = self._decide(perception, ap)
+        self._consume(perception, decision, ap)
+        self._last_decision = decision
+        return decision
+
+    def _decide(self, perception: Perception, ap: Appraisal) -> Decision:
+        """Répartit sur la politique courante (registre de décisions)."""
+        if self.policy is PolicyName.LLM:
+            return LLMPolicy().decide(
+                perception=perception,
+                knowledge=self.knowledge,
+                social=self.social,
+                traits=self.traits,
+                appraisal=ap,
+                known_exits=self.known_exits,
+                name=self.name,
+            )
+        if self.policy is PolicyName.HYBRID:
+            return hybrid_decide(
+                perception=perception,
+                knowledge=self.knowledge,
+                social=self.social,
+                traits=self.traits,
+                appraisal=ap,
+                known_exits=self.known_exits,
+                name=self.name,
+            )
+        return rules_decide(
             perception=perception,
             knowledge=self.knowledge,
             social=self.social,
@@ -64,9 +95,6 @@ class Agent:
             known_exits=self.known_exits,
             name=self.name,
         )
-        self._consume(perception, decision, ap)
-        self._last_decision = decision
-        return decision
 
     def _novel_events(self, perception: Perception) -> bool:
         if perception.smoke_visible and not self.memory.has_seen_signal("fumée", True):

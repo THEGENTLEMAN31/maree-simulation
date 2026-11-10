@@ -17,6 +17,7 @@ from maree.v3.agents.perception import Perception
 from maree.v3.agents.social import SocialState
 from maree.v3.agents.traits import Traits
 from maree.v3.core.ids import Tick
+from maree.v3.core.ports import LLMTrace
 
 #: Racines qui font d'une annonce ou d'un message un ordre d'évacuation
 #: (couvre évacuer, évacuez, évacuation ; sortir, sortie ; quittez…).
@@ -37,6 +38,9 @@ class Decision:
     #: repli sur les règles (utilisé quand une autre politique échoue).
     fallback: bool = False
     raisons: dict[str, str] = field(default_factory=dict)
+    #: trace du (éventuel) appel LLM — audit et coût (semaine 4).
+    llm_trace: LLMTrace | None = None
+    fallback_cause: str | None = None
 
 
 def _is_evacuation_order(announcement: str) -> bool:
