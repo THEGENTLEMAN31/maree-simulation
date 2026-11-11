@@ -119,15 +119,17 @@ def _validate_level(errors: list[str], world: WorldSpec, lv: Level) -> None:
 
 
 def _connectivity_errors(world: WorldSpec) -> list[str]:
-    # graphe : nœuds = espaces ; arêtes = portails ouverts
+    # graphe : nœuds = espaces ; arêtes = portails ouverts (+ escaliers inter-étages)
     g = nx.Graph()
     space_ids: set[str] = set()
     exit_by_space: dict[str, list[str]] = {}
+    level_space: dict[str, str] = {}  # premier espace représentatif d'un étage
 
     for lv in world.levels:
         for sp in lv.spaces:
             g.add_node(sp.id)
             space_ids.add(sp.id)
+            level_space.setdefault(lv.id, sp.id)
             for e in lv.exits:
                 seg = LineString(e.segment)
                 mid = ShapelyPoint(*seg.interpolate(0.5, normalized=True).coords[0])
@@ -138,6 +140,9 @@ def _connectivity_errors(world: WorldSpec) -> list[str]:
             a, b = p.between
             if a != "outside" and b != "outside" and p.state == "open":
                 g.add_edge(a, b)
+    for v in world.vertical:
+        if v.from_level in level_space and v.to_level in level_space:
+            g.add_edge(level_space[v.from_level], level_space[v.to_level])
     # un espace isolé (aucune arête) doit quand même exister
     for sid in space_ids:
         g.add_node(sid)
