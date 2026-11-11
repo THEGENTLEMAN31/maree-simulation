@@ -24,6 +24,20 @@ class PolicyName(StrEnum):
     DECISION_HEAD = "decision_head"
 
 
+class ExecutionMode(StrEnum):
+    """Comment le temps se déroule (C4) : barrière (sync) ou cadence (async).
+
+    - ``SYNC`` : tous les agents perçoivent et décident au même pas
+      (t_prod == t_trait) — le contrôle ;
+    - ``ASYNC`` : chacun décide à son rythme (latence du LLM convertie en
+      ticks), la décision est **appliquée quand elle aboutit** (t_trait ≥
+      t_prod) — le réaliste : le monde ne s'arrête jamais pour un LLM.
+    """
+
+    SYNC = "sync"
+    ASYNC = "async"
+
+
 @dataclass(frozen=True, slots=True)
 class LLMMessage:
     role: str  # "system" | "user" | "assistant"

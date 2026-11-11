@@ -16,10 +16,10 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from maree.v3.agents.agent import Agent, make_agent
-from maree.v3.agents.perception import Message
+from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision
 from maree.v3.core.ids import AgentId
-from maree.v3.core.ports import PolicyName
+from maree.v3.core.ports import ExecutionMode, PolicyName
 from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
 from maree.v3.sim.scene import Scene
 from maree.v3.world.navgraph import NavigationGraph
@@ -38,7 +38,8 @@ class Timestep:
 
 @dataclass(frozen=True, slots=True)
 class LogRow:
-    tick: int
+    tick: int              # t_trait : tick où la décision est appliquée
+    t_prod: int            # tick où elle a été *perçue/vue*
     agent: str
     archetype: str
     action: str
@@ -49,6 +50,11 @@ class LogRow:
     dims: dict[str, float]
     llm_ok: bool | None
     llm_model: str | None
+
+    @property
+    def lag(self) -> int:
+        """Décalage traité − perçu (C7) : 0 en sync, > 0 en async."""
+        return self.tick - self.t_prod
 
 
 @dataclass(slots=True)
@@ -75,6 +81,7 @@ class Simulation:
     """Construit et anime un monde.
 
     ``seed`` pilote tout l'aléa (spawns, etc.) : même graine ⇒ même run.
+    ``mode`` (sync/async) choisit comment le temps passe (C4).
     """
 
     def __init__(
@@ -83,13 +90,24 @@ class Simulation:
         policy: PolicyName = PolicyName.RULES,
         bus: EventBus | None = None,
         run_id: str = "v3",
+        mode: ExecutionMode = ExecutionMode.SYNC,
+        latency_ticks: dict[PolicyName, int] | None = None,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
         self.policy = policy
         self.bus = bus or MemoryBus()
         self.run_id = run_id
+        self.mode = mode
+        #: latence de décision par politique (ticks) — le LLM réfléchit lentement.
+        self.latency_ticks = latency_ticks or {
+            PolicyName.RULES: 0,
+            PolicyName.HYBRID: 2,
+            PolicyName.LLM: 4,
+        }
         self._seq = 0
+        self.violations = 0          # compteur de cohérence temporelle (C6)
+        self._scheduled: dict[AgentId, tuple[int, Perception]] = {}
         self.navgraph: NavigationGraph | None = None
         self.artifact: SimArtifact | None = None
         self.scene = Scene()
@@ -122,57 +140,89 @@ class Simulation:
             self.scene.add(agent, space_id, pt)
 
     def run(self, timesteps: list[Timestep]) -> RunLog:
-        time_steps = sorted(timesteps, key=lambda t: t.tick)
-        for ts in time_steps:
-            self.scene.tick = ts.tick
-            self.scene.smoke = ts.smoke
-            self.scene.announcement = ts.announcement
-            # signaux du monde diffusés (t_prod == t_trait en mode sync)
-            if ts.smoke:
-                self._emit("world.smoke", ts.tick, {"visible": True})
-            if ts.announcement:
-                self._emit("world.announcement", ts.tick, {"text": ts.announcement})
-            # dépôt des messages adressés
-            for agent_uid, msg in ts.messages:
-                self.scene.mails.setdefault(AgentId(agent_uid), []).append(msg)
-            # chaque agent perçoit l'instant T puis décide (ordre canonique)
-            for agent_id in sorted(self.scene.instances, key=lambda a: a.uid):
-                agent = self.scene.instances[agent_id].agent
-                perception = self.scene.perception_for(agent_id)
-                decision = agent.react(perception)
-                self.scene.drain(agent_id)
-                self.log.rows.append(self._row(agent, decision, ts.tick))
-                self._emit("agent.decision", ts.tick, {
-                    "agent": agent.name,
-                    "archetype": agent.archetype,
-                    "action": decision.action.value,
-                    "target": decision.target,
-                    "fallback": decision.fallback,
-                    "fallback_cause": decision.fallback_cause,
-                    "explanation": decision.explanation,
-                })
+        """Anime le monde tick par tick (barrière en sync, cadence en async)."""
+        by_tick = {ts.tick: ts for ts in timesteps}
+        if not by_tick:
+            return self.log
+        start, last = min(by_tick), max(by_tick)
+        horizon = last + max(self.latency_ticks.values(), default=0)  # les appels en vol
+        for tick in range(start, horizon + 1):
+            ts = by_tick.get(tick)
+            if ts is not None:
+                self.scene.tick = tick
+                self.scene.smoke = ts.smoke
+                self.scene.announcement = ts.announcement
+                if ts.smoke:
+                    self._emit("world.smoke", tick, tick, {"visible": True})
+                if ts.announcement:
+                    self._emit("world.announcement", tick, tick, {"text": ts.announcement})
+                for agent_uid, msg in ts.messages:
+                    self.scene.mails.setdefault(AgentId(agent_uid), []).append(msg)
+            self._process_tick(tick)
         return self.log
 
-    def _emit(self, event_type: str, tick: int, data: dict[str, object]) -> None:
-        """Publie une enveloppe (C1) : seq croissant, t_prod == t_trait (sync)."""
+    def _process_tick(self, tick: int) -> None:
+        # 1) en async : appliquer les décisions arrivées à échéance (perception figée)
+        if self.mode is ExecutionMode.ASYNC:
+            due = [a for a, (apply_t, _) in self._scheduled.items() if apply_t <= tick]
+            for agent_id in sorted(due, key=lambda a: a.uid):
+                apply_t, snap = self._scheduled.pop(agent_id)
+                agent = self.scene.instances[agent_id].agent
+                decision = agent.react(snap)
+                self._record(agent, decision, t_prod=snap.tick, t_trait=apply_t)
+
+        # 2) détecter les nouveaux signaux (fronts) ; en sync décider immédiatement
+        for agent_id in sorted(self.scene.instances, key=lambda a: a.uid):
+            agent = self.scene.instances[agent_id].agent
+            perception = self.scene.perception_for(agent_id)
+            if not agent._novel_events(perception):
+                continue
+            self.scene.drain(agent_id)
+            if self.mode is ExecutionMode.ASYNC:
+                if agent_id not in self._scheduled:  # déjà « en train de réfléchir »
+                    latency = self.latency_ticks.get(agent.policy, 1)
+                    self._scheduled[agent_id] = (tick + latency, perception)
+            else:
+                decision = agent.react(perception)
+                self._record(agent, decision, t_prod=tick, t_trait=tick)
+
+    def _record(self, agent: Agent, decision: Decision, t_prod: int, t_trait: int) -> None:
+        """Journalise décision + cohérence (C6) + publie l'enveloppe (C1)."""
+        # C6 : jamais agir sur une info produite après sa décision (par construction)
+        if t_prod > t_trait:
+            self.violations += 1
+        self.log.rows.append(self._row(agent, decision, t_prod, t_trait))
+        self._emit("agent.decision", t_prod, t_trait, {
+            "agent": agent.name,
+            "archetype": agent.archetype,
+            "action": decision.action.value,
+            "target": decision.target,
+            "fallback": decision.fallback,
+            "fallback_cause": decision.fallback_cause,
+            "explanation": decision.explanation,
+        })
+
+    def _emit(self, event_type: str, t_prod: int, t_trait: int, data: dict[str, object]) -> None:
+        """Publie une enveloppe (C1) avec sa chronologie simulée (C3)."""
         self._seq += 1
         self.bus.publish(
             EventEnvelope(
                 run_id=self.run_id,
                 seq=self._seq,
                 type=event_type,
-                t_prod=tick,
-                t_trait=tick,
+                t_prod=t_prod,
+                t_trait=t_trait,
                 data=data,
             )
         )
 
     @staticmethod
-    def _row(agent: Agent, decision: Decision, tick: int) -> LogRow:
+    def _row(agent: Agent, decision: Decision, t_prod: int, t_trait: int) -> LogRow:
         ap = decision.appraisal
         trace = decision.llm_trace
         return LogRow(
-            tick=tick,
+            tick=t_trait,
+            t_prod=t_prod,
             agent=agent.name,
             archetype=agent.archetype,
             action=decision.action.value,

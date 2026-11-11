@@ -34,7 +34,7 @@ def test_le_bus_memoire_recoit_les_evenements() -> None:
     tipos = {e.type for e in bus.envelopes}
     assert "world.smoke" in tipos and "agent.decision" in tipos
     decisions = bus.published("agent.decision")
-    assert len(decisions) == 6  # 2 agents × 3 ticks
+    assert len(decisions) == 4  # 2 agents × 2 signaux nouveaux (annonce, fumée)
     # seq croissant, temps simulé cohérent (t_prod == t_trait en sync)
     seqs = [e.seq for e in bus.envelopes]
     assert seqs == sorted(seqs)

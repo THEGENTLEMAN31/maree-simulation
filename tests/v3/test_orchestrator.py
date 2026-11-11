@@ -28,7 +28,9 @@ def test_le_flux_complet_rules() -> None:
             Timestep(10, smoke=True),
         ]
     )
-    assert len(log.rows) == 15  # 5 agents × 3 ticks
+    # 5 agents, mais les décisions ne tombent qu'aux signaux nouveaux
+    # (t5 annonce, t10 fumée) — le front mémorisé empêche la re-décision par tick.
+    assert len(log.rows) == 10
     # un ordre d'évacuation a bien provoqué des évacuations
     evacuations = [r for r in log.rows if r.action.startswith("évacuer")]
     assert evacuations
