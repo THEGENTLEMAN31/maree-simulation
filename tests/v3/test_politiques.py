@@ -226,6 +226,23 @@ def test_le_prompt_transporte_les_messages_recus() -> None:
     assert "B est bloquée" in str(inputs["messages_recus"])
 
 
+def test_le_prompt_transporte_le_contexte_rag() -> None:
+    """F1 : les décisions LLM s'appuient sur des passages retrouvés."""
+    from maree.v3.agents.policy_llm import build_inputs
+
+    a = _visitor()
+    perc = Perception(tick=100, zone=ZoneId("z1"), state=State(), seen_agents=(), exits_visible=frozenset())
+    inputs = build_inputs(
+        perception=perc,
+        traits=a.traits,
+        appraisal=_appr(a, perc),
+        knowledge=a.knowledge,
+        rag=[{"id": "plan_A", "titre": "Sortie A", "collection": "plan", "contenu": "la sortie A est au nord"}],
+    )
+    assert inputs["contexte_rag"]
+    assert "plan_A" in str(inputs["contexte_rag"])
+
+
 def test_le_prompt_transporte_la_memoire_personnelle() -> None:
     """Le « memorandum » : les reçus de l'agent sont visibles par le LLM."""
     from maree.v3.agents.memory import Memory

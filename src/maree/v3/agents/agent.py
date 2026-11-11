@@ -9,6 +9,7 @@ déjà vus). ``react()`` produit une décision portable et journalisée.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from maree.v3.agents.appraisal import Appraisal, appraise
 from maree.v3.agents.knowledge import Belief, Knowledge, Source
@@ -40,6 +41,8 @@ class Agent:
     known_exits: frozenset[str] = frozenset()
     #: politique de décision (règles par défaut, hybride ou LLM).
     policy: PolicyName = PolicyName.RULES
+    #: base de connaissances (retriever RAG) que la politique LLM interroge.
+    retriever: Any = None
     _last_decision: Decision | None = field(default=None, init=False)
 
     # --- réaction ---
@@ -67,6 +70,7 @@ class Agent:
 
     def _decide(self, perception: Perception, ap: Appraisal) -> Decision:
         """Répartit sur la politique courante (registre de décisions)."""
+        rag = self._rag_context(perception)
         if self.policy is PolicyName.LLM:
             return LLMPolicy().decide(
                 perception=perception,
@@ -77,6 +81,7 @@ class Agent:
                 known_exits=self.known_exits,
                 name=self.name,
                 memory=self.memory,
+                rag=rag,
             )
         if self.policy is PolicyName.HYBRID:
             return hybrid_decide(
@@ -88,6 +93,7 @@ class Agent:
                 known_exits=self.known_exits,
                 name=self.name,
                 memory=self.memory,
+                rag=rag,
             )
         return rules_decide(
             perception=perception,
@@ -98,6 +104,36 @@ class Agent:
             known_exits=self.known_exits,
             name=self.name,
         )
+
+    def _rag_context(self, perception: Perception) -> list[dict[str, object]] | None:
+        """Interroge la base de connaissances (retriever) pour une décision LLM.
+
+        La requête est construite depuis la situation perçue ; le retriever
+        filtre par **temps simulé** (C6 : rien de t > now) et **profil**
+        (F1). Pas de retriever ⇒ pas de RAG (décision sans base, journalisée).
+        """
+        if self.retriever is None:
+            return None
+        query = (
+            "quelle sortie est sûre pour évacuer ? "
+            f"fumée={perception.smoke_visible} "
+            f"annonce={perception.announcement or ''}"
+        )
+        try:
+            hits = self.retriever.retrieve(
+                query, now=perception.tick, profile=self.archetype, k=3
+            )
+        except Exception:
+            return None
+        return [
+            {
+                "id": doc.metadata.get("id"),
+                "titre": doc.metadata.get("title"),
+                "collection": doc.metadata.get("collection"),
+                "contenu": doc.page_content,
+            }
+            for doc, _score in hits
+        ]
 
     def _novel_events(self, perception: Perception) -> bool:
         if perception.smoke_visible and not self.memory.has_seen_signal("fumée", True):
@@ -221,6 +257,7 @@ def make_agent(
     name: str | None = None,
     known_exits: frozenset[str] = frozenset(),
     prehistory: bool = False,
+    retriever: Any = None,
 ) -> Agent:
     """Fabrique un agent de l'archétype donné (portail de test et de sim).
 
@@ -228,7 +265,7 @@ def make_agent(
     ``spatial_confidence`` : un habitué croit *connaître* une sortie avec
     plus de confiance qu'un visiteur qui ne la connaît pas.
     ``prehistory=True`` amorce la mémoire avec les échanges J−3 de
-    l'archétype (A1) — le run commence « trois jours avant ».
+    l'archétype (A1) ; ``retriever`` branche la base de connaissances (RAG).
     """
     traits = archetype_registry(archetype)
     agent = Agent(
@@ -237,6 +274,7 @@ def make_agent(
         archetype=archetype,
         traits=traits,
         known_exits=known_exits,
+        retriever=retriever,
     )
     for label in sorted(known_exits):
         agent.knowledge.set(

@@ -52,12 +52,15 @@ def build_inputs(
     appraisal: Appraisal,
     knowledge: Knowledge,
     memory: Memory | None = None,
+    rag: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     """Le contexte compact et auditable envoyé au modèle.
 
     ``memory`` rend le **memorandum** personnel : les reçus de l'agent
     (fait, source, tick, confiance) que le modèle doit intégrer. C'est ce
     qui rend la mémoire *visible dans le comportement* — la mission.
+    ``rag`` porte les passages **retrouvés** (id, titre, collection,
+    contenu) : la base de connaissances consultée, pas seulement le prompt.
     """
     known = sorted(
         (k[5:], round(b.confidence, 2), b.source.value, b.tick)
@@ -94,6 +97,7 @@ def build_inputs(
         "dangers": hazards,
         "messages_recus": heard,
         "memoire": memo,
+        "contexte_rag": rag or [],
         "stress": round(perception.state.stress, 2),
         "herding": traits.herding,
     }
@@ -123,6 +127,7 @@ class LLMPolicy:
         known_exits: frozenset[str],
         name: str,
         memory: Memory | None = None,
+        rag: list[dict[str, object]] | None = None,
     ) -> Decision:
         port, provider, model = self._port()
         inputs = build_inputs(
@@ -131,6 +136,7 @@ class LLMPolicy:
             appraisal=appraisal,
             knowledge=knowledge,
             memory=memory,
+            rag=rag,
         )
         request = LLMRequest(
             messages=_schema_messages(inputs),
@@ -247,6 +253,7 @@ def hybrid_decide(
     known_exits: frozenset[str],
     name: str,
     memory: Memory | None = None,
+    rag: list[dict[str, object]] | None = None,
 ) -> Decision:
     """Règles d'abord ; on monte au LLM seulement en ambiguïté."""
     base = rules_decide(
@@ -273,6 +280,7 @@ def hybrid_decide(
             known_exits=known_exits,
             name=name,
             memory=memory,
+            rag=rag,
         )
         return policy
     return base
