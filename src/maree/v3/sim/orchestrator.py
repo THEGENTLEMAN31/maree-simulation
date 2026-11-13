@@ -16,11 +16,13 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from maree.v3.agents.agent import Agent, make_agent
+from maree.v3.agents.appraisal import Action
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision
 from maree.v3.core.ids import AgentId
 from maree.v3.core.ports import ExecutionMode, PolicyName
 from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
+from maree.v3.sim.physics import CrowdPhysics, Target
 from maree.v3.sim.scene import Scene
 from maree.v3.world.navgraph import NavigationGraph
 from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
@@ -92,6 +94,8 @@ class Simulation:
         run_id: str = "v3",
         mode: ExecutionMode = ExecutionMode.SYNC,
         latency_ticks: dict[PolicyName, int] | None = None,
+        physics: CrowdPhysics | None = None,
+        physics_steps_per_tick: int = 200,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
@@ -99,6 +103,9 @@ class Simulation:
         self.bus = bus or MemoryBus()
         self.run_id = run_id
         self.mode = mode
+        self.physics = physics
+        self.physics_steps_per_tick = physics_steps_per_tick
+        self._evacuated: set[int] = set()
         #: latence de décision par politique (ticks) — le LLM réfléchit lentement.
         self.latency_ticks = latency_ticks or {
             PolicyName.RULES: 0,
@@ -138,6 +145,8 @@ class Simulation:
             )
             agent.policy = self.policy
             self.scene.add(agent, space_id, pt)
+            if self.physics is not None:
+                self.physics.spawn(agent.uid.uid, pt, desired_speed=agent.speed_max)
 
     def run(self, timesteps: list[Timestep]) -> RunLog:
         """Anime le monde tick par tick (barrière en sync, cadence en async)."""
@@ -166,13 +175,19 @@ class Simulation:
         if self.mode is ExecutionMode.ASYNC:
             due = [a for a, (apply_t, _) in self._scheduled.items() if apply_t <= tick]
             for agent_id in sorted(due, key=lambda a: a.uid):
+                if agent_id.uid in self._evacuated:
+                    self._scheduled.pop(agent_id, None)
+                    continue
                 apply_t, snap = self._scheduled.pop(agent_id)
                 agent = self.scene.instances[agent_id].agent
                 decision = agent.react(snap)
                 self._record(agent, decision, t_prod=snap.tick, t_trait=apply_t)
+                self._apply_intention(agent, decision)
 
         # 2) détecter les nouveaux signaux (fronts) ; en sync décider immédiatement
         for agent_id in sorted(self.scene.instances, key=lambda a: a.uid):
+            if agent_id.uid in self._evacuated:      # sorti physiquement : plus de décision
+                continue
             agent = self.scene.instances[agent_id].agent
             perception = self.scene.perception_for(agent_id)
             if not agent._novel_events(perception):
@@ -185,6 +200,28 @@ class Simulation:
             else:
                 decision = agent.react(perception)
                 self._record(agent, decision, t_prod=tick, t_trait=tick)
+                self._apply_intention(agent, decision)
+
+        # 3) le corps bouge : la physique avance et l'on diffuse l'état
+        if self.physics is not None:
+            self.physics.advance(self.physics_steps_per_tick)
+            new_evac = self.physics.evacuated() - self._evacuated
+            self._evacuated |= new_evac
+            for tag in sorted(new_evac):
+                self._emit("agent.evacuated", tick, tick, {"agent": f"A{tag:02d}"})
+            positions = self.physics.positions()
+            self._emit("world.snapshot", tick, tick, {
+                "agents": {str(tag): [round(x, 2), round(y, 2)] for tag, (x, y) in positions.items()},
+            })
+
+    def _apply_intention(self, agent: Agent, decision: Decision) -> None:
+        """Traduit une décision en intention physique (sortie ou rester)."""
+        if self.physics is None:
+            return
+        if decision.action is Action.EVACUER and decision.target:
+            self.physics.set_intention(agent.uid.uid, Target.exit(decision.target))
+        else:
+            self.physics.set_intention(agent.uid.uid, Target.stay())
 
     def _record(self, agent: Agent, decision: Decision, t_prod: int, t_trait: int) -> None:
         """Journalise décision + cohérence (C6) + publie l'enveloppe (C1)."""
