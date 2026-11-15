@@ -99,6 +99,11 @@ def _wire_providers() -> None:
         "MAREE_LLM_URL", "http://127.0.0.1:8081/v1"
     )
     catalog.register_provider("llamacpp", OpenAICompatibleChat(base_url=_url))
+    #: tier « small » servi par sa propre instance (8082) — jamais 8081.
+    _small_url = os.environ.get(
+        "MAREE_LLM_SMALL_URL", "http://127.0.0.1:8082/v1"
+    )
+    catalog.register_provider("llamacpp-small", OpenAICompatibleChat(base_url=_small_url))
 
 
 __all__ = ["Runtime", "assemble"]

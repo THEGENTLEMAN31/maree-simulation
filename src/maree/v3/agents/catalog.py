@@ -15,7 +15,8 @@ from maree.v3.core.ports import ChatModelPort, ModelSpec
 #: est l'hôte natif projet (port 8081) ; ``stub`` sert aux tests.
 CATALOG: dict[str, ModelSpec] = {
     "stub": ModelSpec("stub", "stub", "stub-bot", max_tokens=64),
-    "petit": ModelSpec("petit", "llamacpp", "qwen3-0-6b", max_tokens=64, tags=("small",)),
+    #: tier « small » : un fournisseur *distinct* (port 8082) — pas l'hôte 8081.
+    "petit": ModelSpec("petit", "llamacpp-small", "qwen3-0-6b", max_tokens=64, tags=("small",)),
     "decision": ModelSpec(
         "decision", "llamacpp", "gemma4-e2b", max_tokens=200, tags=("big", "decision")
     ),

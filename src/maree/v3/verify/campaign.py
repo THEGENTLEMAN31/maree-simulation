@@ -79,6 +79,7 @@ def run_once(
     physics=None,
     run_id_prefix: str = "camp",
     timeline: tuple[Timestep, ...] | None = None,
+    physics_steps_per_tick: int = 200,
 ) -> RunResult:
     """Un run d'une configuration, sur une graine, sur un monde fixé."""
     import time
@@ -86,7 +87,7 @@ def run_once(
     bus = bus or MemoryBus()
     sim = Simulation(seed=seed, policy=config.policy, mode=config.mode,
                      bus=bus, run_id=f"{run_id_prefix}_{config.name}_s{seed}",
-                     physics=physics).build(world)
+                     physics=physics, physics_steps_per_tick=physics_steps_per_tick).build(world)
     for archetype, count, known in config.population:
         sim.spawn(archetype, count, known, llm_alias=config.llm_alias)
     steps = timeline or _DEFAULT_TIMELINE
