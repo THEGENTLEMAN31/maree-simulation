@@ -145,6 +145,9 @@ kafka-topics:  ## crée les topics du projet
 v3-replay-demo:  ## rejoue le run versionné (E3) — sans LLM ni Kafka
 	uv run python -c "from maree.v3.sim.replay import replay_jsonl; from pathlib import Path; r=replay_jsonl(Path('runs/v3/demo_replay_v3.jsonl')); print('run', r.run_id, '| digest', r.digest[:16], '|', r.summarize())"
 
+v3-divergence:  ## la mission au vrai LLM : mémoire personnelle → choix opposés
+	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} uv run python scripts/v3_divergence.py
+
 # ------------------------------------------------------------
 # Diagnostic
 # ------------------------------------------------------------
@@ -173,4 +176,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
