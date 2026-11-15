@@ -1,0 +1,193 @@
+{
+  "provider": "real",
+  "rows": [
+    {
+      "config": "rules",
+      "seed": 1,
+      "decisions": 12,
+      "llm_calls": 0,
+      "replis": 0,
+      "tokens": 0,
+      "wall_s": 0.003,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "rules",
+      "seed": 2,
+      "decisions": 12,
+      "llm_calls": 0,
+      "replis": 0,
+      "tokens": 0,
+      "wall_s": 0.002,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "rules",
+      "seed": 3,
+      "decisions": 12,
+      "llm_calls": 0,
+      "replis": 0,
+      "tokens": 0,
+      "wall_s": 0.002,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "hybrid",
+      "seed": 1,
+      "decisions": 12,
+      "llm_calls": 0,
+      "replis": 0,
+      "tokens": 0,
+      "wall_s": 0.003,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "hybrid",
+      "seed": 2,
+      "decisions": 12,
+      "llm_calls": 0,
+      "replis": 0,
+      "tokens": 0,
+      "wall_s": 0.002,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "hybrid",
+      "seed": 3,
+      "decisions": 12,
+      "llm_calls": 0,
+      "replis": 0,
+      "tokens": 0,
+      "wall_s": 0.003,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "llm_big",
+      "seed": 1,
+      "decisions": 12,
+      "llm_calls": 12,
+      "replis": 0,
+      "tokens": 2264,
+      "wall_s": 7.575,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "llm_big",
+      "seed": 2,
+      "decisions": 12,
+      "llm_calls": 12,
+      "replis": 0,
+      "tokens": 2264,
+      "wall_s": 5.667,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    },
+    {
+      "config": "llm_big",
+      "seed": 3,
+      "decisions": 12,
+      "llm_calls": 12,
+      "replis": 0,
+      "tokens": 2264,
+      "wall_s": 5.636,
+      "lag_max": 0,
+      "consensus": 1.0,
+      "couplage": 0.0,
+      "emergence": false
+    }
+  ],
+  "aggregate": {
+    "rules": {
+      "n_runs": 3,
+      "decisions_med": 12,
+      "llm_calls_med": 0,
+      "tokens_med": 0,
+      "wall_s_med": 0.002,
+      "lag_max_med": 0,
+      "consensus_med": 1.0,
+      "couplage_med": 0.0,
+      "empreinte_emergence": 0,
+      "decisions_span": [
+        12,
+        12
+      ],
+      "llm_calls_span": [
+        0,
+        0
+      ],
+      "tokens_span": [
+        0,
+        0
+      ]
+    },
+    "hybrid": {
+      "n_runs": 3,
+      "decisions_med": 12,
+      "llm_calls_med": 0,
+      "tokens_med": 0,
+      "wall_s_med": 0.003,
+      "lag_max_med": 0,
+      "consensus_med": 1.0,
+      "couplage_med": 0.0,
+      "empreinte_emergence": 0,
+      "decisions_span": [
+        12,
+        12
+      ],
+      "llm_calls_span": [
+        0,
+        0
+      ],
+      "tokens_span": [
+        0,
+        0
+      ]
+    },
+    "llm_big": {
+      "n_runs": 3,
+      "decisions_med": 12,
+      "llm_calls_med": 12,
+      "tokens_med": 2264,
+      "wall_s_med": 5.667,
+      "lag_max_med": 0,
+      "consensus_med": 1.0,
+      "couplage_med": 0.0,
+      "empreinte_emergence": 0,
+      "decisions_span": [
+        12,
+        12
+      ],
+      "llm_calls_span": [
+        12,
+        12
+      ],
+      "tokens_span": [
+        2264,
+        2264
+      ]
+    }
+  }
+}
