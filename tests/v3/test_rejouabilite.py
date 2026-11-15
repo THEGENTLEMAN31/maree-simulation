@@ -44,14 +44,23 @@ def test_le_bus_memoire_recoit_les_evenements() -> None:
 
 def test_le_rejeu_reproduit_le_meme_digest(tmp_path: Path) -> None:
     sim = _run(seed=7)
-    path = tmp_path / "run.jsonl"
-    write_jsonl(path, run_header("e3_test", sample_worldspec(), sim.seed, sim.policy), sim.log)
-    # digest du run en mémoire == digest reconstruit depuis le journal
-    assert log_digest(sim.log) == replay_jsonl(path).digest
-    # le rejeu ne refait aucun appel (il ne fait que lire) : n_decisions stable
-    assert replay_jsonl(path).n_decisions == len(sim.log.rows)
-    # idempotent
-    assert replay_jsonl(path).digest == replay_jsonl(path).digest
+    # format canonique (E3) : le flux complet enregistré, rejoué à l'identique
+    from maree.v3.sim.journal import envelope_digest, write_run
+
+    path = tmp_path / "run_full.jsonl"
+    write_run(path, run_header("e3_test", sample_worldspec(), sim.seed, sim.policy), sim.bus.envelopes)
+    r = replay_jsonl(path)
+    assert r.digest == envelope_digest(sim.bus.envelopes)   # identité du flux
+    assert r.n_decisions == len(sim.log.rows)                # mêmes décisions
+    assert replay_jsonl(path).digest == r.digest             # idempotent
+
+
+def test_le_rejeu_ancien_format_coincide_sur_les_decisions(tmp_path: Path) -> None:
+    """Le vieux format décisions-only reste rejouable (digest égal)."""
+    sim = _run(seed=7)
+    p = tmp_path / "legacy.jsonl"
+    write_jsonl(p, run_header("legacy", sample_worldspec(), sim.seed, sim.policy), sim.log)
+    assert log_digest(sim.log) == replay_jsonl(p).digest
 
 
 def test_le_rejeu_est_deterministe_entre_runs() -> None:
@@ -59,3 +68,35 @@ def test_le_rejeu_est_deterministe_entre_runs() -> None:
     b = _run(seed=11)
     assert log_digest(a.log) == log_digest(b.log)
     assert log_digest(a.log) != log_digest(_run(seed=12).log) or True
+
+
+# ---- E3 : le flux complet d'un run se rejoue à l'identique, sans LLM ----
+
+def test_le_flux_complet_dun_run_se_rejoue_a_lidentique(tmp_path: Path) -> None:
+    from maree.v3.sim.bus import MemoryBus
+    from maree.v3.sim.journal import envelope_digest, run_header, write_run
+    from maree.v3.sim.replay import replay_jsonl
+    from maree.v3.world.sample import sample_worldspec
+
+    bus = MemoryBus()
+    sim = Simulation(seed=5, policy=PolicyName.RULES, bus=bus, run_id="e3_full").build(sample_worldspec())
+    sim.spawn("visiteur", 2, frozenset({"A", "B"}))
+    sim.run([Timestep(1), Timestep(10, smoke=True)])
+    path = tmp_path / "run_full.jsonl"
+    write_run(path, run_header("e3_full", sample_worldspec(), sim.seed, sim.policy), bus.envelopes)
+    replay = replay_jsonl(path)
+    assert replay.digest == envelope_digest(bus.envelopes)   # identité du flux
+    assert replay_jsonl(path).digest == replay.digest        # stable
+    assert replay.n_decisions == 2                          # 2 agents décident au signal
+    assert replay.run_id == "e3_full"
+
+
+def test_le_rejeu_ne_fait_aucun_appel_llm() -> None:
+    """Le lecteur de rejeu n'importe aucun port de chat : il ne fait que lire."""
+    import inspect
+
+    from maree.v3.sim import replay as replay_mod
+
+    src = inspect.getsource(replay_mod)
+    assert "ChatModelPort" not in src
+    assert "policy_llm" not in src

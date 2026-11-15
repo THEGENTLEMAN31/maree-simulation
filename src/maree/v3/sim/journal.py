@@ -14,6 +14,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from maree.v3.core.ports import PolicyName
+from maree.v3.sim.bus import EventEnvelope
 from maree.v3.sim.orchestrator import RunLog
 from maree.v3.world.worldspec import WorldSpec
 
@@ -60,4 +61,28 @@ def log_digest(log: RunLog) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-__all__ = ["run_header", "world_hash", "write_jsonl"]
+def envelope_digest(envelopes: list[EventEnvelope]) -> str:
+    """Empreinte déterministe du **flux complet** d'événements (E3)."""
+    payload = json.dumps([e.to_dict() for e in envelopes], sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def write_run(
+    path: Path,
+    header: dict[str, object],
+    envelopes: list[EventEnvelope],
+) -> Path:
+    """Écrit le journal **complet** d'un run : en-tête + une ligne par événement.
+
+    C'est la base du rejeu (E3) : le flux (décisions, positions, évacuations,
+    signaux) est conservé tel quel → on peut reproduire à l'identique sans
+    LLM ni serveur.
+    """
+    with path.open("w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"kind": "header", **header}, ensure_ascii=False) + "\n")
+        for env in envelopes:
+            fh.write(json.dumps({"kind": "event", **env.to_dict()}, ensure_ascii=False) + "\n")
+    return path
+
+
+__all__ = ["envelope_digest", "log_digest", "run_header", "world_hash", "write_jsonl", "write_run"]
