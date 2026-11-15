@@ -95,8 +95,11 @@ do_up() {
   local cluster_id
   cluster_id="$(gen_id)"
   echo "[kafka] formatage du stockage (id=$cluster_id) ..."
+  # tolère un stockage déjà formaté (persisté d'un lancement précédent)
   "$KAFKA_DIR/kafka/bin/kafka-storage.sh" format \
-    -t "$cluster_id" -c "$KAFKA_DIR/kafka/config/kraft-single.properties" >/dev/null
+    --ignore-formatted \
+    -t "$cluster_id" -c "$KAFKA_DIR/kafka/config/kraft-single.properties" \
+    >/dev/null 2>&1 || echo "[kafka] (stockage déjà formaté, on continue)"
   echo "[kafka] lancement du nœud ..."
   nohup "$KAFKA_DIR/kafka/bin/kafka-server-start.sh" \
     "$KAFKA_DIR/kafka/config/kraft-single.properties" \
