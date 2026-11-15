@@ -43,6 +43,8 @@ class Agent:
     policy: PolicyName = PolicyName.RULES
     #: base de connaissances (retriever RAG) que la politique LLM interroge.
     retriever: Any = None
+    #: alias du modèle LLM pour cet agent (A5) : "decision" (grand) ou "petit".
+    llm_alias: str | None = None
     _last_decision: Decision | None = field(default=None, init=False)
 
     # --- réaction ---
@@ -72,7 +74,7 @@ class Agent:
         """Répartit sur la politique courante (registre de décisions)."""
         rag = self._rag_context(perception)
         if self.policy is PolicyName.LLM:
-            return LLMPolicy().decide(
+            return LLMPolicy(alias=self.llm_alias or "decision").decide(
                 perception=perception,
                 knowledge=self.knowledge,
                 social=self.social,

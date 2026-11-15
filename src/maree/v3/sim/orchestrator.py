@@ -29,6 +29,14 @@ from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
 from maree.v3.world.validate import validate_or_raise
 from maree.v3.world.worldspec import WorldSpec
 
+#: attribution du modèle LLM par **profil** (A5) — jamais par catégorie sociale.
+_TIER_BY_ARCHETYPE = {
+    "habitue": "decision",
+    "agent_de_securite": "decision",
+    "visiteur": "petit",
+    "famille": "petit",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Timestep:
@@ -129,8 +137,14 @@ class Simulation:
         self.scene.navgraph = g
         return self
 
-    def spawn(self, archetype: str, count: int, known_exits: frozenset[str]) -> None:
-        """Spawn ``count`` agents de l'archétype en points valides (éventail)."""
+    def spawn(self, archetype: str, count: int, known_exits: frozenset[str],
+              llm_alias: str | None = None) -> None:
+        """Spawn ``count`` agents de l'archétype en points valides (éventail).
+
+        ``llm_alias`` force le modèle LLM de l'agent (A5) ; par défaut on
+        l'attribue par **profil** (habitué/securite → grand, visiteur/famille →
+        petit), jamais par catégorie sociale.
+        """
         assert self.artifact is not None
         spaces = next(iter(self.artifact.levels.values())).spawn_points
         space_ids = sorted(spaces)
@@ -144,6 +158,7 @@ class Simulation:
                 known_exits=known_exits,
             )
             agent.policy = self.policy
+            agent.llm_alias = llm_alias or _TIER_BY_ARCHETYPE.get(archetype)
             self.scene.add(agent, space_id, pt)
             if self.physics is not None:
                 self.physics.spawn(agent.uid.uid, pt, desired_speed=agent.speed_max)
