@@ -44,6 +44,50 @@ question posée. **Toujours aucun écart grand/petit sur la décision.**
 > chercher un écart de décision entre tailles. L'énergie, elle, sépare déjà
 > les tailles (ci-dessous).
 
+## 2bis. Le scénario qui sépare les tailles : la sortie bloquée
+
+Les deux scénarios précédents laissent le défaut (aller à A) gagner : on ne
+sait donc pas si un modèle *lit* sa mémoire ou s'il **applique une
+position**. Ce scénario retire le défaut comme solution.
+
+Quatre visiteurs identiques, qui connaissent A et B. À t2, deux apprennent
+« la sortie A est bloquée », deux « la sortie B est bloquée » ; à t10, la
+fumée, **sans annonce** (aucun ordre ne nomme de sortie). La bonne réponse
+est de contourner la sortie crue bloquée : A01/A02 → B, A03/A04 → A.
+
+Le défaut du moteur (A, la sortie la plus confiante à égalité) est **faux
+pour la moitié des agents** : une politique qui répond « toujours A » ou
+« la première de la liste » vaut **0,50 par construction**. Le banc est
+rejoué sans GPU avec des stubs (`tests/v3/test_scenario_blocked.py`) : un
+stub « toujours A » obtient 0,50, un stub qui lit `dangers` obtient 1,00.
+
+| config | évite la bloquée | appels | tokens | replis |
+|---|---:|---:|---:|---:|
+| règles | **1,00** | 0 | 0 | 0 |
+| grand (e2b) | **1,00** | 8 | 1 480 | 0 |
+| petit (qwen) | **0,50** | 8 | 1 492 | 0 |
+| grand **sans** `dangers` (ablation) | 1,00 | 8 | 1 444 | 0 |
+
+5 graines, 5/5 identiques (monde fixe, température 0 : les graines testent la
+stabilité, pas la variance).
+
+**Lecture honnête.**
+
+- C'est le **premier écart de décision mesuré entre les tailles** : 1,00
+  contre 0,50, séparation parfaite. Le petit modèle choisit A pour les quatre
+  agents — y compris ceux qui viennent d'apprendre que A est bloquée. Il ne
+  lit pas la mémoire : il suit la position de la liste.
+- **L'ablation corrige l'explication facile.** Retirer le champ `dangers` du
+  prompt ne change rien au grand (1,00) : il ne s'appuie pas sur ce champ
+  seul, mais sur `messages_recus`/`memoire` — le fait brut y figure. Dire
+  « le grand lit `dangers` » aurait été faux ; ce qui est vrai, c'est qu'il
+  **intègre un fait mémorisé** que le petit ignore.
+- Le résultat ne dit pas que le petit est « mauvais » partout : sur les deux
+  scénarios précédents il égalait le grand. Il dit où la taille compte :
+  quand la décision exige de **croiser** un fait mémorisé avec l'état du
+  monde, au lieu de suivre un ordre ou un défaut.
+
+
 ## 3. Temps : sync contre async (C5/O10)
 
 | mode | `lag_max` | décisions | appels | tokens | consensus |
@@ -69,8 +113,9 @@ Même monde, même population (4 visiteurs + 2 habitués), même chronologie,
 
 **Lecture.** Le petit modèle fait **le même nombre d'appels** (même
 politique) pour **4× moins d'énergie active** et **3,8× moins de temps
-mural**. C'est le seul axe où la taille se voit dans nos mesures — et il
-compte : à décisions égales (§2), le petit coûte un quart.
+mural**. Comparé à décisions égales (§2), le petit coûte un quart ; comparé
+à §2bis, où il se trompe une fois sur deux, il coûte un quart *et* décide
+moins bien.
 
 Le bras hybride ne déclenche aucun appel ici : la fumée et l'annonce sont
 des cas que les règles traitent — l'hybride ne paie le LLM que sur
@@ -81,9 +126,11 @@ l'ambiguïté, ce qui est le comportement voulu.
 ## Ce que ces chiffres ne disent pas
 
 - ils ne prouvent pas que le LLM est « meilleur » : sur §1 il est pire que
-  les règles, sur §2 il est meilleur ;
-- ils ne séparent pas grand et petit **en décision** : deux scénarios ont
-  échoué à le faire, et c'est consigné comme tâche ouverte, pas contourné ;
+  les règles, sur §2bis il égale la règle et dépasse le petit ;
+- l'écart de décision entre tailles (§2bis) est mesuré sur **un** scénario
+  à quatre agents : il établit *où* la taille compte, pas une loi générale ;
+- l'ablation ne dit pas *par quel champ* le grand gagne (il reste à 1,00
+  sans `dangers`) — elle dit seulement que ce n'est pas ce champ seul ;
 - l'énergie est une puissance moyenne intégrée (1 Hz), pas un compteur
   matériel ;
 - une campagne multi-graines ne compare que des distributions : deux runs

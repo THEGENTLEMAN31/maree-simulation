@@ -1,0 +1,557 @@
+[
+  {
+    "config": "regles",
+    "seed": 1,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {},
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "regles",
+    "seed": 2,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {},
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "regles",
+    "seed": 3,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {},
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "regles",
+    "seed": 4,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {},
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "regles",
+    "seed": 5,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {},
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "grand",
+    "seed": 1,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1480
+  },
+  {
+    "config": "grand",
+    "seed": 2,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1480
+  },
+  {
+    "config": "grand",
+    "seed": 3,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1480
+  },
+  {
+    "config": "grand",
+    "seed": 4,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1480
+  },
+  {
+    "config": "grand",
+    "seed": 5,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1480
+  },
+  {
+    "config": "petit",
+    "seed": 1,
+    "evite_bloquee": 0.5,
+    "choix": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "petit",
+    "seed": 2,
+    "evite_bloquee": 0.5,
+    "choix": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "petit",
+    "seed": 3,
+    "evite_bloquee": 0.5,
+    "choix": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "petit",
+    "seed": 4,
+    "evite_bloquee": 0.5,
+    "choix": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "petit",
+    "seed": 5,
+    "evite_bloquee": 0.5,
+    "choix": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": true,
+      "A02": true,
+      "A03": true,
+      "A04": true
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "grand_sans_dangers",
+    "seed": 1,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": false,
+      "A02": false,
+      "A03": false,
+      "A04": false
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1444
+  },
+  {
+    "config": "grand_sans_dangers",
+    "seed": 2,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": false,
+      "A02": false,
+      "A03": false,
+      "A04": false
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1444
+  },
+  {
+    "config": "grand_sans_dangers",
+    "seed": 3,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": false,
+      "A02": false,
+      "A03": false,
+      "A04": false
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1444
+  },
+  {
+    "config": "grand_sans_dangers",
+    "seed": 4,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": false,
+      "A02": false,
+      "A03": false,
+      "A04": false
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1444
+  },
+  {
+    "config": "grand_sans_dangers",
+    "seed": 5,
+    "evite_bloquee": 1.0,
+    "choix": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "A",
+      "A04": "A"
+    },
+    "bloquees": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "danger_dans_prompt": {
+      "A01": false,
+      "A02": false,
+      "A03": false,
+      "A04": false
+    },
+    "consensus": 0.0,
+    "couplage": 0.0,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1444
+  }
+]

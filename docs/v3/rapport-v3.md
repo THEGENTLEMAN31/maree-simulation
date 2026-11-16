@@ -62,8 +62,13 @@ Points tenus par du code et des tests (suite `tests/v3`) :
 2. **Ordre public contradictoire** : l'annonce « évacuez par B » fait suivre
    les règles (0,50), les deux LLM arbitrent pour la mémoire (1,00). Le LLM
    gagne — sur une autre question.
-3. **Grand contre petit, en décision** : aucun écart mesuré sur ces deux
-   scénarios. C'est une tâche ouverte, pas un résultat caché.
+3. **Grand contre petit, en décision** : aucun écart sur « B est libre » ni
+   sur « l'annonce dit B » (défaut gagnant). Sur le scénario **sortie
+   bloquée**, écart net et reproductible : **grand 1,00, petit 0,50**
+   (5 graines sur 5). Le petit répond A aux quatre agents, y compris ceux
+   qui viennent d'apprendre que A est bloquée : il suit une position, pas
+   une mémoire. Le banc est rejoué sans GPU avec des stubs, qui reproduisent
+   exactement 0,50 et 1,00.
 4. **Énergie** : à nombre d'appels égal, le petit modèle coûte **4× moins**
    d'énergie active (0,0256 Wh contre 0,1058 Wh) et **3,8× moins** de temps
    mural. C'est le seul axe où la taille se voit dans nos mesures.
@@ -74,9 +79,14 @@ Points tenus par du code et des tests (suite `tests/v3`) :
 
 ## 4. Limites, dites franchement
 
-- **Pas d'écart grand/petit en décision** sur nos deux scénarios. Il faut une
-  tâche où le petit ne peut pas réussir par règle — piste consignée dans
-  `resultats-campagnes.md`.
+- **L'écart grand/petit en décision tient à un scénario** (la sortie crue
+  bloquée, quatre agents). Il montre *où* la taille compte — croiser un fait
+  mémorisé avec l'état du monde — pas une supériorité générale : sur deux
+  autres scénarios, les deux tailles font jeu égal.
+- **L'ablation ne nomme pas le champ gagnant** : retirer `dangers` du prompt
+  ne fait pas chuter le grand. Il utilise donc le fait brut
+  (`messages_recus`/`memoire`), pas le champ pré-digéré — et on ne prétend
+  pas savoir lequel des deux porte la décision.
 - **Le client Godot n'est pas dans ce dépôt** : il est fait par une autre
   personne ; ici on livre le **contrat** (trames, dossier, injections) et un
   serveur qui tourne.
@@ -112,6 +122,7 @@ Pour les campagnes (serveurs requis) :
 ```bash
 uv run python scripts/v3_campaign_divergence.py 1 2 3 4 5
 uv run python scripts/v3_campaign_discriminant.py 1 2 3 4 5
+uv run python scripts/v3_campaign_blocked.py 1 2 3 4 5   # ou make v3-blocked
 uv run python scripts/v3_campaign_time.py 1 2 3
 uv run python scripts/v3_energy.py --seeds 1 2 3
 ```

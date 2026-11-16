@@ -148,6 +148,13 @@ v3-replay-demo:  ## rejoue le run versionné (E3) — sans LLM ni Kafka
 v3-divergence:  ## la mission au vrai LLM : mémoire personnelle → choix opposés
 	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} uv run python scripts/v3_divergence.py
 
+# Le scénario qui sépare les tailles : éviter la sortie crue bloquée.
+# Le banc est testé sans GPU (tests/v3/test_scenario_blocked.py).
+v3-blocked:  ## campagne « sortie bloquée » : grand vs petit vs ablation
+	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} \
+	MAREE_LLM_SMALL_URL=$${MAREE_LLM_SMALL_URL:-http://127.0.0.1:8082/v1} \
+		uv run python scripts/v3_campaign_blocked.py 1 2 3 4 5
+
 v3-serve:  ## sert un run v3 en WS pour le client (P4) — 8766
 	uv run python scripts/v3_serve.py --start-now
 
@@ -179,4 +186,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence v3-serve kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence v3-blocked v3-serve kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
