@@ -48,3 +48,34 @@ def test_le_mode_selectionnable_au_lancement() -> None:
     for mode in ExecutionMode:
         sim = _sim(mode)   # pas d'exception, les deux modes tournent
         assert sim.log.rows
+
+
+def test_le_run_emmet_lindicateur_demergence() -> None:
+    from maree.v3.sim.bus import MemoryBus
+
+    bus = MemoryBus()
+    sim = Simulation(seed=1, policy=PolicyName.RULES, bus=bus).build(sample_worldspec())
+    sim.spawn("visiteur", 2, frozenset({"A", "B"}))
+    sim.run([Timestep(1), Timestep(10, smoke=True)])
+    inds = bus.published("indicator.emergence")
+    assert inds, "l'indicateur d'émergence doit être calculé pendant le run"
+    assert "consensus" in inds[0].data and "couplage" in inds[0].data
+
+
+def test_e_social_exces_sur_le_null() -> None:
+    from maree.v3.agents.agent import make_agent
+    from maree.v3.agents.knowledge import Belief, Source
+    from maree.v3.verify.emergence import e_social, emergence_report
+
+    def crowd(source):
+        agents = []
+        for i in range(4):
+            a = make_agent(i + 1, "visiteur", known_exits=frozenset({"A"}))
+            a.knowledge.beliefs["exit:A"] = Belief("A", 0.8, source, 0)
+            agents.append(a)
+        return emergence_report(agents)
+
+    obs = crowd(Source.ENTENDU)      # accord construit par ouï-dire
+    neutral = crowd(Source.CONNU)    # même accuent mais pas social
+    assert e_social(obs, neutral) >= 0.0
+    assert e_social(neutral, neutral) == 0.0
