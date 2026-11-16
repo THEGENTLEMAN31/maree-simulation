@@ -24,6 +24,7 @@ from maree.v3.core.ports import ExecutionMode, PolicyName
 from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
 from maree.v3.sim.physics import CrowdPhysics, Target
 from maree.v3.sim.scene import Scene
+from maree.v3.verify.emergence import emergence_report
 from maree.v3.world.navgraph import NavigationGraph
 from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
 from maree.v3.world.validate import validate_or_raise
@@ -228,6 +229,15 @@ class Simulation:
             self._emit("world.snapshot", tick, tick, {
                 "agents": {str(tag): [round(x, 2), round(y, 2)] for tag, (x, y) in positions.items()},
             })
+
+        # 4) indicateur d'émergence — calculé PENDANT le run, pas après (B2)
+        agents = [self.scene.instances[a].agent for a in self.scene.instances]
+        rep = emergence_report(agents)
+        self._emit("indicator.emergence", tick, tick, {
+            "consensus": rep["consensus"],
+            "couplage": rep["couplage"],
+            "emergence": rep["emergence"],
+        })
 
     def _apply_intention(self, agent: Agent, decision: Decision) -> None:
         """Traduit une décision en intention physique (sortie ou rester)."""

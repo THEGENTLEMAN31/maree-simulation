@@ -1,0 +1,62 @@
+[
+  {
+    "mode": "sync",
+    "seed": 1,
+    "decisions": 8,
+    "llm_calls": 8,
+    "tokens": 1476,
+    "lag_max": 0,
+    "consensus": 0.0,
+    "couplage": 0.5
+  },
+  {
+    "mode": "sync",
+    "seed": 2,
+    "decisions": 8,
+    "llm_calls": 8,
+    "tokens": 1476,
+    "lag_max": 0,
+    "consensus": 0.0,
+    "couplage": 0.5
+  },
+  {
+    "mode": "sync",
+    "seed": 3,
+    "decisions": 8,
+    "llm_calls": 8,
+    "tokens": 1476,
+    "lag_max": 0,
+    "consensus": 0.0,
+    "couplage": 0.5
+  },
+  {
+    "mode": "async",
+    "seed": 1,
+    "decisions": 8,
+    "llm_calls": 8,
+    "tokens": 1476,
+    "lag_max": 4,
+    "consensus": 0.0,
+    "couplage": 0.5
+  },
+  {
+    "mode": "async",
+    "seed": 2,
+    "decisions": 8,
+    "llm_calls": 8,
+    "tokens": 1476,
+    "lag_max": 4,
+    "consensus": 0.0,
+    "couplage": 0.5
+  },
+  {
+    "mode": "async",
+    "seed": 3,
+    "decisions": 8,
+    "llm_calls": 8,
+    "tokens": 1476,
+    "lag_max": 4,
+    "consensus": 0.0,
+    "couplage": 0.5
+  }
+]

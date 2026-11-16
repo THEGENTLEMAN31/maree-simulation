@@ -43,7 +43,10 @@ def test_determinisme_meme_graine() -> None:
     cfg = CampConfig("llm_big", policy=PolicyName.LLM, llm_alias="decision")
     a = run_once(world, cfg, seed=3, run_id_prefix="d")
     b = run_once(world, cfg, seed=3, run_id_prefix="d")
-    assert a.as_dict() == b.as_dict()
+    # comparer les champs déterministes (exclure la mesure wall_s)
+    det_a = {k: v for k, v in a.as_dict().items() if k != "wall_s"}
+    det_b = {k: v for k, v in b.as_dict().items() if k != "wall_s"}
+    assert det_a == det_b
     # graine différente => on laisse varier (pas d'appariement)
     c = run_once(world, cfg, seed=4, run_id_prefix="d")
     assert c.seed == 4

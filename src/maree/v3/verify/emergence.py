@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from typing import cast
 
 from maree.v3.agents.agent import Agent
 from maree.v3.agents.knowledge import Source
@@ -86,11 +87,24 @@ def social_excess(observed_consensus: float, null_consensus: float) -> float:
     return observed_consensus - null_consensus
 
 
+def e_social(observed_report: dict[str, object], null_report: dict[str, object]) -> float:
+    """E_social entre un monde et son contre-factuel (le null).
+
+    ``observed_report`` = émergence du monde réel ; ``null_report`` = émergence
+    du même monde aux mémoires personnelles brouillées (ou communication coupée).
+    """
+    return social_excess(
+        float(cast("float", observed_report["consensus"])),
+        float(cast("float", null_report["consensus"])),
+    )
+
+
 __all__ = [
     "TAU_C",
     "TAU_K",
     "consensus",
     "couplage",
+    "e_social",
     "emergence_report",
     "preferred_exit",
     "social_excess",
