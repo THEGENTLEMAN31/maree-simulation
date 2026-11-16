@@ -357,6 +357,17 @@ Ce qui est **déjà** tenu par le code, et vérifié par les tests de `tests/v3`
 - **E3 — rejeu.** `journal.write_run` écrit l'en-tête + le flux complet
   d'événements ; `sim.replay` le relit et recalcule les indicateurs sans
   aucun appel LLM.
+- **P4 — contrat front.** `api/frames.py` traduit chaque enveloppe en trame
+  (`decision`, `snapshot`, `hazard`, `message`, `evacuated`, `indicators`,
+  `incident`, `event` en repli) ; `api/server.py` sert le run en WebSocket
+  (`hello`, `world`, `end`, ré-`hello`, `agent_dossier`, `inject`) ;
+  `api/dossier.py` rend la fiche d'un agent étiquetée
+  `measured`/`derived`/`generated` (ADR-011). Une injection est mise en file
+  par `Simulation.submit()` et drainée au **tick suivant**, journalisée
+  (`control.injection`) **avant** l'événement qu'elle provoque.
+  Lancement : `make v3-serve` (port 8766) puis le client sur
+  `ws://127.0.0.1:8766`. Un client qui arrive en cours de run reçoit
+  `hello` + `world` + le dernier `snapshot`, puis le flux.
 
 Le contrat d'affichage complet (trames WebSocket) reste à implémenter côté
 `api/` ; le présent document en fixe la forme cible.

@@ -12,6 +12,7 @@ cognition. C'est le support de l'évaluation de la pipeline avec un vrai LLM.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -126,14 +127,18 @@ class Simulation:
         self.violations = 0          # compteur de cohérence temporelle (C6)
         #: incidents **tracés et dénombrés** par cause (A4) : repli règles compris.
         self.incidents: Counter[str] = Counter()
+        #: injections client en attente (P4), drainées au tick suivant.
+        self._injections: list[dict[str, object]] = []
         self._scheduled: dict[AgentId, tuple[int, Perception]] = {}
         self.navgraph: NavigationGraph | None = None
         self.artifact: SimArtifact | None = None
+        self.world: WorldSpec | None = None
         self.scene = Scene()
         self.log = RunLog()
 
     def build(self, world: WorldSpec) -> Simulation:
         validate_or_raise(world)
+        self.world = world
         g = NavigationGraph(world)
         art = build_sim_artifact(world, g, self._rng, spawn_per_space=6)
         self.navgraph = g
@@ -169,9 +174,19 @@ class Simulation:
 
     def run(self, timesteps: list[Timestep]) -> RunLog:
         """Anime le monde tick par tick (barrière en sync, cadence en async)."""
+        for _ in self.iter_ticks(timesteps):
+            pass
+        return self.log
+
+    def iter_ticks(self, timesteps: list[Timestep]) -> Iterator[int]:
+        """Comme ``run``, mais rend la main **après chaque tick** (diffusion live).
+
+        Le serveur P4 diffuse les enveloppes publiées entre deux rendus ; une
+        injection soumise entre deux ticks est drainée au début du suivant.
+        """
         by_tick = {ts.tick: ts for ts in timesteps}
         if not by_tick:
-            return self.log
+            return
         start, last = min(by_tick), max(by_tick)
         horizon = last + max(self.latency_ticks.values(), default=0)  # les appels en vol
         for tick in range(start, horizon + 1):
@@ -187,9 +202,41 @@ class Simulation:
                 for agent_uid, msg in ts.messages:
                     self.scene.mails.setdefault(AgentId(agent_uid), []).append(msg)
             self._process_tick(tick)
-        return self.log
+            yield tick
+
+    def submit(self, payload: dict[str, object]) -> None:
+        """Met en file une injection du client (P4) — drainée **au tick suivant**."""
+        self._injections.append(dict(payload))
+
+    def _drain_injections(self, tick: int) -> None:
+        """Applique les injections en **tête de tick** (perception unique).
+
+        ``control.injection`` est journalisé **avant** l'événement qu'il
+        provoque : l'injection n'est jamais une perception à deux vitesses.
+        """
+        while self._injections:
+            payload = self._injections.pop(0)
+            self._emit("control.injection", tick, tick, dict(payload))
+            kind = payload.get("kind")
+            if kind == "smoke":
+                self.scene.smoke = True
+                self._emit("world.smoke", tick, tick, {"visible": True})
+            elif kind == "announcement":
+                text = str(payload.get("text", ""))
+                self.scene.announcement = text
+                self._emit("world.announcement", tick, tick, {"text": text})
+            elif kind == "message":
+                raw_uid = payload.get("agent", 0)
+                uid = raw_uid if isinstance(raw_uid, int) else int(str(raw_uid))
+                text = str(payload.get("text", ""))
+                self.scene.mails.setdefault(AgentId(uid), []).append(
+                    Message(text, AgentId(99), tick)
+                )
 
     def _process_tick(self, tick: int) -> None:
+        # 0) injections client (P4) : drainées en tête de tick, journalisées avant l'effet
+        self._drain_injections(tick)
+
         # 1) en async : appliquer les décisions arrivées à échéance (perception figée)
         if self.mode is ExecutionMode.ASYNC:
             due = [a for a, (apply_t, _) in self._scheduled.items() if apply_t <= tick]
