@@ -48,7 +48,7 @@ Points tenus par du code et des tests (suite `tests/v3`) :
 | Perception figée, ordre canonique | décisions appliquées par `agent_id` croissant |
 | Émergence mesurée pendant le run | `indicator.emergence` à chaque tick |
 | Incidents tracés et dénombrés | `agent.incident` + `indicator.incidents` par cause |
-| Schémas versionnés | `schema: maree.event/1.0` sur chaque trame |
+| Schémas versionnés | `schema: maree.event/1.0` sur chaque trame — **36/36 conformes sur Kafka réel** |
 | Contrat front | trames WS, dossier agent étiqueté, injections au tick suivant |
 | Campagnes multi-graines | `verify/campaign.py` + scripts `v3_campaign*` |
 | Énergie | `scripts/v3_energy.py` (nvidia-smi 1 Hz, repos soustrait) |

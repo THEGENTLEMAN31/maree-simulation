@@ -99,6 +99,28 @@ stabilité, pas la variance).
 perception (latence déclarée du tier LLM), sans changer le résultat sur ce
 scénario. Le lag est mesuré, pas supposé.
 
+## 3bis. Le bus réel (C1 + F4)
+
+Broker Apache Kafka KRaft sur l'hôte (`make kafka-up`), topic `mv.events`,
+run de 36 événements (6 décisions, 1 fumée, 1 annonce, indicateurs et
+instantanés) :
+
+| Contrôle | Résultat |
+|---|---|
+| enveloppes reçues du topic | **36** |
+| séquences `seq` | 1..36, **continues** |
+| version de contrat annoncée | `maree.event/1.0` (une seule) |
+| trames conformes à leur schéma | **36 / 36** |
+| décisions reçues = décisions du journal | **oui** (agent, action, cible, dans l'ordre) |
+
+**Lecture.** Le contrat versionné tient **sur le fil**, pas seulement en
+mémoire : ce que consomme un client est exactement ce que le journal a
+décidé. Le premier essai a échoué pour une raison utile — le script
+réutilisait le même `run_id`, donc le topic cumulait deux runs (72
+événements, séquences redondantes). Le `run_id` est désormais unique par
+lancement : un topic append-only n'oublie rien, c'est l'identifiant qui doit
+distinguer les runs.
+
 ## 4. Énergie et temps mural par bras (E4/E5)
 
 Même monde, même population (4 visiteurs + 2 habitués), même chronologie,

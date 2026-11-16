@@ -347,6 +347,11 @@ Ce qui est **déjà** tenu par le code, et vérifié par les tests de `tests/v3`
   obligatoires de `data` par type ; `validate(type, data)` renvoie la liste
   des champs manquants. La validation est un **diagnostic**, pas un filtre :
   un type non schématisé est signalé, jamais supprimé du journal.
+  Vérifié **sur broker réel** (Kafka KRaft, `make kafka-up`) :
+  `scripts/v3_kafka_roundtrip.py` consomme `mv.events` et obtient
+  **36/36 trames conformes**, une seule version annoncée
+  (`maree.event/1.0`), séquences 1..36 continues, et les décisions reçues
+  sont **identiques au journal** du run (agent, action, cible, dans l'ordre).
 - **A4 — incidents tracés et dénombrés.** Un repli de politique émet
   `agent.incident {agent, cause, action}` et incrémente
   `Simulation.incidents[cause]` ; `indicator.incidents {total, par_cause}`

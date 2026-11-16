@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime
 
 from kafka import KafkaConsumer
 
@@ -21,11 +22,14 @@ from maree.v3.core.ports import PolicyName
 from maree.v3.sim.bus import KafkaBus
 from maree.v3.sim.journal import log_digest
 from maree.v3.sim.orchestrator import Simulation, Timestep
+from maree.v3.sim.schemas import EVENT_SCHEMA_ID, validate
 from maree.v3.world.sample import sample_worldspec
 
 BOOTSTRAP = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1:9092"
 TOPIC = "mv.events"
-RUN_ID = "c1_roundtrip"
+# un run_id ne se réutilise jamais (le topic est append-only) : deux lancements
+# avec le même identifiant feraient croire à un run de 72 événements.
+RUN_ID = f"c1_roundtrip_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
 def main() -> int:
@@ -64,9 +68,38 @@ def main() -> int:
     print(f"  décisions: {n_dec} | world.smoke: {n_smoke} | world.announcement: {n_ann}")
     seqs = sorted(int(e["seq"]) for e in seen)
     print(f"  seq: {seqs[0]}..{seqs[-1]}, continu : {seqs == list(range(1, len(seen) + 1))}")
+
+    # C1 : ce que le broker a reçu est ce que le journal a décidé — à l'ordre près
+    recues = [
+        (str(e["data"]["agent"]), str(e["data"]["action"]), e["data"]["target"])
+        for e in seen
+        if e["type"] == "agent.decision"
+    ]
+    journal = [(r.agent, r.action, r.target) for r in sim.log.rows]
+    print(f"  décisions identiques au journal : {recues == journal}")
     print(f"  digest journal = {log_digest(sim.log)[:16]}…")
-    ok = n_dec == len(sim.log.rows) and n_smoke == 1 and n_ann == 1
-    print("C1 OK :" , ok)
+
+    # F4 : chaque trame reçue porte la version du contrat et satisfait son schéma
+    hors_schema = [
+        (e["type"], errors)
+        for e in seen
+        if (errors := validate(str(e["type"]), e["data"]))  # type: ignore[arg-type]
+    ]
+    versions = {e.get("schema") for e in seen}
+    print(f"  F4 versions: {sorted(str(v) for v in versions)} | conformes : {len(seen) - len(hors_schema)}/{len(seen)}")
+    for event_type, errors in hors_schema[:3]:
+        print(f"    ✗ {event_type} : {errors}")
+
+    ok = (
+        n_dec == len(sim.log.rows)
+        and n_smoke == 1
+        and n_ann == 1
+        and seqs == list(range(1, len(seen) + 1))
+        and recues == journal
+        and versions == {EVENT_SCHEMA_ID}
+        and not hors_schema
+    )
+    print("C1 OK :", ok)
     return 0 if ok else 1
 
 
