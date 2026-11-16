@@ -11,6 +11,7 @@ cognition. C'est le support de l'évaluation de la pipeline avec un vrai LLM.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -123,6 +124,8 @@ class Simulation:
         }
         self._seq = 0
         self.violations = 0          # compteur de cohérence temporelle (C6)
+        #: incidents **tracés et dénombrés** par cause (A4) : repli règles compris.
+        self.incidents: Counter[str] = Counter()
         self._scheduled: dict[AgentId, tuple[int, Perception]] = {}
         self.navgraph: NavigationGraph | None = None
         self.artifact: SimArtifact | None = None
@@ -230,13 +233,17 @@ class Simulation:
                 "agents": {str(tag): [round(x, 2), round(y, 2)] for tag, (x, y) in positions.items()},
             })
 
-        # 4) indicateur d'émergence — calculé PENDANT le run, pas après (B2)
+        # 4) indicateurs calculés PENDANT le run, pas après (B2/A4)
         agents = [self.scene.instances[a].agent for a in self.scene.instances]
         rep = emergence_report(agents)
         self._emit("indicator.emergence", tick, tick, {
             "consensus": rep["consensus"],
             "couplage": rep["couplage"],
             "emergence": rep["emergence"],
+        })
+        self._emit("indicator.incidents", tick, tick, {
+            "total": sum(self.incidents.values()),
+            "par_cause": dict(sorted(self.incidents.items())),
         })
 
     def _apply_intention(self, agent: Agent, decision: Decision) -> None:
@@ -263,6 +270,15 @@ class Simulation:
             "fallback_cause": decision.fallback_cause,
             "explanation": decision.explanation,
         })
+        # A4 : un repli n'est pas un silence — il est tracé et dénombré par cause.
+        if decision.fallback:
+            cause = decision.fallback_cause or "inconnue"
+            self.incidents[cause] += 1
+            self._emit("agent.incident", t_prod, t_trait, {
+                "agent": agent.name,
+                "cause": cause,
+                "action": decision.action.value,
+            })
 
     def _emit(self, event_type: str, t_prod: int, t_trait: int, data: dict[str, object]) -> None:
         """Publie une enveloppe (C1) avec sa chronologie simulée (C3)."""

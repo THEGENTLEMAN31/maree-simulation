@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from maree.v3.core.ids import Tick
+from maree.v3.sim.schemas import EVENT_SCHEMA_ID
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +32,7 @@ class EventEnvelope:
 
     def to_dict(self) -> dict[str, object]:
         return {
+            "schema": EVENT_SCHEMA_ID,   # F4 : contrat versionné des trames
             "run_id": self.run_id,
             "seq": self.seq,
             "type": self.type,

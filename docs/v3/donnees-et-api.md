@@ -335,3 +335,28 @@ Codes : `world_invalid`, `run_not_found`, `agent_not_found`, `injection_invalid`
 | `parquet` | faits et métriques |
 | `glb` | monde |
 | `png` / `mp4` | rendu (côté front) |
+
+---
+
+## 10. État d'implémentation (v3, moteur)
+
+Ce qui est **déjà** tenu par le code, et vérifié par les tests de `tests/v3` :
+
+- **F4 — schéma versionné.** Chaque enveloppe du bus porte
+  `schema: "maree.event/1.0"`. `sim/schemas.py` déclare les champs
+  obligatoires de `data` par type ; `validate(type, data)` renvoie la liste
+  des champs manquants. La validation est un **diagnostic**, pas un filtre :
+  un type non schématisé est signalé, jamais supprimé du journal.
+- **A4 — incidents tracés et dénombrés.** Un repli de politique émet
+  `agent.incident {agent, cause, action}` et incrémente
+  `Simulation.incidents[cause]` ; `indicator.incidents {total, par_cause}`
+  est publié à chaque tick. Rien ne se replie en silence.
+- **B2 — émergence pendant le run.** `indicator.emergence
+  {consensus, couplage, emergence}` est émis à chaque tick, pas reconstruit
+  après coup.
+- **E3 — rejeu.** `journal.write_run` écrit l'en-tête + le flux complet
+  d'événements ; `sim.replay` le relit et recalcule les indicateurs sans
+  aucun appel LLM.
+
+Le contrat d'affichage complet (trames WebSocket) reste à implémenter côté
+`api/` ; le présent document en fixe la forme cible.
