@@ -1,0 +1,257 @@
+[
+  {
+    "config": "rules",
+    "seed": 1,
+    "mem_acc": 0.5,
+    "choices": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "rules",
+    "seed": 2,
+    "mem_acc": 0.5,
+    "choices": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "rules",
+    "seed": 3,
+    "mem_acc": 0.5,
+    "choices": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "rules",
+    "seed": 4,
+    "mem_acc": 0.5,
+    "choices": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "rules",
+    "seed": 5,
+    "mem_acc": 0.5,
+    "choices": {
+      "A01": "B",
+      "A02": "B",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 0,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 0
+  },
+  {
+    "config": "decision",
+    "seed": 1,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 7,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "decision",
+    "seed": 2,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "decision",
+    "seed": 3,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "decision",
+    "seed": 4,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "decision",
+    "seed": 5,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "petit",
+    "seed": 1,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 7,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1492
+  },
+  {
+    "config": "petit",
+    "seed": 2,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "petit",
+    "seed": 3,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "petit",
+    "seed": 4,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  },
+  {
+    "config": "petit",
+    "seed": 5,
+    "mem_acc": 1.0,
+    "choices": {
+      "A01": "A",
+      "A02": "A",
+      "A03": "B",
+      "A04": "B"
+    },
+    "consensus": 0.0,
+    "couplage": 0.5,
+    "llm_calls": 8,
+    "replis": 0,
+    "incidents": {},
+    "tokens": 1514
+  }
+]
