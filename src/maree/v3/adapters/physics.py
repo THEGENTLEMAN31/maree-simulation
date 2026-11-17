@@ -121,10 +121,18 @@ class JuPedSimCrowd:
             )
         return self._point_journey[key], self._point_stage[key]
 
-    def _journey_for(self, target: Target) -> tuple[int, int]:
+    def _journey_for(self, target: Target, current: Point) -> tuple[int, int]:
+        """(journey, stage) d'une intention.
+
+        ``current`` est la position **courante** de l'agent : « rester » s'y
+        résout, « point » va vers le point demandé. Toute autre intention
+        retombe sur la position courante (jamais sur l'origine du repère).
+        """
         if target.kind == "exit" and target.exit_id in self._exit_journey:
             return self._exit_journey[target.exit_id], self._exit_stage[target.exit_id]
-        return self._stay_journey((0.0, 0.0))
+        if target.kind == "point" and target.point is not None:
+            return self._stay_journey(target.point)
+        return self._stay_journey(current)
 
     def _place(self, position: Point, journey: int, stage: int, desired_speed: float) -> int:
         base = self._safe_position(position)
@@ -163,7 +171,9 @@ class JuPedSimCrowd:
         jps_id = self._tag_jps.get(tag)
         if jps_id is None or jps_id not in self._alive():
             return
-        journey, stage = self._journey_for(target)
+        position = self._sim.agent(jps_id).position
+        current = (float(position[0]), float(position[1]))
+        journey, stage = self._journey_for(target, current)
         self._sim.switch_agent_journey(jps_id, journey, stage)
 
     def advance(self, steps: int = 1) -> None:

@@ -11,11 +11,14 @@ cognition. C'est le support de l'évaluation de la pipeline avec un vrai LLM.
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import numpy as np
+from shapely.geometry import Point as ShapelyPoint
+from shapely.geometry import Polygon
 
 from maree.v3.agents.agent import Agent, make_agent
 from maree.v3.agents.appraisal import Action
@@ -30,7 +33,7 @@ from maree.v3.verify.emergence import emergence_report
 from maree.v3.world.navgraph import NavigationGraph
 from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
 from maree.v3.world.validate import validate_or_raise
-from maree.v3.world.worldspec import WorldSpec
+from maree.v3.world.worldspec import Point, WorldSpec
 
 #: attribution du modèle LLM par **profil** (A5) — jamais par catégorie sociale.
 _TIER_BY_ARCHETYPE = {
@@ -39,6 +42,12 @@ _TIER_BY_ARCHETYPE = {
     "visiteur": "petit",
     "famille": "petit",
 }
+
+#: placement initial (m) : marge aux parois et espacement minimal (JuPedSim
+#: exige > 0,4 m entre deux agents ; on prend de la marge).
+_SPAWN_MARGIN = 0.35
+_MIN_SPACING = 0.45
+_SPAWN_TRIES = 400
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,12 +164,14 @@ class Simulation:
         petit), jamais par catégorie sociale.
         """
         assert self.artifact is not None
-        spaces = next(iter(self.artifact.levels.values())).spawn_points
-        space_ids = sorted(spaces)
+        level = next(iter(self.artifact.levels.values()))
+        space_ids = sorted(level.spawn_points)
+        #: positions déjà occupées, pour l'espacement minimal au placement.
+        placed = [(i.point[0], i.point[1]) for i in self.scene.instances.values()]
         for i in range(count):
             space_id = space_ids[i % len(space_ids)]
-            pts = spaces[space_id]
-            pt = pts[i % len(pts)]
+            pt = self._free_point(level.walkable, placed)
+            placed.append(pt)
             agent = make_agent(
                 uid=len(self.scene.instances) + 1,
                 archetype=archetype,
@@ -171,6 +182,32 @@ class Simulation:
             self.scene.add(agent, space_id, pt)
             if self.physics is not None:
                 self.physics.spawn(agent.uid.uid, pt, desired_speed=agent.speed_max)
+
+    def _free_point(
+        self, walkable: Polygon, placed: list[Point]
+    ) -> Point:
+        """Un point libre, déterministe, à ``_MIN_SPACING`` des agents déjà posés.
+
+        Leçon 2026-11-17 : réutiliser six points d'artefact en boucle pour
+        soixante agents créait six grappes et une densité de pointe au spawn,
+        qui se lisait ensuite comme un goulot. Le placement est un tirage
+        rejeté dans le polygone marchable (marge ``_SPAWN_MARGIN``), donc
+        reproductible : même graine ⇒ mêmes positions.
+        """
+        inner = walkable.buffer(-_SPAWN_MARGIN)
+        minx, miny, maxx, maxy = inner.bounds
+        for _ in range(_SPAWN_TRIES):
+            x = float(self._rng.uniform(minx, maxx))
+            y = float(self._rng.uniform(miny, maxy))
+            if not inner.contains(ShapelyPoint(x, y)):
+                continue
+            if all(
+                (x - px) ** 2 + (y - py) ** 2 >= _MIN_SPACING**2
+                for px, py in placed
+            ):
+                return (x, y)
+        # repli : le centroïde de la zone sûre (jamais l'origine du repère).
+        return (float(inner.centroid.x), float(inner.centroid.y))
 
     def run(self, timesteps: list[Timestep]) -> RunLog:
         """Anime le monde tick par tick (barrière en sync, cadence en async)."""
@@ -294,13 +331,57 @@ class Simulation:
         })
 
     def _apply_intention(self, agent: Agent, decision: Decision) -> None:
-        """Traduit une décision en intention physique (sortie ou rester)."""
+        """Traduit une décision en intention physique.
+
+        Règle (2026-11-17) : **aucune** action ne déplace l'agent ailleurs que
+        là où il est, sauf ``EVACUER`` (vers une sortie) et ``CHERCHER`` /
+        ``CHERCHER_PROCHE`` (vers un point). Les autres tiennent la position :
+        elles n'avaient aucun sens physique (``SUIVRE``, ``AIDER``,
+        ``REVIRER``) et seront câblées avec la perception (C2).
+        """
         if self.physics is None:
             return
+        self.physics.set_intention(agent.uid.uid, self._target_for(agent, decision))
+
+    def _target_for(self, agent: Agent, decision: Decision) -> Target:
+        """L'intention physique d'une décision (pur, testable sans JuPedSim)."""
         if decision.action is Action.EVACUER and decision.target:
-            self.physics.set_intention(agent.uid.uid, Target.exit(decision.target))
-        else:
-            self.physics.set_intention(agent.uid.uid, Target.stay())
+            return Target.exit(decision.target)
+        if decision.action is Action.CHERCHER:
+            point = self._search_point(agent)
+            return Target.at(point) if point is not None else Target.stay()
+        if decision.action is Action.CHERCHER_PROCHE and decision.target:
+            point = self._position_of(decision.target)
+            return Target.at(point) if point is not None else Target.stay()
+        # RESTER, SUIVRE, AIDER, REVIRER : on tient la position (C2/C3).
+        return Target.stay()
+
+    def _search_point(self, agent: Agent) -> Point | None:
+        """Un point à 3 m, dans une direction déterministe tirée de l'agent.
+
+        « Chercher de l'information » ne veut pas dire sortir : on se déplace
+        dans la zone où l'on est, et l'adaptateur ramène le point dans le
+        domaine marchable (``_safe_position``).
+        """
+        if self.physics is None:
+            return None
+        position = self.physics.positions().get(agent.uid.uid)
+        if position is None:
+            return None
+        angle = (agent.uid.uid * 2.399963) % (2.0 * math.pi)
+        return (
+            position[0] + 3.0 * math.cos(angle),
+            position[1] + 3.0 * math.sin(angle),
+        )
+
+    def _position_of(self, name: str) -> Point | None:
+        """Position courante de l'agent ``name`` (s'il est encore dans le monde)."""
+        if self.physics is None:
+            return None
+        for agent_id, instance in self.scene.instances.items():
+            if instance.agent.name == name:
+                return self.physics.positions().get(agent_id.uid)
+        return None
 
     def _record(self, agent: Agent, decision: Decision, t_prod: int, t_trait: int) -> None:
         """Journalise décision + cohérence (C6) + publie l'enveloppe (C1)."""

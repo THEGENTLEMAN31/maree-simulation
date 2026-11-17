@@ -9,7 +9,10 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
+import pytest
 
 from maree.v3.adapters.physics import JuPedSimCrowd
 from maree.v3.core.ports import PolicyName
@@ -98,3 +101,89 @@ def test_lorchestrateur_fait_bouger_et_evacue() -> None:
     assert len(sim._evacuated) >= 1
     evac = sim.bus.published("agent.evacuated")
     assert evac, "un agent physiquement sorti est annoncé"
+
+# --- correctif 2026-11-17 : les intentions qui ne sortent pas -----------------
+
+def test_rester_reste_sur_place() -> None:
+    """« Rester » ne déplace pas : l'ancien code envoyait l'agent au coin."""
+    phys = _physics(_small_world())
+    phys.spawn(1, (5.0, 5.0), desired_speed=1.2)
+    phys.set_intention(1, Target.stay())
+    phys.advance(200)  # 10 s simulées
+    x, y = phys.positions()[1]
+    assert abs(x - 5.0) < 0.3 and abs(y - 5.0) < 0.3, (x, y)
+
+
+def test_aller_vers_un_point_y_va() -> None:
+    """``Target.at`` est une intention réelle (le champ ``point`` servait à rien)."""
+    phys = _physics(_small_world())
+    phys.spawn(1, (10.0, 5.0), desired_speed=1.3)
+    phys.set_intention(1, Target.at((10.0, 15.0)))
+    phys.advance(200)
+    _, y = phys.positions()[1]
+    assert y > 12.0
+
+
+def test_le_placement_ne_fait_pas_de_grappes() -> None:
+    """Soixante agents ne se partagent plus six points d'artefact."""
+    world = _small_world()
+    sim = Simulation(seed=3).build(world)
+    sim.spawn("visiteur", 20, frozenset({"A"}))
+    pts = [i.point for i in sim.scene.instances.values()]
+    assert len(set(pts)) == len(pts)
+    for i, a in enumerate(pts):
+        for b in pts[i + 1:]:
+            assert math.dist(a, b) >= 0.44
+
+
+class _Recorder:
+    """Port physique minimal : enregistre les intentions, ne bouge personne."""
+
+    def __init__(self) -> None:
+        self.intentions: dict[int, Target] = {}
+
+    def spawn(self, tag: int, position, desired_speed: float) -> None:
+        return None
+
+    def set_intention(self, tag: int, target: Target) -> None:
+        self.intentions[tag] = target
+
+    def advance(self, steps: int = 1) -> None:
+        return None
+
+    def positions(self) -> dict[int, tuple[float, float]]:
+        return {1: (5.0, 5.0)}
+
+    def evacuated(self) -> set[int]:
+        return set()
+
+    def close(self) -> None:
+        return None
+
+
+def test_chaque_action_a_une_intention_physique() -> None:
+    """Évacuer → sortie ; chercher → point ; le reste tient la position."""
+    from maree.v3.agents.appraisal import Action
+    from maree.v3.agents.policy import Decision
+
+    world = _small_world()
+    phys = _Recorder()
+    sim = Simulation(seed=1, physics=phys).build(world)
+    sim.spawn("habitue", 1, frozenset({"A"}))
+    agent = next(iter(sim.scene.instances.values())).agent
+
+    def target(action: Action, tgt: str | None = None) -> Target:
+        return sim._target_for(agent, Decision(action=action, tick=0, target=tgt))
+
+    evac = target(Action.EVACUER, "A")
+    assert (evac.kind, evac.exit_id) == ("exit", "A")
+
+    assert target(Action.RESTER).kind == "stay"
+    assert target(Action.SUIVRE).kind == "stay"
+
+    search = target(Action.CHERCHER)
+    assert search.kind == "point" and search.point is not None
+    assert math.dist(search.point, (5.0, 5.0)) == pytest.approx(3.0, abs=1e-6)
+
+    kin = target(Action.CHERCHER_PROCHE, agent.name)
+    assert kin.kind == "point" and kin.point == (5.0, 5.0)

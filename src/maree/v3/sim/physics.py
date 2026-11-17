@@ -20,9 +20,14 @@ from maree.v3.world.worldspec import Point
 
 @dataclass(frozen=True, slots=True)
 class Target:
-    """L'intention d'un agent pour le corps : sortie, point, ou rester."""
+    """L'intention d'un agent pour le corps : sortie, point, ou rester.
 
-    kind: Literal["exit", "stay"]
+    ``stay`` ne porte **pas** de point : l'adaptateur le résout sur la
+    position **courante** de l'agent (leçon 2026-11-17 : sans cela, « rester »
+    envoyait tout le monde vers l'origine du repère).
+    """
+
+    kind: Literal["exit", "stay", "point"]
     exit_id: str | None = None
     point: Point | None = None
 
@@ -33,6 +38,11 @@ class Target:
     @classmethod
     def stay(cls) -> Target:
         return cls("stay")
+
+    @classmethod
+    def at(cls, point: Point) -> Target:
+        """Aller vers un point (chercher de l'information, rejoindre un proche)."""
+        return cls("point", point=point)
 
 
 class CrowdPhysics(Protocol):
