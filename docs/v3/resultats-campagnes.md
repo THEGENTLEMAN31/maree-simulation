@@ -1,8 +1,21 @@
 # Résultats des campagnes v3 (2026-11-16)
 
+> **Chiffres mesurés AVANT le correctif du 2026-11-17.** L'audit
+> (`docs/v3/plan-redressement.md`) a établi que la perception était vide, que
+> la physique envoyait « rester » vers le coin du bâtiment, que les jetons
+> étaient comptés sur la dernière décision de chaque agent et que le bras
+> hybride n'appelait jamais le modèle. Le tri de ce qui tient et de ce qui est
+> refait est dans `plan-redressement.md` §3.
+>
+> **Tient** : §1, §2, §2bis (décisions), §3 (latence déclarée), l'ablation,
+> §3bis (Kafka). **À refaire** : §4 (énergie et jetons) et tout le bras
+> hybride. **À corriger dans la lecture** : §2bis note la *dernière* cible des
+> règles, qui visent d'abord la porte qu'on vient de leur dire bloquée.
+
 _Mesures faites sur le dépôt, avec le serveur réel : `gemma4-e2b` sur 8081
 (grand) et `qwen3-0-6b` sur 8082 (petit). Chaque chiffre ci-dessous vient
-d'un run qui a tourné ; les JSON sont versionnés dans `runs/v3/`._
+d'un run qui a tourné ; les JSON sont versionnés dans
+`runs/v3/avant_correctif/`._
 
 ---
 

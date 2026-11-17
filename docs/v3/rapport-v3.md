@@ -1,5 +1,12 @@
 # Rapport v3 — moteur, mesures, limites
 
+> **État au 2026-11-17 : audit en cours, chiffres partiellement invalidés.**
+> `docs/v3/plan-redressement.md` liste ce qui tient (journal, rejeu, Kafka,
+> contrat front, monde, physique, scénario bloqué) et ce qui est refait
+> (perception, calendrier de décision, hybride, coût, indicateurs de foule).
+> Les sections 3 et 4 ci-dessous décrivent des mesures **d'avant correctif** ;
+> ne pas les citer sans le tri de §3 du plan.
+
 _Ce document se lit seul. Il dit ce qui tourne, ce qui est mesuré, ce qui ne
 l'est pas, et ce qui reste à faire. Les chiffres détaillés sont dans
 `docs/v3/resultats-campagnes.md`._

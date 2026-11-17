@@ -351,3 +351,104 @@ le serveur personnel (`8080`).
   banc (semaine 4 : `verify/bench`) n'est pas concluant ;
 - le banc actuel met un **stub** en fournisseur : la colonne `llm` mesure le
   mécanisme, pas un modèle réel — l'évaluation sur modèle natif suit (S4 b).
+
+---
+
+## ADR-014 — Le calendrier de décision est un fait du monde, pas une horloge
+
+**Date** : 2026-11-17
+**Statut** : accepté (remplace la clause « politique par défaut = `hybrid` »
+de l'ADR-013)
+**Motif** : audit du 2026-11-17, `docs/v3/plan-redressement.md`
+
+### Contexte
+
+L'audit a établi, mesures en main :
+
+- le bras `hybride` n'appelait **jamais** le modèle (0 appel sur le scénario
+  bloqué, décision identique aux règles) parce que son critère était
+  circulaire : « les règles ne savent pas quoi faire » ;
+- même le bras `llm` ne reconsidérait que sur **quatre fronts** (fumée,
+  annonce, proche, message) : le calendrier était une liste déterministe
+  **partagée par les trois bras**, donc « quand penser » ne variait pas ;
+- la perception ne portait ni voisins, ni densité, ni distance au danger :
+  aucun déclencheur plus fin **ne pouvait** se lever.
+
+Trois définitions de l'hybride étaient sur la table : escalade sur ambiguïté
+du monde, quota aléatoire ε, modèle arbitre d'options produites par les
+règles. Le porteur de projet retient la **première**.
+
+### Décision
+
+1. **Le calendrier de décision est un fait du monde, pas une horloge.** Un
+   agent ne reconsidère que si un *changement pertinent* peut invalider sa
+   décision courante. Entre deux décisions, il **agit** : le corps continue
+   sur la dernière intention, la décision est un engagement révisable.
+
+2. **Trois familles de déclencheurs**, journalisées avec leur cause :
+   - *information nouvelle* : fumée, annonce, message, sortie qui ferme ou
+     rouvre, proche qui réapparaît ;
+   - *plan invalidé* : la cible de l'intention est crue bloquée, n'est plus
+     visible ou est saturée ; pas de progression (moins de 2 m en 5 ticks) ;
+     séparation du groupe ;
+   - *contexte changé, lent et borné* : palier de densité (0,5 / 1 / 2
+     pers/m²), ≥ k agents partant vers une autre sortie, menace franchissant
+     0,4 ou 0,6, revue périodique sous menace.
+
+3. **Marche de référence** (elle fait foi pour les tests et le rapport) —
+   un agent, 30 ticks, monde bloqué macro :
+
+   | tick | ce qui change dans le monde | ce que fait l'agent | appel ? |
+   |---|---|---|---|
+   | 0 | spawn | immobile, pas d'intention | non |
+   | 2 | message « A est bloquée » | décide : **B** | oui (1) |
+   | 3–9 | rien | garde B, avance | non |
+   | 10 | fumée | reconsidère : B tient | oui (2) |
+   | 11–18 | la densité franchit 1,0 pers/m² près de B | B se sature ? | oui (3) |
+   | 19 | il voit 6 agents faire demi-tour | changer pour A ? | oui (4) |
+   | 20–30 | rien | garde sa cible | non |
+
+   Quatre appels pour trente ticks. « Chaque tick » en demanderait 1 800 pour
+   60 agents, dont la plupart rendraient la **même réponse** (température 0,
+   prompt inchangé) : c'est le même raisonnement facturé huit fois, pas une
+   autre architecture.
+
+4. **`hybride` = règles + escalade sur les critères de `agents-et-llm.md` §3,
+   calculés côté monde** : `annonce_ambigue`, `information_contradictoire`,
+   `situation_inedite`, `revue`, plus l'ancien `regles_indecises` **nommé**
+   (il n'est plus le seul). Chaque escalade publie `agent.escalation` avec sa
+   cause et ses valeurs ; une escalade sans cause est un incident.
+
+5. **`llm` = le modèle décide à chaque changement pertinent**, pas à chaque
+   tick. Le prompt contient la perception : à perception inchangée, la
+   réponse ne peut pas légitimement changer.
+
+6. **ε (quota) est un instrument de sensibilité, jamais un bras ni un
+   comportement.** Tirage déterministe par SHA-256(run, tick, agent) ; il sert
+   à dire si la valeur du modèle est **concentrée** (escalade ciblée suffit)
+   ou **diffuse** (il faut ε plus haut). Il se lit toujours contre l'escalade
+   ciblée, jamais seul : à ε faible on escalade surtout la routine, donc on
+   fabrique un faux négatif.
+
+7. **La mesure se fait par décision, pas par dernière décision d'agent.**
+   Une politique qui se corrige à t10 n'est pas une politique qui a bien
+   choisi à t2 (cas mesuré : les règles envoient d'abord vers la porte qu'on
+   vient de leur dire bloquée).
+
+### Conséquences
+
+- `Agent.react` ne décide plus sur `_novel_events` codé en dur : le
+  calendrier devient `should_decide(agent, perception, tick) -> (bool,
+  raison)`, propre à chaque bras.
+- **La politique par défaut des runs d'ingénierie et des campagnes est
+  `rules`** ; `hybride` ne redevient un défaut qu'une fois son taux
+  d'escalade mesuré non nul (porte G1).
+- Un agent dont l'intention est périmée (porte fermée, pas de progression)
+  **doit** reconsidérer : c'est une exigence, pas une conséquence.
+- Le schéma d'événement passe à `maree.event/1.1` (additif : `arm`,
+  `escalation_cause` sur `agent.decision` ; type `agent.escalation`).
+  `1.0` reste accepté.
+- La perception doit précéder le calendrier (chantier C2 avant C3) : un
+  déclencheur ne peut réagir qu'à ce que la perception contient.
+- Les chiffres publiés avant cette date restent dans
+  `runs/v3/avant_correctif/` et ne se comparent plus à ceux d'après.
