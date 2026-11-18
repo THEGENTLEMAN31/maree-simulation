@@ -144,5 +144,9 @@ class NavigationGraph:
     def spaces(self) -> list[Space]:
         return [s for lv in self.world.levels for s in lv.spaces]
 
+    def level_of_space(self, space_id: str) -> str | None:
+        """L'étage d'un espace (la perception en a besoin pour les sorties)."""
+        return self._space_level.get(space_id)
+
 
 __all__ = ["NavigationGraph"]

@@ -56,6 +56,9 @@ class Timestep:
     smoke: bool = False
     announcement: str | None = None
     messages: tuple[tuple[int, Message], ...] = ()
+    #: origine du foyer (m, étage courant) : la distance au danger devient
+    #: perceptible (C2). Sans elle, la fumée est un signal global.
+    hazard_origin: Point | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +235,8 @@ class Simulation:
                 self.scene.tick = tick
                 self.scene.smoke = ts.smoke
                 self.scene.announcement = ts.announcement
+                if ts.hazard_origin is not None:
+                    self.scene.hazard_origin = ts.hazard_origin
                 if ts.smoke:
                     self._emit("world.smoke", tick, tick, {"visible": True})
                 if ts.announcement:
@@ -257,6 +262,9 @@ class Simulation:
             kind = payload.get("kind")
             if kind == "smoke":
                 self.scene.smoke = True
+                origin = payload.get("origin")
+                if isinstance(origin, (list, tuple)) and len(origin) == 2:
+                    self.scene.hazard_origin = (float(origin[0]), float(origin[1]))
                 self._emit("world.smoke", tick, tick, {"visible": True})
             elif kind == "announcement":
                 text = str(payload.get("text", ""))
@@ -273,6 +281,10 @@ class Simulation:
     def _process_tick(self, tick: int) -> None:
         # 0) injections client (P4) : drainées en tête de tick, journalisées avant l'effet
         self._drain_injections(tick)
+        # 0bis) le corps d'abord : positions du dernier pas, perçues par tous
+        #      au même instant (C2 — perception figée).
+        if self.physics is not None:
+            self.scene.update_positions(self.physics.positions())
 
         # 1) en async : appliquer les décisions arrivées à échéance (perception figée)
         if self.mode is ExecutionMode.ASYNC:

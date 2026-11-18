@@ -115,9 +115,15 @@ def appraise(
     # --- preuve sociale : que font / disent les autres ---
     social_proof = 0.0
     if per.seen_agents:
-        social_proof = 0.5 * traits.herding
+        # C2 : ce n'est pas « voir quelqu'un » qui fait suivre, c'est voir du
+        # monde. Le poids monte avec le nombre de voisins (8 = foule pleine) ;
+        # à 4 voisins un visiteur (herding 0,8) atteint le seuil 0,6 de
+        # ``rules_decide`` et peut suivre au lieu de rester.
+        crowd = min(1.0, len(per.seen_agents) / 8.0)
+        social_proof = traits.herding * (0.5 + 0.5 * crowd)
         raisons["preuve_sociale"] = (
-            f"{name} voit {len(per.seen_agents)} agent(s) bouger"
+            f"{name} voit {len(per.seen_agents)} agent(s) bouger "
+            f"(preuve sociale {social_proof:.2f})"
         )
     else:
         raisons.setdefault("preuve_sociale", "personne d'observé")

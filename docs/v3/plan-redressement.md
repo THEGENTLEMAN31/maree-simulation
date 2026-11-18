@@ -237,6 +237,15 @@ monte » ; « près du foyer, la visibilité baisse » ; et **conséquence** :
 `SUIVRE` devient atteignable chez un visiteur (herding 0,8) dès que la preuve
 sociale ≥ 0,6.
 
+**État 2026-11-18 : fait.** `Scene` recopie les positions physiques en tête
+de tick, calcule les 8 voisins (ordre distance puis uid), la densité en noyau
+de 2 m, la distance au foyer (`Timestep.hazard_origin`), les sorties visibles
+(distance + ligne de vue) et un `State` qui évolue (stress ← proximité +
+entassement, fatigue ← mètres parcourus, co-exposition ← fumée, visibilité
+← co-exposition). L'état est idempotent dans un tick. La preuve sociale monte
+avec le nombre de voisins (8 voisins = poids plein) : 4 voisins suffisent à
+un visiteur pour suivre. 9 tests dans `tests/v3/test_perception.py`.
+
 ### C3 — Calendrier, bras, escalade (2 j)
 
 1. `should_decide` par bras (§4.2), sorti de `Agent.react`.
@@ -353,7 +362,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 |---|---|---|
 | C0 — triage + ADR | **fait** | ADR-014 ; JSON dans `runs/v3/avant_correctif/` ; bandeaux sur les deux rapports |
 | C1 — physique honnête | **fait** | 4 tests : « rester reste » (±0,3 m sur 10 s), `Target.at` réel, 60/60 placements distincts (2,37 m mini), mapping des 7 actions |
-| C2 — perception | à faire | — |
+| C2 — perception | **fait** | 9 tests : 8 voisins ordonnés, densité noyau 2 m, distance au foyer, sorties visibles (A/C oui, B à 60 m non), état qui évolue (fatigue = 10 m × 0,0015), `SUIVRE` atteignable (4 voisins), idempotence |
 | C3 — calendrier + bras + escalade | à faire | — |
 | C4 — mesure | à faire | — |
 | C5 — monde macro | à faire | — |
