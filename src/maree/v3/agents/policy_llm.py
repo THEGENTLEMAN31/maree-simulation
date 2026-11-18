@@ -14,6 +14,7 @@ défaut choisi pour la reproductibilité.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field, replace
 
 from maree.v3.agents.appraisal import Action, Appraisal
@@ -21,8 +22,14 @@ from maree.v3.agents.catalog import chat_for
 from maree.v3.agents.knowledge import Knowledge
 from maree.v3.agents.memory import Memory
 from maree.v3.agents.perception import Perception
-from maree.v3.agents.policy import Decision, rules_decide
-from maree.v3.agents.schedule import escalation_cause
+from maree.v3.agents.policy import (
+    Decision,
+    _is_evacuation_order,
+    _mentions_closure,
+    _most_confident_exit,
+    rules_decide,
+)
+from maree.v3.agents.schedule import escalation_cause, labels_in
 from maree.v3.agents.social import SocialState
 from maree.v3.agents.traits import Traits
 from maree.v3.core.ids import AgentId
@@ -51,6 +58,104 @@ def _schema_messages(inputs: dict[str, object]) -> tuple[LLMMessage, ...]:
         LLMMessage("system", SYSTEM_PROMPT),
         LLMMessage("user", user),
     )
+
+
+#: Protocole du tier « petit » (0,6 Md). Quatre formats ont été essayés en
+#: v2 : JSON à vocabulaire ouvert (il recopie le gabarit, jamais une sortie),
+#: liste de mots-clés (il choisit **la première option**, quel que soit le
+#: contexte), question binaire (instable, vire au OUI). Ce qui marche : une
+#: **règle écrite** et deux drapeaux.
+#:
+#: Trois détails mesurés le 2026-11-18 sur qwen3-0-6b, et non devinés :
+#:
+#: - le gabarit ``SORTIR <lettre de la sortie>`` **reste** dans le prompt
+#:   système : sans lui le modèle répond RESTER à tout (3 essais sur 3 dans
+#:   les deux cas de fumée et d'annonce) ; avec lui il dit SORTIR mais
+#:   recopie souvent le placeholder au lieu de la lettre ;
+#: - la fumée doit être le **dernier** drapeau : avec « Fumée visible : oui »
+#:   en tête, la ligne « Annonce d'évacuation : non » la neutralisait et il
+#:   répondait RESTER sous fumée 6 fois sur 6 ;
+#: - l'ordre des mots de la règle compte : « fumée = oui OU annonce = oui ⇒
+#:   tu sors » tient ; une formulation en phrases le fait retomber sur RESTER.
+#:
+#: Résultat mesuré (6 essais par cas) : calme RESTER 6/6, fumée SORTIR 6/6,
+#: annonce SORTIR 6/6, annonce sans ordre RESTER 6/6. La **lettre** de la
+#: sortie n'est pas lue de façon fiable (il rend le placeholder) : c'est au
+#: moteur de choisir la porte parmi celles que l'agent connaît et ne croit pas
+#: bloquées. Ce tier applique une politique ; il ne juge pas la géographie.
+SMALL_SYSTEM = (
+    "Tu es un piéton dans un bâtiment.\n"
+    "Règle : fumée = oui OU annonce = oui ⇒ tu sors. Sinon tu restes.\n"
+    "Réponds une seule ligne : RESTER, ou SORTIR <lettre de la sortie>."
+)
+
+
+def small_messages(
+    perception: Perception, known_exits: frozenset[str]
+) -> tuple[LLMMessage, ...]:
+    """Le prompt à drapeaux : deux faits, pas un contrat JSON.
+
+    Donner le contrat JSON du grand modèle au petit le faisait répondre
+    ``oui`` à t1 sans fumée (les deux consignes mêlées). Ici chaque ligne est
+    un fait vérifiable, et la règle est écrite avant.
+    """
+    announcement = perception.announcement or ""
+    is_order = (
+        bool(announcement)
+        and _is_evacuation_order(announcement)
+        and not _mentions_closure(announcement)
+    )
+    named = ""
+    if is_order:
+        found = labels_in(announcement, known_exits)
+        named = found[0] if found else ""
+    lines = [
+        f"Annonce d'évacuation : {'oui' if is_order else 'non'}",
+        f"Sortie indiquée : {named or 'aucune'}",
+        # la fumée est le **dernier** drapeau : un petit modèle pèse la fin du
+        # prompt (mesuré 2026-11-18 : avec la fumée en tête, « annonce : non »
+        # la neutralisait et il répondait RESTER sous fumée 6/6).
+        f"Fumée visible : {'oui' if perception.smoke_visible else 'non'}",
+        f"Sorties connues : {', '.join(sorted(known_exits)) or 'aucune'}",
+        "Décide :",
+    ]
+    return (
+        LLMMessage("system", SMALL_SYSTEM),
+        LLMMessage("user", "\n".join(lines)),
+    )
+
+
+def parse_choice(
+    text: str, known_exits: frozenset[str]
+) -> tuple[Action, str | None] | None:
+    """Lit ``RESTER`` / ``SORTIR <sortie>`` (le tier petit ne produit pas de JSON).
+
+    Une sortie nommée mais **inconnue** de l'agent rend ``None`` : c'est un
+    repli avec cause ``unknown_exit``, pas une évacuation devinée. Un
+    ``SORTIR`` sans étiquette (le petit modèle recopie souvent le gabarit
+    ``SORTIR <sortie>``) rend ``(EVACUER, None)`` : la politique a décidé de
+    sortir, c'est au moteur de choisir la porte parmi celles que l'agent
+    connaît — le petit modèle **applique** une politique, il ne juge pas la
+    géographie.
+    """
+    upper = text.upper()
+    if "RESTER" in upper:
+        return Action.RESTER, None
+    if "SORTIR" in upper or "ÉVACUER" in upper or "EVACUER" in upper:
+        found = labels_in(text, known_exits)
+        if found:
+            return Action.EVACUER, found[0]
+        # une étiquette citée mais inconnue n'est pas une évacuation devinée
+        cited = {
+            token
+            for token in re.findall(r"\b[A-Z](?:\d{1,2})?\b", upper)
+            if not token.isdigit()
+        }
+        if cited - known_exits:
+            return None
+        # pas d'étiquette (ou le gabarit « SORTIR <sortie> ») : à résoudre
+        return Action.EVACUER, None
+    return None
 
 
 def build_inputs(
@@ -128,16 +233,34 @@ def build_inputs(
 
 @dataclass(frozen=True, slots=True)
 class LLMPolicy:
-    """Décide via le modèle de ``alias`` (defaut le tier ``decision``)."""
+    """Décide via le modèle de ``alias`` (defaut le tier ``decision``).
+
+    ``small_protocol`` choisit le format du prompt. ``None`` le déduit du
+    catalogue : un modèle tagué ``small`` reçoit une **règle + deux
+    drapeaux**, pas le contrat JSON — les deux consignes mêlées faisaient
+    répondre ``oui`` au petit modèle sans aucune fumée (leçon v2).
+    """
 
     alias: str = "decision"
     port: ChatModelPort | None = None  # injecté au bootstrap ; sinon résolus
+    small_protocol: bool | None = None
 
     def _port(self) -> tuple[ChatModelPort, str, str]:
         if self.port is not None:
             return self.port, self.port.__class__.__name__, self.alias
         port, spec = chat_for(self.alias)
         return port, spec.provider, spec.model
+
+    def _is_small(self) -> bool:
+        if self.small_protocol is not None:
+            return self.small_protocol
+        if self.port is not None:
+            return False
+        try:
+            _, spec = chat_for(self.alias)
+        except KeyError:
+            return False
+        return "small" in spec.tags
 
     def decide(
         self,
@@ -153,18 +276,25 @@ class LLMPolicy:
         rag: list[dict[str, object]] | None = None,
     ) -> Decision:
         port, provider, model = self._port()
-        inputs = build_inputs(
-            perception=perception,
-            traits=traits,
-            appraisal=appraisal,
-            knowledge=knowledge,
-            memory=memory,
-            rag=rag,
-        )
+        small = self._is_small()
+        if small:
+            messages = small_messages(perception, known_exits)
+            max_tokens = 16
+        else:
+            inputs = build_inputs(
+                perception=perception,
+                traits=traits,
+                appraisal=appraisal,
+                knowledge=knowledge,
+                memory=memory,
+                rag=rag,
+            )
+            messages = _schema_messages(inputs)
+            max_tokens = 200
         request = LLMRequest(
-            messages=_schema_messages(inputs),
+            messages=messages,
             temperature=0.0,
-            max_tokens=200,
+            max_tokens=max_tokens,
             model=model,
             provider=provider,
         )
@@ -179,13 +309,30 @@ class LLMPolicy:
                 "no_response", perception, knowledge, social, traits, appraisal,
                 known_exits, name, llm_trace,
             )
-        parsed = _parse(response.text, known_exits)
+        parsed = (
+            parse_choice(response.text, known_exits)
+            if small
+            else _parse(response.text, known_exits)
+        )
         if parsed is None:
+            cause = "unknown_exit" if small and "SORTIR" in response.text.upper() else "unparseable"
             return _fallback(
-                "unparseable", perception, knowledge, social, traits, appraisal,
+                cause, perception, knowledge, social, traits, appraisal,
                 known_exits, name, llm_trace,
             )
         action, target = parsed
+        resolved_by_engine = False
+        if small and action is Action.EVACUER and target is None:
+            # le petit a dit « sortir » sans nommer de porte : la politique est
+            # appliquée, le choix de la porte reste au moteur (parmi les
+            # sorties que l'agent connaît et ne croit pas bloquées).
+            target = _most_confident_exit(knowledge)
+            resolved_by_engine = True
+            if target is None:
+                return _fallback(
+                    "unknown_exit", perception, knowledge, social, traits,
+                    appraisal, known_exits, name, llm_trace,
+                )
         # ici le raisonnement passe par le template : l'action issue du LLM
         # est mappée sur le vocabulaire du moteur.
         decision = Decision(
@@ -196,6 +343,7 @@ class LLMPolicy:
             appraisal=appraisal,
             raisons=appraisal.raisons,
             llm_trace=llm_trace,
+            target_resolved=resolved_by_engine,
         )
         return decision
 
@@ -346,4 +494,12 @@ class _ScheduleContext:
     _trail: list[tuple[int, tuple[float, float]]] = field(default_factory=list)
 
 
-__all__ = ["SYSTEM_PROMPT", "LLMPolicy", "build_inputs", "hybrid_decide"]
+__all__ = [
+    "SMALL_SYSTEM",
+    "SYSTEM_PROMPT",
+    "LLMPolicy",
+    "build_inputs",
+    "hybrid_decide",
+    "parse_choice",
+    "small_messages",
+]

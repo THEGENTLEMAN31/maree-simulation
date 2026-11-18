@@ -53,6 +53,10 @@ class Decision:
     #: cause d'escalade vers le modèle (bras hybride) — None si routine.
     escalation_cause: str | None = None
     escalation_detail: dict[str, object] = field(default_factory=dict)
+    #: vrai si la cible a été **résolue par le moteur** (le petit modèle a dit
+    #: « sortir » sans nommer de porte). Une mesure qui compte ce choix comme
+    #: un exploit du modèle mesure le moteur.
+    target_resolved: bool = False
 
 
 def _is_evacuation_order(announcement: str) -> bool:

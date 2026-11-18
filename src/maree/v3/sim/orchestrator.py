@@ -86,6 +86,8 @@ class LogRow:
     #: coût de l'appel LLM, **par décision** (jamais relu sur l'agent) :
     #: ``llm_attempted`` distingue « pas d'appel » de « appel raté ».
     llm_attempted: bool = False
+    #: cible choisie par le moteur (le modèle n'a nommé aucune sortie).
+    target_resolved: bool = False
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_s: float = 0.0
@@ -544,6 +546,7 @@ class Simulation:
             "explanation": decision.explanation,
             "arm": agent.policy.value,
             "escalation_cause": decision.escalation_cause,
+            "target_resolved": decision.target_resolved,
         })
         # A4 : un repli n'est pas un silence — il est tracé et dénombré par cause.
         if decision.fallback:
@@ -599,6 +602,7 @@ class Simulation:
             arm=agent.policy.value,
             escalation_cause=decision.escalation_cause,
             llm_attempted=trace is not None,
+            target_resolved=decision.target_resolved,
             prompt_tokens=0 if trace is None else trace.response.prompt_tokens,
             completion_tokens=(
                 0 if trace is None else trace.response.completion_tokens

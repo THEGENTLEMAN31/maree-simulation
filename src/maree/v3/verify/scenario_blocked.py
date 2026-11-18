@@ -109,6 +109,10 @@ class BlockedScore:
     first_choices: dict[str, str | None] = field(default_factory=dict)
     decisions_to_blocked: int = 0
     decisions_total: int = 0
+    #: décisions dont la cible a été **résolue par le moteur** au lieu du
+    #: modèle (petit tier : « SORTIR » sans lettre). Une réussite de ces
+    #: décisions mesure le moteur, pas la lecture du modèle.
+    decisions_cible_resolue: int = 0
 
     @property
     def accuracy(self) -> float:
@@ -143,6 +147,7 @@ class BlockedScore:
             "first_accuracy": round(self.first_accuracy, 3),
             "decisions_to_blocked": self.decisions_to_blocked,
             "decisions_total": self.decisions_total,
+            "decisions_cible_resolue": self.decisions_cible_resolue,
             "part_decisions_bloquees": round(self.part_decisions_bloquees, 3),
         }
 
@@ -154,10 +159,13 @@ def score(sim: Simulation) -> BlockedScore:
     first: dict[str, str] = {}
     to_blocked = 0
     total = 0
+    resolved = 0
     for row in sim.log.rows:
         if not (row.action.startswith("évacuer") and row.target):
             continue
         total += 1
+        if row.target_resolved:
+            resolved += 1
         last[row.agent] = row.target
         first.setdefault(row.agent, row.target)
         if BLOCKED.get(row.agent) == row.target:
@@ -180,6 +188,7 @@ def score(sim: Simulation) -> BlockedScore:
         first_choices=first_choices,
         decisions_to_blocked=to_blocked,
         decisions_total=total,
+        decisions_cible_resolue=resolved,
     )
 
 
