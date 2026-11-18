@@ -34,11 +34,19 @@ def main() -> int:
     agg: dict[str, dict[str, Any]] = data["aggregate"]
 
     lines: list[str] = []
-    lines.append("# Résultats de la campagne macro (C6)\n")
+    speaks = {bool(run.get("speak", True)) for run in data["runs"]}
+    mode = (
+        "parole active (C7)"
+        if speaks == {True}
+        else "sans émission (null de B3)"
+        if speaks == {False}
+        else "mode mixte"
+    )
+    lines.append("# Résultats de la campagne macro (C6/C7)\n")
     lines.append(
         f"Monde : `crowd_hall` (22 × 16 m, deux issues de 1,2 m), 60 agents, "
         f"tick de 2 s. Graines : {', '.join(str(s) for s in seeds)} — "
-        f"scénarios : {', '.join(scenarios)}.\n"
+        f"scénarios : {', '.join(scenarios)} — **{mode}**.\n"
     )
     lines.append(
         "Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne "

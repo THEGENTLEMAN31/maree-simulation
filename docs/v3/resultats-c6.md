@@ -1,6 +1,6 @@
-# Résultats de la campagne macro (C6)
+# Résultats de la campagne macro (C6/C7)
 
-Monde : `crowd_hall` (22 × 16 m, deux issues de 1,2 m), 60 agents, tick de 2 s. Graines : 1, 2, 3, 4, 5 — scénarios : split, contradiction.
+Monde : `crowd_hall` (22 × 16 m, deux issues de 1,2 m), 60 agents, tick de 2 s. Graines : 1, 2, 3, 4, 5 — scénarios : split, contradiction — **parole active (C7)**.
 
 Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'intervalle observé, jamais un écart-type qui masquerait un run.
 
@@ -34,3 +34,18 @@ Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'interv
 - Les temps absolus ne sont pas des temps de terrain : ce modèle passe ≈3,2 pers/(m·s) par mètre de porte contre ≈1,3 en littérature (ADR-015). Les comparaisons entre bras, elles, tiennent.
 - Une « cible résolue par le moteur » n'est pas une réussite du modèle : le tier petit dit « sortir » sans nommer la porte, et le moteur choisit parmi les sorties connues et non crues bloquées.
 
+
+---
+
+## Le null de B3 (même code, sans émission)
+
+`scripts/v3_crowd_campaign.py --silent --arms=regles,llm_petit` →
+`runs/v3/campaign_crowd_silence.json`. Bras lourds non rejoués en silence
+(coût : ~5 min par run du grand modèle). Comparaison à code identique :
+
+| bras | scénario | I1 muet | I1 parlant | E_social | porte désignée bloquée : muet → parlant |
+|---|---|---|---|---|---|
+| `regles` | split | 0,63 | 0,72 | **+0,09** | 0,00 → 0,24 |
+| `regles` | contradiction | 0,60 | 0,69 | **+0,09** | 0,25 → 0,29 |
+| `llm_petit` | split | 0,63 | 0,87 | **+0,24** | 0,00 → 0,44 |
+| `llm_petit` | contradiction | 0,63 | 0,87 | **+0,24** | 0,00 → 0,44 |

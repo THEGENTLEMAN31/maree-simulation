@@ -208,7 +208,9 @@ Archiver `runs/v3/*.json` dans `runs/v3/avant_correctif/`, requalifier
 `docs/v3/resultats-campagnes.md` et `rapport-v3.md` (bandeau « avant
 correctif »), écrire les ADR : définition des trois bras (§4.1), calendrier
 (§4.2), critères d'escalade (§4.4), option d'hybride retenue (§4.3),
-statistique (§4.6).
+statistique (§4.6). **Depuis le 2026-11-18, l'ancien rapport est
+`docs/v3/rapport-v3-avant-correctif.md` ; le rapport courant est
+`docs/v3/rapport-v3.md`.**
 **Preuve** : les docs ne contiennent plus aucune des phrases de §8.
 
 ### C1 — Physique honnête (1 j)
@@ -538,6 +540,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 | C4 — mesure | **fait** | 12 tests : I5 en noyau (2 voisins / π·4 m²), I5 ignore les sortis, I4 = tick × 10 s, I7 depuis le signal du monde, I6 nul sans fermeture, résumé sans le tick dégénéré, jetons = somme des lignes, appel raté compté (`attempted` > `ok`), note par décision (règles 1re=1,00 / « toujours A » 1re=0,50 et 6/10 bloquées) |
 | C5 — monde macro | **fait** | 6 tests (G2) : `hall_3` = 0,000 pers/m² à 60 agents, `crowd_hall` I5 pic 1,11–1,51 à t6–t7 (pas au spawn), 60/60 sortis, I7 22–24 s, variante clivée I1 < 0,8, déterminisme |
 | C6 — campagne macro | **fait** | 40 runs, 7 388 appels / 7 388 succès, 0 repli, 60/60 sortis 40 fois sur 40 ; grand 0,00 vs règles 0,25 vs hybride 0,38 de décisions vers une porte crue bloquée ; petit 0,00 mais 100 % des cibles résolues par le moteur ; tables dans `docs/v3/resultats-c6.md` |
+| Rapport v3 | **fait** | `docs/v3/rapport-v3.md` réécrit (l'ancien conservé sous `-avant-correctif`) : 3 bras, monde calibré, 8 corrections chiffrées, tables muettes/parlantes, E_social mesuré, ce qui ne tient pas |
 | C7 — communication | **fait** | 12 tests : émission bornée (3 voisins), pas de parole sans décision, danger cru prioritaire, perception à t+1, null `speaking=False` réellement exécuté, annonce → croyance pondérée (D8) ; E_social **+0,09 à +0,24** à code identique |
 
 Mesure de contrôle C1 (hall_3, 60 agents, 10 ticks sans décision) :
