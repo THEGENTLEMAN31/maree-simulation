@@ -26,6 +26,7 @@ import math
 from dataclasses import dataclass, field
 
 from maree.v3.agents.agent import Agent
+from maree.v3.agents.appraisal import Action
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.state import State
 from maree.v3.core.ids import AgentId, ZoneId
@@ -76,8 +77,17 @@ class Scene:
     positions: dict[AgentId, Point] = field(default_factory=dict)
     #: origine du danger (fumée/feu) si connue : la distance est perçue.
     hazard_origin: Point | None = None
+    #: sorties fermées dans le monde (front perceptible).
+    closed_exits: set[str] = field(default_factory=set)
+    #: vrai quand un moteur physique alimente les positions (C1).
+    physics_active: bool = False
     #: (tick calculé, état, position) — l'état évolue, il ne se réinitialise pas.
     _states: dict[AgentId, tuple[int, State, Point]] = field(default_factory=dict)
+    #: intention de chaque agent en tête de tick (perception figée : on ne lit
+    #: jamais une décision prise plus tard dans le même tick).
+    _decisions_snapshot: dict[AgentId, tuple[Action, str | None] | None] = field(
+        default_factory=dict
+    )
 
     # --- alimentation par le moteur ---
     def add(self, agent: Agent, space_id: str, point: Point) -> None:
@@ -89,6 +99,9 @@ class Scene:
         Appelé **en tête de tick**, avant toute perception : tous les agents
         voient donc le même instant. Les agents sortis ne sont plus dans
         ``positions`` ; on garde leur dernière position connue.
+
+        On fige aussi les **intentions** courantes : un agent ne doit pas voir
+        la décision qu'un autre vient de prendre plus tard dans le même tick.
         """
         for raw_uid, point in positions.items():
             agent_id = AgentId(raw_uid)
@@ -96,6 +109,14 @@ class Scene:
             inst = self.instances.get(agent_id)
             if inst is not None:
                 inst.point = point
+        self._decisions_snapshot = {}
+        for agent_id, inst in self.instances.items():
+            decision = inst.agent._last_decision
+            self._decisions_snapshot[agent_id] = (
+                None
+                if decision is None
+                else (decision.action, decision.target)
+            )
 
     def position_of(self, agent_id: AgentId) -> Point:
         """Position courante (physique si connue, sinon point de spawn)."""
@@ -113,6 +134,7 @@ class Scene:
         inst.agent.state = state
         distance = self._distance_to_danger(position)
         level = self._level_of(inst.space_id)
+        seen = self._seen_agents(agent_id, position, state.visibility)
         return Perception(
             tick=self.tick,
             zone=ZoneId(inst.space_id),
@@ -122,9 +144,12 @@ class Scene:
             threat=self._threat(distance),
             distance_to_danger=distance,
             heard=tuple(self.mails.get(agent_id, ())),
-            seen_agents=self._seen_agents(agent_id, position, state.visibility),
+            seen_agents=seen,
             exits_visible=self._visible_exits(position, level, state.visibility),
             crowding=state.crowding,
+            position=position if self.physics_active else None,
+            closed_exits=frozenset(sorted(self.closed_exits)),
+            seen_leaving_elsewhere=self._leaving_elsewhere(agent_id, seen),
         )
 
     def drain(self, agent_id: AgentId) -> None:
@@ -157,6 +182,27 @@ class Scene:
                 ranked.append((distance, other.uid, other))
         ranked.sort(key=lambda item: (item[0], item[1]))
         return tuple(other for _dist, _uid, other in ranked[:SEEN_LIMIT])
+
+    def _leaving_elsewhere(
+        self, agent_id: AgentId, seen: tuple[AgentId, ...]
+    ) -> int:
+        """Combien de voisins partent vers une sortie **différente** de la mienne.
+
+        Lecture du snapshot de début de tick : la perception ne dépend pas de
+        l'ordre dans lequel les agents décident. C'est ce qui permet de voir
+        « six personnes font demi-tour » sans casser la barrière de tick.
+        """
+        own = self._decisions_snapshot.get(agent_id)
+        own_target = own[1] if own is not None else None
+        count = 0
+        for other in seen:
+            decision = self._decisions_snapshot.get(other)
+            if decision is None:
+                continue
+            action, target = decision
+            if action is Action.EVACUER and target and target != own_target:
+                count += 1
+        return count
 
     def _crowding(self, agent_id: AgentId, position: Point) -> float:
         """Densité locale, noyau circulaire de ``DENSITY_RADIUS`` (pers/m²).

@@ -91,7 +91,7 @@ def test_chaque_decision_a_une_explication_complete() -> None:
 
 
 def test_un_message_positif_apprend_une_croyance_sourcee() -> None:
-    a = _sage()
+    a = _sage(know=frozenset({"A", "B"}))
     a.react(_perception(heard=(Message("la sortie B est libre", AgentId(3), 10),)))
     belief = a.knowledge.beliefs.get("exit:B")
     assert belief is not None
@@ -103,7 +103,7 @@ def test_un_message_negatif_ecrit_le_recu_en_memoire() -> None:
     """La croyance de danger (et son reçu) doit être tracée pour la divergence."""
     from maree.v3.agents.knowledge import Source as Src
 
-    a = _sage()
+    a = _sage(know=frozenset({"A", "B"}))
     a.react(_perception(heard=(Message("B est bloquée", AgentId(3), 10),)))
     recu = a.memory.receipt_for("B est bloquée")
     assert recu is not None
@@ -174,3 +174,10 @@ def test_abolition_memoire_gomme_la_divergence() -> None:
     assert a1.react(_perception(tick=10, smoke=True)).target == (
         a2.react(_perception(tick=10, smoke=True)).target
     )
+
+def test_un_message_ne_cree_pas_une_sortie_inconnue() -> None:
+    """La géographie ne s'apprend pas par ouï-dire (garde C3)."""
+    a = _sage()  # ne connaît que A
+    a.react(_perception(heard=(Message("la sortie B est libre", AgentId(3), 10),)))
+    assert a.knowledge.beliefs.get("exit:B") is None
+    assert a.knowledge.beliefs.get("hazard:B") is None

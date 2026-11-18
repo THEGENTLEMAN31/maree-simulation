@@ -260,6 +260,33 @@ appel, `hybride` escalade exactement 4 fois à t2 avec la cause
 **pas** deux fois pour la même perception. Un test échoue si l'hybride est à
 zéro.
 
+**État 2026-11-18 : fait.** Nouveau `agents/schedule.py` (`novel_front`,
+`plan_invalidated`, `perception_key` en SHA-256, `review_due`,
+`escalation_cause`, `epsilon_hit`, `should_decide`). Le calendrier sort de
+`Agent.react` ; l'orchestrateur journalise `agent.reconsider` (cause de la
+reconsidération) et `agent.escalation` (cause + valeurs, **avant** la
+décision qu'elle provoque). `hybrid_decide` escalade sur les critères du
+monde et utilise `LLMPolicy(alias=agent.llm_alias)` — le tier du profil n'est
+plus ignoré. Schéma `maree.event/1.1` additif (`arm`, `escalation_cause`,
+`agent.escalation`, `agent.reconsider`, `world.exit_closed`) ; `1.0` reste
+accepté.
+
+Deux corrections de calendrier mesurées sur le banc :
+
+- une **notice de fermeture** (« la sortie A est bloquée ») n'est pas un ordre
+  d'évacuer *vers A* : `rules_decide` la traite comme information, et un
+  message ne crée pas la croyance d'une sortie inconnue (la géographie ne
+  s'apprend pas par ouï-dire) ;
+- une cible crue bloquée n'invalide le plan **qu'une fois** :
+  `cible_bloquee:<sortie>` est mémorisé à la décision suivante, ce qui borne
+  les appels (`llm` : 40 → 10 sur le banc) sans empêcher la correction.
+
+Mesures du banc bloqué (4 agents, message t2, fumée t10) : `regles` **0
+appel / 8 décisions** ; `hybride` **4 appels**, tous à t2, cause
+`information_contradictoire` ; `llm` **10 appels** (t2 message, t3 plan
+invalidé, t10 fumée), aucun rappel aux ticks 20/30/40. 8 tests dans
+`tests/v3/test_schedule.py`.
+
 ### C4 — Mesure (2 j)
 
 1. Coût : appels **tentés/réussis**, replis par cause, jetons **par ligne du
@@ -363,7 +390,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 | C0 — triage + ADR | **fait** | ADR-014 ; JSON dans `runs/v3/avant_correctif/` ; bandeaux sur les deux rapports |
 | C1 — physique honnête | **fait** | 4 tests : « rester reste » (±0,3 m sur 10 s), `Target.at` réel, 60/60 placements distincts (2,37 m mini), mapping des 7 actions |
 | C2 — perception | **fait** | 9 tests : 8 voisins ordonnés, densité noyau 2 m, distance au foyer, sorties visibles (A/C oui, B à 60 m non), état qui évolue (fatigue = 10 m × 0,0015), `SUIVRE` atteignable (4 voisins), idempotence |
-| C3 — calendrier + bras + escalade | à faire | — |
+| C3 — calendrier + bras + escalade | **fait** | 8 tests : `regles` 0 appel, `hybride` 4 escalades à t2 (`information_contradictoire`) avec sortie nommée, `llm` borné (t2/t3/t10 seulement), escalade avant décision, pas de décision au spawn, ε = SHA-256 recalculé, contrat 1.1 + 1.0 |
 | C4 — mesure | à faire | — |
 | C5 — monde macro | à faire | — |
 | C6 — campagne | à faire | — |

@@ -51,7 +51,20 @@ def test_un_type_inconnu_est_signale_sans_etre_filtre() -> None:
     errors = validate("experience.custom", {"x": 1})
     assert errors and "non schématisé" in errors[0]
     # et le type reste publiable : validate est un diagnostic, pas un filtre
-    assert SCHEMA_VERSION == "1.0"
+
+
+def test_le_contrat_1_1_est_additif_et_les_trames_1_0_restent_lisibles() -> None:
+    assert SCHEMA_VERSION == "1.1"
+    # les nouveaux types 1.1 sont schématisés
+    assert validate(
+        "agent.escalation",
+        {"agent": "A01", "cause": "information_contradictoire", "detail": {"sortie": "A"}},
+    ) == []
+    assert validate("agent.reconsider", {"agent": "A01", "reason": "contexte_change"}) == []
+    assert validate("world.exit_closed", {"exit": "A"}) == []
+    # une trame 1.0 (sans les champs additifs) reste acceptée
+    assert validate("world.smoke", {"visible": True}, version="1.0") == []
+    assert validate("world.smoke", {"visible": True}, version="9.9")
 
 
 # ---- A4 : incidents tracés et dénombrés ----

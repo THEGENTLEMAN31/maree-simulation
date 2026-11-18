@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from maree.v3.agents.state import State
 from maree.v3.core.ids import AgentId, Tick, ZoneId
+from maree.v3.world.worldspec import Point
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,12 @@ class Perception:
     heard: tuple[Message, ...] = field(default_factory=tuple)
     #: densité locale perçue (l'état courant la porte aussi).
     crowding: float = 0.0
+    #: position du corps (m) — None quand il n'y a pas de physique.
+    position: Point | None = None
+    #: sorties fermées perçues (front) : une porte fermée se voit.
+    closed_exits: frozenset[str] = frozenset()
+    #: nombre d'agents vus qui partent vers une **autre** sortie que la mienne.
+    seen_leaving_elsewhere: int = 0
 
     @property
     def has_danger_signal(self) -> bool:

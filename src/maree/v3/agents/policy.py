@@ -24,6 +24,15 @@ from maree.v3.core.ports import LLMTrace
 #: Corollaire v2 : toute annonce ne vaut pas danger sans un ordre explicite.
 _EVACUATION_WORDS = ("évacu", "sortir", "sortie", "quitte", "exécute")
 
+#: Racines d'une **notice de fermeture** : « la sortie A est bloquée » informe,
+#: ce n'est pas un ordre d'évacuer *vers A* (défaut mesuré le 2026-11-17).
+_CLOSURE_WORDS = ("bloqu", "ferm", "close", "inaccessible")
+
+
+def _mentions_closure(text: str) -> bool:
+    lowered = text.lower()
+    return any(word in lowered for word in _CLOSURE_WORDS)
+
 
 @dataclass(frozen=True, slots=True)
 class Decision:
@@ -41,6 +50,9 @@ class Decision:
     #: trace du (éventuel) appel LLM — audit et coût (semaine 4).
     llm_trace: LLMTrace | None = None
     fallback_cause: str | None = None
+    #: cause d'escalade vers le modèle (bras hybride) — None si routine.
+    escalation_cause: str | None = None
+    escalation_detail: dict[str, object] = field(default_factory=dict)
 
 
 def _is_evacuation_order(announcement: str) -> bool:
@@ -96,7 +108,7 @@ def rules_decide(
 
     # --- 2. ordre d'évacuation ---
     ann = perception.announcement
-    if ann and _is_evacuation_order(ann):
+    if ann and _is_evacuation_order(ann) and not _mentions_closure(ann):
         target = _named_exit(ann, set(known_exits))
         if target is None:
             # on évacue vers la sortie connue la plus confiante
@@ -114,7 +126,7 @@ def rules_decide(
 
     # --- 2bis. influence sociale : un message ordonne d'évacuer ---
     for m in perception.heard:
-        if _is_evacuation_order(m.fact):
+        if _is_evacuation_order(m.fact) and not _mentions_closure(m.fact):
             target = _named_exit(m.fact, set(known_exits)) or _most_confident_exit(
                 knowledge
             )

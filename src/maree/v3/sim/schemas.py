@@ -11,8 +11,12 @@ from __future__ import annotations
 
 #: version du contrat d'événement — à incrémenter dès qu'un champ obligatoire
 #: change de nom ou de sens (les clients comparent cette chaîne).
-SCHEMA_VERSION = "1.0"
+#: 1.1 (2026-11-18) : additif — `arm` et `escalation_cause` dans
+#: `agent.decision`, types `agent.escalation`, `agent.reconsider`,
+#: `world.exit_closed`. Les trames 1.0 restent lisibles.
+SCHEMA_VERSION = "1.1"
 EVENT_SCHEMA_ID = f"maree.event/{SCHEMA_VERSION}"
+SUPPORTED_VERSIONS = ("1.0", "1.1")
 
 #: champs obligatoires de ``data`` par type d'événement connu.
 SCHEMAS: dict[str, tuple[str, ...]] = {
@@ -22,8 +26,11 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
     ),
     "agent.evacuated": ("agent",),
     "agent.incident": ("agent", "cause"),
+    "agent.escalation": ("agent", "cause", "detail"),
+    "agent.reconsider": ("agent", "reason"),
     "world.smoke": ("visible",),
     "world.announcement": ("text",),
+    "world.exit_closed": ("exit",),
     "world.snapshot": ("agents",),
     "indicator.emergence": ("consensus", "couplage", "emergence"),
     "indicator.incidents": ("total", "par_cause"),
@@ -40,12 +47,20 @@ def schema_for(event_type: str) -> tuple[str, ...] | None:
     return SCHEMAS.get(event_type)
 
 
-def validate(event_type: str, data: dict[str, object]) -> list[str]:
+def validate(
+    event_type: str,
+    data: dict[str, object],
+    version: str = SCHEMA_VERSION,
+) -> list[str]:
     """Erreurs de schéma d'une trame (liste vide = conforme).
 
     Un type inconnu est signalé (le client ne saura pas le lire), mais cela
-    n'empêche ni la publication ni le journal.
+    n'empêche ni la publication ni le journal. Une trame 1.0 reste acceptée :
+    les champs ajoutés en 1.1 sont facultatifs, donc la même validation
+    s'applique aux deux versions.
     """
+    if version not in SUPPORTED_VERSIONS:
+        return [f"version de schéma non supportée : {version}"]
     required = SCHEMAS.get(event_type)
     if required is None:
         return [f"type non schématisé : {event_type}"]
@@ -56,6 +71,7 @@ __all__ = [
     "EVENT_SCHEMA_ID",
     "SCHEMAS",
     "SCHEMA_VERSION",
+    "SUPPORTED_VERSIONS",
     "is_known",
     "schema_for",
     "validate",

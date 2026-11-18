@@ -59,6 +59,8 @@ class Timestep:
     #: origine du foyer (m, étage courant) : la distance au danger devient
     #: perceptible (C2). Sans elle, la fumée est un signal global.
     hazard_origin: Point | None = None
+    #: sorties qui ferment à ce tick (front perçu par les agents).
+    closed_exits: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +77,10 @@ class LogRow:
     dims: dict[str, float]
     llm_ok: bool | None
     llm_model: str | None
+    #: bras expérimental (règles / llm / hybride).
+    arm: str = "regles"
+    #: cause d'escalade vers le modèle (hybride), None en routine.
+    escalation_cause: str | None = None
 
     @property
     def lag(self) -> int:
@@ -119,6 +125,7 @@ class Simulation:
         latency_ticks: dict[PolicyName, int] | None = None,
         physics: CrowdPhysics | None = None,
         physics_steps_per_tick: int = 200,
+        epsilon: float = 0.0,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
@@ -128,6 +135,8 @@ class Simulation:
         self.mode = mode
         self.physics = physics
         self.physics_steps_per_tick = physics_steps_per_tick
+        #: quota ε (instrument de sensibilité) — 0 par défaut.
+        self.epsilon = epsilon
         self._evacuated: set[int] = set()
         #: latence de décision par politique (ticks) — le LLM réfléchit lentement.
         self.latency_ticks = latency_ticks or {
@@ -146,6 +155,7 @@ class Simulation:
         self.artifact: SimArtifact | None = None
         self.world: WorldSpec | None = None
         self.scene = Scene()
+        self.scene.physics_active = physics is not None
         self.log = RunLog()
 
     def build(self, world: WorldSpec) -> Simulation:
@@ -182,6 +192,8 @@ class Simulation:
             )
             agent.policy = self.policy
             agent.llm_alias = llm_alias or _TIER_BY_ARCHETYPE.get(archetype)
+            agent.run_id = self.run_id
+            agent.epsilon = self.epsilon
             self.scene.add(agent, space_id, pt)
             if self.physics is not None:
                 self.physics.spawn(agent.uid.uid, pt, desired_speed=agent.speed_max)
@@ -228,19 +240,33 @@ class Simulation:
         if not by_tick:
             return
         start, last = min(by_tick), max(by_tick)
-        horizon = last + max(self.latency_ticks.values(), default=0)  # les appels en vol
+        # l'horizon n'a de sens qu'en async : il laisse aboutir les appels en
+        # vol. En sync, tous les appels sont immédiats ; prolonger le run
+        # ajouterait des ticks que le scénario n'a pas demandés.
+        horizon = last
+        if self.mode is ExecutionMode.ASYNC:
+            horizon = last + max(self.latency_ticks.values(), default=0)
         for tick in range(start, horizon + 1):
             ts = by_tick.get(tick)
             if ts is not None:
                 self.scene.tick = tick
-                self.scene.smoke = ts.smoke
-                self.scene.announcement = ts.announcement
+                # la fumée et l'annonce sont des **niveaux** : un tick qui ne
+                # les répète pas ne les éteint pas (sinon t20 « éteignait » la
+                # fumée de t10 et le monde mentait).
+                if ts.smoke:
+                    self.scene.smoke = True
+                if ts.announcement is not None:
+                    self.scene.announcement = ts.announcement
                 if ts.hazard_origin is not None:
                     self.scene.hazard_origin = ts.hazard_origin
                 if ts.smoke:
                     self._emit("world.smoke", tick, tick, {"visible": True})
                 if ts.announcement:
                     self._emit("world.announcement", tick, tick, {"text": ts.announcement})
+                for label in ts.closed_exits:
+                    if label not in self.scene.closed_exits:
+                        self.scene.closed_exits.add(label)
+                        self._emit("world.exit_closed", tick, tick, {"exit": label})
                 for agent_uid, msg in ts.messages:
                     self.scene.mails.setdefault(AgentId(agent_uid), []).append(msg)
             self._process_tick(tick)
@@ -270,6 +296,11 @@ class Simulation:
                 text = str(payload.get("text", ""))
                 self.scene.announcement = text
                 self._emit("world.announcement", tick, tick, {"text": text})
+            elif kind == "close_exit":
+                label = str(payload.get("exit", ""))
+                if label and label not in self.scene.closed_exits:
+                    self.scene.closed_exits.add(label)
+                    self._emit("world.exit_closed", tick, tick, {"exit": label})
             elif kind == "message":
                 raw_uid = payload.get("agent", 0)
                 uid = raw_uid if isinstance(raw_uid, int) else int(str(raw_uid))
@@ -279,12 +310,18 @@ class Simulation:
                 )
 
     def _process_tick(self, tick: int) -> None:
+        # l'horloge du monde avance à chaque tick de la boucle, y compris les
+        # ticks d'horizon (async) sans nouvel événement : sinon l'état du corps
+        # se figerait pendant que la physique, elle, continue.
+        self.scene.tick = tick
         # 0) injections client (P4) : drainées en tête de tick, journalisées avant l'effet
         self._drain_injections(tick)
-        # 0bis) le corps d'abord : positions du dernier pas, perçues par tous
-        #      au même instant (C2 — perception figée).
-        if self.physics is not None:
-            self.scene.update_positions(self.physics.positions())
+        # 0bis) le corps d'abord : positions et intentions figées, perçues par
+        #      tous au même instant (C2 — perception figée). Sans physique, on
+        #      fige quand même les intentions (les points de spawn ne bougent pas).
+        self.scene.update_positions(
+            self.physics.positions() if self.physics is not None else {}
+        )
 
         # 1) en async : appliquer les décisions arrivées à échéance (perception figée)
         if self.mode is ExecutionMode.ASYNC:
@@ -295,25 +332,35 @@ class Simulation:
                     continue
                 apply_t, snap = self._scheduled.pop(agent_id)
                 agent = self.scene.instances[agent_id].agent
-                decision = agent.react(snap)
+                decision = agent.react(snap, force=True)
                 self._record(agent, decision, t_prod=snap.tick, t_trait=apply_t)
                 self._apply_intention(agent, decision)
 
-        # 2) détecter les nouveaux signaux (fronts) ; en sync décider immédiatement
+        # 2) chaque bras applique son calendrier (ADR-014) ; en sync décider ici
         for agent_id in sorted(self.scene.instances, key=lambda a: a.uid):
             if agent_id.uid in self._evacuated:      # sorti physiquement : plus de décision
                 continue
             agent = self.scene.instances[agent_id].agent
             perception = self.scene.perception_for(agent_id)
-            if not agent._novel_events(perception):
+            gate = agent.should_decide(perception)
+            if not gate.decide:
                 continue
-            self.scene.drain(agent_id)
             if self.mode is ExecutionMode.ASYNC:
                 if agent_id not in self._scheduled:  # déjà « en train de réfléchir »
+                    self.scene.drain(agent_id)
+                    self._emit("agent.reconsider", tick, tick, {
+                        "agent": agent.name,
+                        "reason": gate.reason,
+                    })
                     latency = self.latency_ticks.get(agent.policy, 1)
                     self._scheduled[agent_id] = (tick + latency, perception)
             else:
-                decision = agent.react(perception)
+                self.scene.drain(agent_id)
+                self._emit("agent.reconsider", tick, tick, {
+                    "agent": agent.name,
+                    "reason": gate.reason,
+                })
+                decision = agent.react(perception, force=True)
                 self._record(agent, decision, t_prod=tick, t_trait=tick)
                 self._apply_intention(agent, decision)
 
@@ -401,6 +448,13 @@ class Simulation:
         if t_prod > t_trait:
             self.violations += 1
         self.log.rows.append(self._row(agent, decision, t_prod, t_trait))
+        # l'escalade précède la décision qu'elle a provoquée.
+        if decision.escalation_cause:
+            self._emit("agent.escalation", t_prod, t_trait, {
+                "agent": agent.name,
+                "cause": decision.escalation_cause,
+                "detail": decision.escalation_detail,
+            })
         self._emit("agent.decision", t_prod, t_trait, {
             "agent": agent.name,
             "archetype": agent.archetype,
@@ -409,6 +463,8 @@ class Simulation:
             "fallback": decision.fallback,
             "fallback_cause": decision.fallback_cause,
             "explanation": decision.explanation,
+            "arm": agent.policy.value,
+            "escalation_cause": decision.escalation_cause,
         })
         # A4 : un repli n'est pas un silence — il est tracé et dénombré par cause.
         if decision.fallback:
@@ -451,6 +507,8 @@ class Simulation:
             dims=ap.dimensions if ap else {},
             llm_ok=None if trace is None else trace.response.ok,
             llm_model=None if trace is None else trace.response.model,
+            arm=agent.policy.value,
+            escalation_cause=decision.escalation_cause,
         )
 
 

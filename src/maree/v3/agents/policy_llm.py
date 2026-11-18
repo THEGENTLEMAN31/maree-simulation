@@ -14,7 +14,7 @@ défaut choisi pour la reproductibilité.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 from maree.v3.agents.appraisal import Action, Appraisal
 from maree.v3.agents.catalog import chat_for
@@ -22,9 +22,17 @@ from maree.v3.agents.knowledge import Knowledge
 from maree.v3.agents.memory import Memory
 from maree.v3.agents.perception import Perception
 from maree.v3.agents.policy import Decision, rules_decide
+from maree.v3.agents.schedule import escalation_cause
 from maree.v3.agents.social import SocialState
 from maree.v3.agents.traits import Traits
-from maree.v3.core.ports import ChatModelPort, LLMMessage, LLMRequest, LLMTrace
+from maree.v3.core.ids import AgentId
+from maree.v3.core.ports import (
+    ChatModelPort,
+    LLMMessage,
+    LLMRequest,
+    LLMTrace,
+    PolicyName,
+)
 
 SYSTEM_PROMPT = (
     "Tu es un piéton en évacuation dans un bâtiment. Décide une action, et si tu "
@@ -100,6 +108,21 @@ def build_inputs(
         "contexte_rag": rag or [],
         "stress": round(perception.state.stress, 2),
         "herding": traits.herding,
+        # C2 : la perception entre dans le prompt. Sans cela, un changement
+        # de densité ou de voisinage n'était pas « perceptible » par le modèle.
+        "perception": {
+            "voisins_vus": len(perception.seen_agents),
+            "densite_locale": round(perception.crowding, 2),
+            "distance_danger": (
+                None
+                if perception.distance_to_danger is None
+                else round(perception.distance_to_danger, 1)
+            ),
+            "sorties_visibles": sorted(perception.exits_visible),
+            "sorties_fermees": sorted(perception.closed_exits),
+            "fatigue": round(perception.state.fatigue, 2),
+            "visibilite": round(perception.state.visibility, 1),
+        },
     }
 
 
@@ -254,8 +277,18 @@ def hybrid_decide(
     name: str,
     memory: Memory | None = None,
     rag: list[dict[str, object]] | None = None,
+    alias: str = "decision",
+    run_id: str = "v3",
+    epsilon: float = 0.0,
+    agent: object | None = None,
 ) -> Decision:
-    """Règles d'abord ; on monte au LLM seulement en ambiguïté."""
+    """Règles d'abord ; le modèle ne parle que si le **monde** est ambigu.
+
+    L'escalade n'est pas « les règles ne savent pas quoi faire » (critère
+    circulaire, 0 appel mesuré) : elle est calculée par
+    ``schedule.escalation_cause`` sur des faits du monde — contradiction,
+    annonce ambiguë, situation inédite, revue, quota instrumenté.
+    """
     base = rules_decide(
         perception=perception,
         knowledge=knowledge,
@@ -265,25 +298,52 @@ def hybrid_decide(
         known_exits=known_exits,
         name=name,
     )
-    # ambiguïté : menace mais aucune sortie confiante, ou hérdage sans cible.
-    uncertain = (
-        appraisal.menace >= 0.4
-        and base.action in (Action.RESTER, Action.CHERCHER)
-    ) or base.action == Action.SUIVRE
-    if uncertain:
-        policy = LLMPolicy().decide(
-            perception=perception,
-            knowledge=knowledge,
-            social=social,
-            traits=traits,
-            appraisal=appraisal,
-            known_exits=known_exits,
-            name=name,
-            memory=memory,
-            rag=rag,
-        )
-        return policy
-    return base
+    context = agent if agent is not None else _ScheduleContext(
+        knowledge=knowledge,
+        known_exits=known_exits,
+        memory=memory or Memory(),
+        name=name,
+    )
+    escalation = escalation_cause(
+        context,  # type: ignore[arg-type]
+        perception,
+        base=base,
+        appraisal=appraisal,
+        epsilon=epsilon,
+        run_id=run_id,
+    )
+    if escalation is None:
+        return base
+    decision = LLMPolicy(alias=alias).decide(
+        perception=perception,
+        knowledge=knowledge,
+        social=social,
+        traits=traits,
+        appraisal=appraisal,
+        known_exits=known_exits,
+        name=name,
+        memory=memory,
+        rag=rag,
+    )
+    return replace(
+        decision,
+        escalation_cause=escalation.cause,
+        escalation_detail=escalation.detail,
+    )
+
+
+@dataclass(slots=True)
+class _ScheduleContext:
+    """Contexte minimal pour l'escalade quand on n'a pas d'``Agent`` complet."""
+
+    knowledge: Knowledge
+    known_exits: frozenset[str]
+    memory: Memory
+    name: str
+    policy: PolicyName = PolicyName.HYBRID
+    uid: AgentId = field(default_factory=lambda: AgentId(0))
+    _last_decision: Decision | None = None
+    _trail: list[tuple[int, tuple[float, float]]] = field(default_factory=list)
 
 
 __all__ = ["SYSTEM_PROMPT", "LLMPolicy", "build_inputs", "hybrid_decide"]

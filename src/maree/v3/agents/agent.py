@@ -11,18 +11,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from maree.v3.agents.appraisal import Appraisal, appraise
+from maree.v3.agents.appraisal import Action, Appraisal, appraise
 from maree.v3.agents.knowledge import Belief, Knowledge, Source
 from maree.v3.agents.memory import EpisodeKind, Memory
 from maree.v3.agents.perception import Message, Perception
-from maree.v3.agents.policy import Decision, rules_decide
+from maree.v3.agents.policy import Decision, _believed_blocked, rules_decide
 from maree.v3.agents.policy_llm import LLMPolicy, hybrid_decide
 from maree.v3.agents.prehistory import prehistory_for, seed_prehistory
+from maree.v3.agents.schedule import (
+    DENSITY_UNSEEN,
+    Reconsideration,
+    novel_front,
+    perception_key,
+    should_decide,
+)
 from maree.v3.agents.social import SocialState
 from maree.v3.agents.state import State
 from maree.v3.agents.traits import Traits
 from maree.v3.core.ids import AgentId
 from maree.v3.core.ports import PolicyName
+from maree.v3.world.worldspec import Point
 
 
 @dataclass(slots=True)
@@ -45,18 +53,31 @@ class Agent:
     retriever: Any = None
     #: alias du modèle LLM pour cet agent (A5) : "decision" (grand) ou "petit".
     llm_alias: str | None = None
+    #: identifiant du run (tirage ε déterministe, quota instrumenté).
+    run_id: str = "v3"
+    #: quota ε (0 = jamais) — instrument de sensibilité, jamais un bras.
+    epsilon: float = 0.0
     _last_decision: Decision | None = field(default=None, init=False)
+    #: empreinte de la dernière perception *décidée* (calendrier LLM/hybride).
+    _last_perception_key: str | None = field(default=None, init=False)
+    #: (tick, position) récents — mesure « pas de progression » (plan invalidé).
+    _trail: list[tuple[int, Point]] = field(default_factory=list, init=False)
 
     # --- réaction ---
-    def react(self, perception: Perception) -> Decision:
+    def react(self, perception: Perception, *, force: bool = False) -> Decision:
         """Décide face à une perception figée, en consommant sa mémoire.
 
-        Comportement de front : si aucun **signal nouveau** (front fumée,
-        annonce, message) n'apparaît, on conserve la dernière décision au
-        lieu de re-décider à chaque tick.
+        ``force=True`` saute le calendrier : utilisé par l'orchestrateur qui
+        l'a déjà consulté (sinon une décision asynchrone, gardée pour un tick
+        passé, serait refusée par son propre calendrier).
+        Comportement de front : si aucun **signal nouveau** n'apparaît, on
+        conserve la dernière décision au lieu de redécider à chaque tick.
         """
-        if not self._novel_events(perception) and self._last_decision is not None:
-            return self._last_decision
+        self._note_position(perception)
+        if not force and self._last_decision is not None:
+            gate = should_decide(self, perception)
+            if not gate.decide:
+                return self._last_decision
 
         ap = appraise(
             perception=perception,
@@ -68,7 +89,23 @@ class Agent:
         decision = self._decide(perception, ap)
         self._consume(perception, decision, ap)
         self._last_decision = decision
+        self._last_perception_key = perception_key(perception)
         return decision
+
+    def should_decide(self, perception: Perception) -> Reconsideration:
+        """Le calendrier de ce bras (ADR-014), journalisé par sa cause."""
+        self._note_position(perception)
+        return should_decide(self, perception)
+
+    def _note_position(self, perception: Perception) -> None:
+        """Garde la trace du corps pour détecter l'absence de progression."""
+        if perception.position is None:
+            return
+        if self._trail and self._trail[-1][0] >= perception.tick:
+            return
+        self._trail.append((perception.tick, perception.position))
+        if len(self._trail) > 16:
+            del self._trail[:-16]
 
     def _decide(self, perception: Perception, ap: Appraisal) -> Decision:
         """Répartit sur la politique courante (registre de décisions)."""
@@ -96,6 +133,10 @@ class Agent:
                 name=self.name,
                 memory=self.memory,
                 rag=rag,
+                alias=self.llm_alias or "decision",
+                run_id=self.run_id,
+                epsilon=self.epsilon,
+                agent=self,
             )
         return rules_decide(
             perception=perception,
@@ -138,32 +179,47 @@ class Agent:
         ]
 
     def _novel_events(self, perception: Perception) -> bool:
-        if perception.smoke_visible and not self.memory.has_seen_signal("fumée", True):
-            return True
-        if perception.announcement and not self.memory.has_seen_signal(
-            "annonce", perception.announcement
-        ):
-            return True
-        if self.social.kin and any(
-            not self.memory.has_seen_signal("proche", str(k)) for k in self.social.kin
-        ):
-            return True
-        return any(
-            not self.memory.has_seen_signal("message", m.fact)
-            for m in perception.heard
-        )
+        """Compatibilité : un front nouveau existe-t-il ? (usage interne)."""
+        return novel_front(self, perception) is not None
 
     def _consume(
         self, perception: Perception, decision: Decision, ap: Appraisal
     ) -> None:
         """Journalise la décision et l'apprentissage dans la mémoire."""
         tick = perception.tick
+        # ce que l'on croyait bloqué **avant** d'apprendre les messages de ce
+        # tick : sert à distinguer « je viens de l'apprendre » (une correction
+        # reste à faire) de « je le savais et j'ai quand même choisi » (on ne
+        # rappelle pas le modèle à chaque tick pour la même cible).
+        blocked_before = {
+            label
+            for label in self.known_exits
+            if _believed_blocked(self.knowledge, label)
+        }
         # fronts mémorisés : on ne re-décide plus pour eux
         if perception.smoke_visible:
             self.memory.mark_signal_seen("fumée", True, tick)
             self.memory.learn("fumée visible", Source.VU, tick, 0.9)
         if perception.announcement:
             self.memory.mark_signal_seen("annonce", perception.announcement, tick)
+            if self._closure_word(perception.announcement):
+                weight = 0.6 + 0.4 * self.traits.authority_trust
+                for label in self._labels_in(perception.announcement):
+                    if label not in self.known_exits:
+                        continue
+                    self.knowledge.set(
+                        f"hazard:{label}",
+                        Belief("sortie fermée", weight, Source.ANNONCE, tick),
+                    )
+        for label in sorted(perception.closed_exits):
+            if label not in self.known_exits:
+                continue
+            self.memory.mark_signal_seen("fermeture", label, tick)
+            self.knowledge.set(
+                f"hazard:{label}",
+                Belief("sortie fermée", 1.0, Source.VU, tick),
+            )
+            self.memory.learn(f"{label} est fermée", Source.VU, tick, 1.0)
         for k in list(self.social.kin):
             self.memory.mark_signal_seen("proche", str(k), tick)
         for m in perception.heard:
@@ -172,6 +228,10 @@ class Agent:
             # par ma tendance à suivre (herding) et ma confiance en lui.
             weight = m.confidence * (0.3 + 0.7 * self.traits.herding)
             for label in self._labels_in(m.fact):
+                if label not in self.known_exits:
+                    # la géographie ne s'apprend pas par ouï-dire (C3) : un
+                    # visiteur ne crée pas une croyance sur une sortie inconnue.
+                    continue
                 if self._closure_word(m.fact):
                     # message négatif : je crois la sortie bloquée
                     self.knowledge.set(
@@ -187,6 +247,32 @@ class Agent:
                         Belief(label, weight, Source.ENTENDU, tick),
                     )
                     self.memory.learn(f"{label} est praticable", Source.ENTENDU, tick, weight)
+
+        # plan invalidé : on mémorise ce qui a déjà été signalé pour ne pas
+        # rappeler le modèle pour la même cible à chaque tick.
+        if decision.action is Action.EVACUER and decision.target:
+            # La cible choisie était déjà crue bloquée **avant** ce tick : le
+            # calendrier a donc déjà eu sa chance de corriger (plan invalidé).
+            # On note la cible pour ne pas escalader en boucle ; si l'agent
+            # apprend le blocage *maintenant*, on ne note rien, pour laisser
+            # passer la reconsidération du tick suivant.
+            if decision.target in blocked_before:
+                self.memory.mark_signal_seen(
+                    "cible_bloquee", decision.target, tick
+                )
+            if (
+                perception.exits_visible
+                and decision.target not in perception.exits_visible
+            ):
+                self.memory.mark_signal_seen(
+                    "cible_invisible", decision.target, tick
+                )
+            if perception.crowding >= 1.0:
+                self.memory.mark_signal_seen(
+                    "cible_saturee", decision.target, tick
+                )
+        if perception.crowding >= DENSITY_UNSEEN:
+            self.memory.mark_signal_seen("densite_forte", True, tick)
 
         # épisode de décision + oubli (les fronts restent, la confiance décroît)
         self.memory.log_episode(
