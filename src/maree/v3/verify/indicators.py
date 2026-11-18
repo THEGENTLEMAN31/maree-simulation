@@ -7,7 +7,7 @@ campagne les résume ensuite. Le même code sert donc au direct et au rejeu.
     I1  consensus        part des agents actifs qui partagent la croyance majoritaire
     I2  entropie         incertitude moyenne des croyances (normalisée 0..1)
     I3  évacués          part des agents sortis
-    I4  temps            tick × 10 s — une horloge, pas une durée
+    I4  temps            tick × durée du tick (10 s par défaut) — une horloge
     I5  densité max      noyau circulaire de 2 m (pers/m²) — le goulot
     I6  écart            part des agents croyant en une sortie réellement fermée
     I7  délai            premier signal de danger → dernier sorti (s)
@@ -206,6 +206,7 @@ def compute(
     tick: int,
     signal_tick: int | None = None,
     last_exit_tick: int | None = None,
+    tick_seconds: float = TICK_SECONDS,
 ) -> Indicators:
     active = [s for s in states if not s.evacuated]
     by_belief: dict[str, int] = {}
@@ -214,7 +215,7 @@ def compute(
         by_belief[key] = by_belief.get(key, 0) + 1
     delay = 0.0
     if signal_tick is not None and last_exit_tick is not None:
-        delay = max(0.0, (last_exit_tick - signal_tick) * TICK_SECONDS)
+        delay = max(0.0, (last_exit_tick - signal_tick) * tick_seconds)
     return Indicators(
         tick=tick,
         i1_consensus=consensus(s.belief_best for s in active),
@@ -222,7 +223,7 @@ def compute(
         i3_evacuated=(
             len(states) - len(active)
         ) / len(states) if states else 0.0,
-        i4_seconds=tick * TICK_SECONDS,
+        i4_seconds=tick * tick_seconds,
         i5_max_density=max_density(active),
         i6_belief_gap=belief_gap(states, open_exits),
         i7_delay_seconds=delay,

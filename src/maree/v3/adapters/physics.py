@@ -36,6 +36,13 @@ class JuPedSimCrowd:
     seed: int = 0
     model: str = "collision_free"
     desired_speed: float = 1.2
+    #: profondeur (m) du polygone d'issue posé **devant** la porte.
+    #: Une zone de 1,5 m de profondeur se traverse à la marche : la porte
+    #: laisse alors passer ~2× plus que sa largeur ne le permet (mesuré
+    #: 2026-11-18 : 6,8 pers/s sur 1,2 m à 1,5 m de profondeur, 3,8 pers/s à
+    #: 0,5 m). 0,5 m garde une cible atteignable sans inventer une porte
+    #: plus large que le plan.
+    exit_depth: float = 0.5
 
     _sim: Any = field(init=False)
     _params: Any = field(init=False)
@@ -90,7 +97,7 @@ class JuPedSimCrowd:
         if (ox - cx) * nx + (oy - cy) * ny < 0:
             nx, ny = -nx, -ny
         half = max(0.4, length / 2)
-        depth = 1.5
+        depth = self.exit_depth
         return Polygon([
             (cx + tx * half + nx * 0.2, cy + ty * half + ny * 0.2),
             (cx - tx * half + nx * 0.2, cy - ty * half + ny * 0.2),

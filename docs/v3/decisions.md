@@ -452,3 +452,61 @@ règles. Le porteur de projet retient la **première**.
   déclencheur ne peut réagir qu'à ce que la perception contient.
 - Les chiffres publiés avant cette date restent dans
   `runs/v3/avant_correctif/` et ne se comparent plus à ceux d'après.
+
+---
+
+## ADR-015 — Mesurer la foule demande un monde calibré, une horloge déclarée et une porte qui ne s'invente pas
+
+_2026-11-18. Statut : accepté (chantier C5, porte G2)._
+
+### Contexte
+
+C2 → C4 ont rendu la perception, le calendrier et la mesure honnêtes. Reste
+un problème de monde : la campagne macro doit montrer une **évacuation**, pas
+une marche. Trois faits mesurés ont forcé trois décisions.
+
+1. `hall_3` (120 × 80 m, 9 600 m²) avec 60 agents donne une densité locale
+   maximale de **0,000 pers/m²**. Il n'y a pas de foule, donc pas de goulot :
+   aucun indicateur de foule ne peut y bouger.
+2. Le polygone d'issue de l'adaptateur faisait **1,5 m de profondeur**, posé
+   devant la porte. Une zone aussi profonde se traverse à la marche : la porte
+   laisse passer ≈2× plus que sa largeur ne le permet (6,8 pers/s sur 1,2 m
+   à 1,5 m de profondeur, 3,8 pers/s à 0,5 m).
+3. Avec la convention v2 de **10 s par tick**, une salle qui se vide en 25 s
+   ne produit que deux points de mesure. I4 et I7 étaient donc quantifiés à
+   10 s près sur un phénomène de 20 s.
+
+### Décision
+
+1. **Un monde dédié, `crowd_hall`** (22 × 16 m = 352 m², deux issues de
+   1,2 m), calibré pour que le bras `règles` produise un pic de densité
+   **0,8–1,6 pers/m²** et un vidage de **20–30 s**. Les paramètres sont
+   gelés : ce monde sert à toutes les comparaisons C6.
+2. **La profondeur du polygone d'issue est un paramètre de l'adaptateur**
+   (`exit_depth = 0,5 m` par défaut), plus une constante cachée. Changer
+   cette profondeur change le débit : elle est donc nommée.
+3. **La durée du tick est un paramètre du run** (`Simulation.tick_seconds`,
+   10 s par défaut pour rester compatible), et I4/I7 la suivent. Le scénario
+   de foule déclare **2 s**.
+
+### Ce que nous assumons comme écart
+
+- La porte de ce modèle laisse passer **≈3,2 pers/(m·s)** contre ≈1,3 dans la
+  littérature. Ce n'est pas corrigé par un réglage caché : le modèle
+  `collision_free` ne compresse pas les corps. L'écart est du **même ordre sur
+  les trois bras**, donc les comparaisons entre bras tiennent ; les valeurs
+  absolues de temps ne sont pas des valeurs de terrain.
+- La cible « I7 40–80 s » du plan n'est donc **pas atteignable** avec 60
+  agents et des portes crédibles. La valeur mesurée (22–26 s) est publiée
+  telle quelle, avec cette explication, plutôt que d'être forcée par une
+  porte de 0,5 m ou une horloge inventée.
+- Le modèle `social_force` de JuPedSim 1.4 sort de la géométrie
+  (`RuntimeError: Point ... is outside of accessible area`) sur ce domaine :
+  il n'est pas utilisable ici, et le choix du `collision_free` est consigné.
+
+### Conséquences
+
+- `I6` reste **0 par construction** sur ce scénario (aucune porte ne ferme) :
+  ne pas le déclarer comme un résultat.
+- Les comparaisons C6 se font sur ce monde, à population et horloge fixes.
+  Un run sur `hall_3` ne se compare pas à un run sur `crowd_hall`.

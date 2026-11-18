@@ -119,6 +119,19 @@ def preset(name: str) -> dict[str, object]:
             world_id="hall_3", width=120, height=80,
             exits=(ExitSpec("A", "top", 57.0), ExitSpec("B", "right", 38.0), ExitSpec("C", "bottom", 44.0)),
         ),
+        #: La salle **calibrée** pour la mesure de foule (C5, 2026-11-18).
+        #: 22 × 16 m = 352 m² pour 60 agents (0,17 pers/m² au repos), deux
+        #: issues de 1,2 m : à cette taille la foule fait un goulot visible
+        #: (I5 pic 1,27–1,43) et se vide en 24–26 s de temps simulé. Une salle
+        #: de 120 × 80 m (hall_3) ne produit aucun goulot à 60 agents (mesuré
+        #: 0,000 pers/m²) : le monde doit être choisi, pas hérité.
+        "crowd_hall": hall_config(
+            world_id="crowd_hall", width=22.0, height=16.0,
+            exits=(
+                ExitSpec("A", "top", 6.6, 1.2),
+                ExitSpec("B", "bottom", 15.4, 1.2),
+            ),
+        ),
         "two_floor": two_floor_config(
             lower=FloorConfig("L0", 100, 60, (ExitSpec("A", "bottom", 50),)),
             upper=FloorConfig("L1", 100, 60, (ExitSpec("B", "top", 50),), y_offset=4.5),

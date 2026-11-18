@@ -31,7 +31,7 @@ from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
 from maree.v3.sim.physics import CrowdPhysics, Target
 from maree.v3.sim.scene import Scene
 from maree.v3.verify.emergence import emergence_report
-from maree.v3.verify.indicators import compute, from_agents
+from maree.v3.verify.indicators import TICK_SECONDS, compute, from_agents
 from maree.v3.world.navgraph import NavigationGraph
 from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
 from maree.v3.world.validate import validate_or_raise
@@ -134,6 +134,7 @@ class Simulation:
         physics: CrowdPhysics | None = None,
         physics_steps_per_tick: int = 200,
         epsilon: float = 0.0,
+        tick_seconds: float = TICK_SECONDS,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
@@ -145,6 +146,10 @@ class Simulation:
         self.physics_steps_per_tick = physics_steps_per_tick
         #: quota ε (instrument de sensibilité) — 0 par défaut.
         self.epsilon = epsilon
+        #: durée d'un tick (s). Réglée par scénario : une salle de 16 × 12 m se
+        #: vide en 20 s, donc un tick de 10 s n'y produirait que deux points de
+        #: mesure. I4 et I7 suivent cette horloge, elle est journalisée.
+        self.tick_seconds = tick_seconds
         self._evacuated: set[int] = set()
         #: latence de décision par politique (ticks) — le LLM réfléchit lentement.
         self.latency_ticks = latency_ticks or {
@@ -451,6 +456,7 @@ class Simulation:
             tick=tick,
             signal_tick=self._first_danger_tick,
             last_exit_tick=self._last_exit_tick,
+            tick_seconds=self.tick_seconds,
         )
         data = ind.to_dict()
         data["closed_exits"] = sorted(self.scene.closed_exits)

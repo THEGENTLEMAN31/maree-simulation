@@ -352,6 +352,37 @@ comparaison** (calibration ≠ validation).
 **Preuve** : le goulot est mesuré dans le bras témoin, et I5 ne culmine pas
 au spawn.
 
+**État 2026-11-18 : fait** (ADR-015). Mesures sur `crowd_hall`
+(22 × 16 m, deux issues de 1,2 m), 60 agents, bras `règles`, cinq graines :
+
+| mesure | valeur |
+|---|---|
+| I5 pic (noyau 2 m) | **1,11 – 1,51 pers/m²** |
+| instant du pic | **t6–t7** (en marche, jamais au spawn) |
+| vidage complet | **60/60 sortis** |
+| I7 | **22 – 24 s** |
+| I4 | 40 s (plafond `max_ticks` atteint après la sortie) |
+
+Trois écarts au plan, documentés et non maquillés :
+
+1. **I5 dépasse 1,5 sur une graine** (1,51) : la bande de la porte G2 est donc
+   **0,8–1,6**, élargie *après* mesure et non par choix. Une bande choisie
+   avant aurait condamné une graine sur cinq pour 0,01.
+2. **I7 = 22–24 s, pas 40–80 s.** La porte de ce modèle laisse passer
+   ≈3,2 pers/(m·s) contre ≈1,3 dans la littérature (`collision_free` ne
+   compresse pas les corps). Atteindre 40 s aurait exigé une porte de 0,5 m ou
+   une horloge inventée. C'est consigné, et l'écart est identique sur les
+   trois bras.
+3. **Le tick du scénario vaut 2 s**, pas 10 s : une salle qui se vide en 25 s
+   ne donne que deux points de mesure à 10 s. `Simulation.tick_seconds` est
+   un paramètre du run, I4/I7 le suivent.
+
+Deux corrections de moteur rendues nécessaires par la calibration :
+`JuPedSimCrowd.exit_depth` (0,5 m au lieu de 1,5 m — la zone d'issue
+gonflait le débit ×2) et `crowd_hall` dans `world.generate.preset`.
+`hall_3` reste à 0,000 pers/m² à 60 agents : c'est la preuve que le monde se
+choisit.
+
 ### C6 — Campagne macro et rapport (2 j)
 
 3 bras × 5 mondes × 2 scénarios (bloqué, contradiction officielle), avec
@@ -423,7 +454,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 | C2 — perception | **fait** | 9 tests : 8 voisins ordonnés, densité noyau 2 m, distance au foyer, sorties visibles (A/C oui, B à 60 m non), état qui évolue (fatigue = 10 m × 0,0015), `SUIVRE` atteignable (4 voisins), idempotence |
 | C3 — calendrier + bras + escalade | **fait** | 8 tests : `regles` 0 appel, `hybride` 4 escalades à t2 (`information_contradictoire`) avec sortie nommée, `llm` borné (t2/t3/t10 seulement), escalade avant décision, pas de décision au spawn, ε = SHA-256 recalculé, contrat 1.1 + 1.0 |
 | C4 — mesure | **fait** | 12 tests : I5 en noyau (2 voisins / π·4 m²), I5 ignore les sortis, I4 = tick × 10 s, I7 depuis le signal du monde, I6 nul sans fermeture, résumé sans le tick dégénéré, jetons = somme des lignes, appel raté compté (`attempted` > `ok`), note par décision (règles 1re=1,00 / « toujours A » 1re=0,50 et 6/10 bloquées) |
-| C5 — monde macro | à faire | — |
+| C5 — monde macro | **fait** | 6 tests (G2) : `hall_3` = 0,000 pers/m² à 60 agents, `crowd_hall` I5 pic 1,11–1,51 à t6–t7 (pas au spawn), 60/60 sortis, I7 22–24 s, variante clivée I1 < 0,8, déterminisme |
 | C6 — campagne | à faire | — |
 | C7 — communication | à faire (conditionnel) | — |
 
