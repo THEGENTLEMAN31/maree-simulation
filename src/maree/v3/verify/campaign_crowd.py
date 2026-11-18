@@ -61,9 +61,14 @@ class CrowdRun:
     llm_ok: int
     tokens: int
     wall_s: float
+    speak: bool = True
+    messages: int = 0
     escalations: dict[str, int] = field(default_factory=dict)
     replis: dict[str, int] = field(default_factory=dict)
     targeted_blocked: int = 0
+    #: décisions vers une porte crue bloquée alors qu'**aucune** autre n'était
+    #: crue praticable : ce n'est pas une erreur, c'est un monde sans option.
+    targeted_blocked_least_bad: int = 0
     target_resolved: int = 0
     evacuations: int = 0
     indicators: dict[str, float] = field(default_factory=dict)
@@ -78,9 +83,12 @@ class CrowdRun:
             "llm_ok": self.llm_ok,
             "tokens": self.tokens,
             "wall_s": self.wall_s,
+            "speak": self.speak,
+            "messages": self.messages,
             "escalations": self.escalations,
             "replis": self.replis,
             "targeted_blocked": self.targeted_blocked,
+            "targeted_blocked_least_bad": self.targeted_blocked_least_bad,
             "target_resolved": self.target_resolved,
             "evacuations": self.evacuations,
             "indicators": self.indicators,
@@ -91,10 +99,18 @@ class CrowdRun:
         return self.targeted_blocked / self.decisions if self.decisions else 0.0
 
 
-def run_arm(arm: Arm, scenario: str, seed: int) -> CrowdRun:
-    """Un run d'un bras, journalisé et compté par décision."""
+def run_arm(
+    arm: Arm, scenario: str, seed: int, *, speak: bool = True
+) -> CrowdRun:
+    """Un run d'un bras, journalisé et compté par décision.
+
+    ``speak=False`` est le **null** de B3 : le même monde, la même politique,
+    les mêmes croyances initiales, mais aucune émission. Il doit être joué
+    avec le **même code** que le bras observé : deux runs séparés par une
+    version de code ne comparent rien.
+    """
     bus = MemoryBus()
-    sim = sc.build_sim(arm.policy, seed=seed, bus=bus, alias=arm.alias)
+    sim = sc.build_sim(arm.policy, seed=seed, bus=bus, alias=arm.alias, speak=speak)
     steps = (
         sc.split_timeline(seed)
         if scenario == "split"
@@ -112,11 +128,13 @@ def run_arm(arm: Arm, scenario: str, seed: int) -> CrowdRun:
     for agent_uid, message in steps[0].messages:
         if message.fact.startswith("La sortie "):
             believed[f"A{agent_uid:02d}"] = message.fact.split()[2]
-    targeted = sum(
-        1
+    targeted_rows = [
+        row
         for row in rows
         if row.target is not None and believed.get(row.agent) == row.target
-    )
+    ]
+    targeted = len(targeted_rows)
+    least_bad = sum(1 for row in targeted_rows if row.target_least_bad)
     escalations = Counter(
         str(env.data["cause"]) for env in bus.published("agent.escalation")
     )
@@ -132,9 +150,12 @@ def run_arm(arm: Arm, scenario: str, seed: int) -> CrowdRun:
         llm_ok=sum(1 for r in rows if r.llm_ok),
         tokens=sum(r.prompt_tokens + r.completion_tokens for r in rows),
         wall_s=round(wall, 2),
+        speak=speak,
+        messages=len(bus.published("agent.message")),
         escalations=dict(sorted(escalations.items())),
         replis=dict(sorted(replis.items())),
         targeted_blocked=targeted,
+        targeted_blocked_least_bad=least_bad,
         target_resolved=sum(1 for r in rows if r.target_resolved),
         evacuations=sum(1 for _ in sim._evacuated),
         indicators=summary,
@@ -146,13 +167,14 @@ def campaign(
     arms: tuple[Arm, ...] = ARMS,
     scenarios: tuple[str, ...] = ("split", "contradiction"),
     seeds: tuple[int, ...] = (1, 2, 3, 4, 5),
+    speak: bool = True,
 ) -> list[CrowdRun]:
     """Déroule bras × scénarios × graines (ordre déterministe)."""
     out: list[CrowdRun] = []
     for arm in arms:
         for scenario in scenarios:
             for seed in seeds:
-                out.append(run_arm(arm, scenario, seed))
+                out.append(run_arm(arm, scenario, seed, speak=speak))
     return out
 
 
@@ -181,10 +203,18 @@ def aggregate(runs: list[CrowdRun]) -> dict[str, Any]:
             "llm_ok_med": _med([float(r.llm_ok) for r in rows]),
             "tokens_med": _med([float(r.tokens) for r in rows]),
             "wall_s_med": _med([r.wall_s for r in rows]),
+            "messages_med": _med([float(r.messages) for r in rows]),
             "part_decisions_bloquees_med": _med(
                 [r.part_decisions_bloquees for r in rows]
             ),
             "target_resolved_med": _med([float(r.target_resolved) for r in rows]),
+            "least_bad_med": _med([float(r.targeted_blocked_least_bad) for r in rows]),
+            "part_bloquees_least_bad_med": _med(
+                [
+                    (r.targeted_blocked_least_bad / r.decisions if r.decisions else 0.0)
+                    for r in rows
+                ]
+            ),
             "evacuations_med": _med([float(r.evacuations) for r in rows]),
             "I1_med": ind("I1_consensus"),
             "I2_med": ind("I2_entropy"),

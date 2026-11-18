@@ -25,21 +25,33 @@ bootstrap.assemble()
 
 from maree.v3.verify.campaign_crowd import ARMS, aggregate  # noqa: E402
 
-SEEDS = tuple(int(a) for a in sys.argv[1:]) or (1, 2, 3, 4, 5)
+ARGS = [a for a in sys.argv[1:]]
+SILENT = "--silent" in ARGS
+ARMS_FILTER = None
+for arg in ARGS:
+    if arg.startswith("--arms="):
+        ARMS_FILTER = tuple(arg.split("=", 1)[1].split(","))
+SEEDS = tuple(int(a) for a in ARGS if a.isdigit()) or (1, 2, 3, 4, 5)
 SCENARIOS = ("split", "contradiction")
+SELECTED = tuple(a for a in ARMS if ARMS_FILTER is None or a.name in ARMS_FILTER)
+OUT_NAME = "campaign_crowd_silence.json" if SILENT else "campaign_crowd.json"
 
 
 def main() -> int:
-    print(f"graines {SEEDS} — scénarios {SCENARIOS} — bras {[a.name for a in ARMS]}")
+    mode = "SILENCE (null de B3)" if SILENT else "parole active"
+    print(
+        f"graines {SEEDS} — scénarios {SCENARIOS} — bras {[a.name for a in SELECTED]}"
+        f" — {mode}"
+    )
     t0 = time.time()
     runs = []
-    for arm in ARMS:
+    for arm in SELECTED:
         for scenario in SCENARIOS:
             for seed in SEEDS:
                 t_run = time.time()
                 from maree.v3.verify.campaign_crowd import run_arm
 
-                r = run_arm(arm, scenario, seed)
+                r = run_arm(arm, scenario, seed, speak=not SILENT)
                 runs.append(r)
                 print(
                     f"  {arm.name:<10} {scenario:<14} s{seed}  "
@@ -47,7 +59,8 @@ def main() -> int:
                     f"jetons={r.tokens:>6} mural={r.wall_s:>6.1f}s "
                     f"évac={r.evacuations:>2}/60 I5={r.indicators['I5_max_density']:.2f} "
                     f"I7={r.indicators['I7_delay_seconds']:.0f}s "
-                    f"cible_bloq={r.part_decisions_bloquees:.2f}",
+                    f"paroles={r.messages:>3} cible_bloq={r.part_decisions_bloquees:.2f} "
+                    f"(dont faute_de_mieux={r.targeted_blocked_least_bad / r.decisions if r.decisions else 0:.2f})",
                     flush=True,
                 )
                 _ = t_run
@@ -69,7 +82,7 @@ def main() -> int:
 
     out = Path("runs/v3")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "campaign_crowd.json").write_text(
+    (out / OUT_NAME).write_text(
         json.dumps(
             {
                 "seeds": list(SEEDS),
@@ -82,7 +95,7 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
-    print("\nJSON : runs/v3/campaign_crowd.json")
+    print(f"\nJSON : runs/v3/{OUT_NAME}")
     return 0
 
 

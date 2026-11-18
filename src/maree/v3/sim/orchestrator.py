@@ -89,6 +89,8 @@ class LogRow:
     llm_attempted: bool = False
     #: cible choisie par le moteur (le modèle n'a nommé aucune sortie).
     target_resolved: bool = False
+    #: cible prise faute de mieux (toutes les sorties crues bloquées).
+    target_least_bad: bool = False
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_s: float = 0.0
@@ -581,6 +583,7 @@ class Simulation:
             "arm": agent.policy.value,
             "escalation_cause": decision.escalation_cause,
             "target_resolved": decision.target_resolved,
+            "target_least_bad": decision.target_least_bad,
         })
         # A4 : un repli n'est pas un silence — il est tracé et dénombré par cause.
         if decision.fallback:
@@ -637,6 +640,7 @@ class Simulation:
             escalation_cause=decision.escalation_cause,
             llm_attempted=trace is not None,
             target_resolved=decision.target_resolved,
+            target_least_bad=decision.target_least_bad,
             prompt_tokens=0 if trace is None else trace.response.prompt_tokens,
             completion_tokens=(
                 0 if trace is None else trace.response.completion_tokens

@@ -57,6 +57,9 @@ class Decision:
     #: « sortir » sans nommer de porte). Une mesure qui compte ce choix comme
     #: un exploit du modèle mesure le moteur.
     target_resolved: bool = False
+    #: vrai si la cible a été prise **faute de mieux** : toutes les sorties
+    #: connues étaient crues bloquées. Ce n'est pas une erreur de politique.
+    target_least_bad: bool = False
 
 
 def _is_evacuation_order(announcement: str) -> bool:
@@ -114,13 +117,15 @@ def rules_decide(
     ann = perception.announcement
     if ann and _is_evacuation_order(ann) and not _mentions_closure(ann):
         target = _named_exit(ann, set(known_exits))
+        least_bad = False
         if target is None:
             # on évacue vers la sortie connue la plus confiante
-            target = _most_confident_exit(knowledge)
+            target, least_bad = _exit_choice(knowledge)
         return Decision(
             action=Action.EVACUER,
             tick=tick,
             target=target,
+            target_least_bad=least_bad,
             explanation=" et ".join(
                 [f"{name} évacue suite à l'annonce", *appraisal_reasons]
             ),
@@ -147,7 +152,7 @@ def rules_decide(
 
     # --- 3. fumée / menace haute ---
     if perception.smoke_visible or appraisal.menace >= 0.6:
-        target = _most_confident_exit(knowledge)
+        target, least_bad = _exit_choice(knowledge)
         if target is None and perception.heard:
             # je ne connais pas de sortie : je suis celui qui part
             return Decision(
@@ -163,6 +168,7 @@ def rules_decide(
             action=Action.EVACUER,
             tick=tick,
             target=target,
+            target_least_bad=least_bad,
             explanation=" et ".join(
                 [f"{name} évacue (menace)", *appraisal_reasons]
             ),
@@ -206,15 +212,20 @@ def rules_decide(
     )
 
 
-def _most_confident_exit(knowledge: Knowledge) -> str | None:
-    """La sortie connue la plus confiante, en ignorant celles croyues bloquées.
+def _exit_choice(knowledge: Knowledge) -> tuple[str | None, bool]:
+    """(sortie choisie, était-ce la « moins mauvaise » faute de mieux ?).
 
     Si **toutes** les sorties connues sont crues bloquées, on ne se fige pas :
     on prend la **moins mauvaise** (la croyance de danger la plus faible).
     Une foule qui reste immobile parce qu'elle croit tout fermé n'est pas un
     comportement de foule, c'est un arrêt de la simulation — mesuré le
     2026-11-18 : 22 sortis sur 60 dès que les agents se transmettent les
-    fermetures. Le choix est journalisé par son explication, pas caché.
+    fermetures.
+
+    Le second drapeau est une **mesure**, pas un détail : une foule qui croit
+    toutes les portes fermées et prend la moins mauvaise n'a pas mal choisi,
+    elle n'a plus de choix. Compter ces décisions comme des erreurs de
+    politique ferait passer une spirale de rumeur pour un défaut de décision.
     """
     best: tuple[float, str] | None = None
     fallback: tuple[float, str] | None = None
@@ -232,8 +243,13 @@ def _most_confident_exit(knowledge: Knowledge) -> str | None:
         if best is None or cand[0] > best[0]:
             best = cand
     if best is not None:
-        return best[1]
-    return fallback[1] if fallback else None
+        return best[1], False
+    return (fallback[1], True) if fallback else (None, False)
+
+
+def _most_confident_exit(knowledge: Knowledge) -> str | None:
+    """La sortie retenue (voir ``_exit_choice`` pour le cas « tout est fermé »)."""
+    return _exit_choice(knowledge)[0]
 
 
 def _believed_blocked(knowledge: Knowledge, label: str) -> bool:

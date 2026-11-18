@@ -47,11 +47,11 @@ def main() -> int:
 
     header = (
         "| bras | scénario | décisions | appels (ok) | jetons | mural (s) | "
-        "I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée | "
-        "cibles résolues par le moteur |"
+        "I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée "
+        "(dont faute de mieux) | paroles | cibles résolues par le moteur |"
     )
     lines.append(header)
-    lines.append("|" + "---|" * 13)
+    lines.append("|" + "---|" * 14)
     for key in sorted(agg):
         arm, scenario = key.split("|")
         a = agg[key]
@@ -64,7 +64,9 @@ def main() -> int:
             f"{_f(a['I1_med'])} | {_f(a['I3_med'])} | "
             f"{_f(a['I5_med'])} [{_f(span5[0])}–{_f(span5[1])}] | "
             f"{_f(a['I7_med'], 0)} [{_f(span7[0], 0)}–{_f(span7[1], 0)}] | "
-            f"{_f(a['part_decisions_bloquees_med'])} | "
+            f"{_f(a['part_decisions_bloquees_med'])} "
+            f"({_f(a.get('part_bloquees_least_bad_med', 0.0))}) | "
+            f"{_f(a.get('messages_med', 0.0), 0) if 'messages_med' in a else '—'} | "
             f"{_f(a['target_resolved_med'], 0)} |"
         )
 
