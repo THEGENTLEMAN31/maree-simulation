@@ -587,3 +587,51 @@ pas ne tient pas : garder un « rester » sous fumée ne sort plus (mesuré : 45
 `scenario_crowd.MAX_TICKS` passe de 20 à 30 (60 s) : à 20 ticks, le scénario
 `contradiction` était **censuré** (55/60) et I4 se figeait au plafond. Un zéro
 qui ne mesure que la durée du run n'est pas une mesure.
+
+---
+
+## ADR-018 — Les agents parlent, et le silence devient un null
+
+_2026-11-18. Statut : accepté (chantier C7)._
+
+### Contexte
+
+Le modèle social était un tuyau branché d'un seul côté : les agents
+recevaient des messages (chronologie, injections) mais n'en émettaient
+jamais. `consensus`, `couplage` et `E_social` étaient donc calculés sur des
+croyances qui n'avaient jamais circulé entre agents. On mesurait un accord
+sans échange.
+
+### Décision
+
+1. **Émission après décision** : qui parle (altruisme ≥ 0,5, ou rôle de
+   sécurité), de quoi (la sortie que l'on prend, ou un danger cru), à qui
+   (voisins **vus**, 3 au plus). Un agent qui n'a rien décidé ne parle pas.
+2. **Latence d'un tick** : le message émis à t est perçu à t+1. La barrière
+   de tick (convention n°4) n'est pas franchie, et c'est aussi la vraie
+   latence sociale.
+3. **Le null est un run** : `Simulation(speaking=False)` rejoue le même monde,
+   la même politique, les mêmes graines, sans émission. `E_social` se mesure
+   entre deux runs de **même code** — deux runs séparés par une version de
+   code ne comparent rien.
+4. **La survie prime sur la pureté** : si toutes les sorties connues sont
+   crues bloquées, l'agent prend la **moins mauvaise** au lieu de rester
+   immobile, et la décision le dit (`target_least_bad`). Sans cela, la
+   transmission des fermetures arrêtait la foule (22 sortis sur 60).
+
+### Ce que cela change dans les résultats
+
+- **E_social devient mesurable** : +0,09 (règles) à +0,24 (petit) de consensus
+  entre le monde parlant et le monde muet, à politique identique ;
+- **et la parole dégrade les décisions** : les règles passent de 0,00 à 0,24
+  de décisions revenant vers la porte qu'on leur a dite fermée ;
+- **l'avantage du grand modèle ne survit pas à la rumeur** : 0,00 sans parole,
+  0,31–0,40 avec, pour 340 k jetons et 310 s par run. Ce chiffre remplace
+  celui de C6 dans toute conclusion publique.
+
+### Conséquence de méthode
+
+Le banc `scenario_blocked` tourne en `speaking=False` : c'est un stimulus
+contrôlé (une phrase à t2, par agent). Laisser la parole y ajoutait des
+croyances non prévues et faisait passer les règles de 1,00 à 0,50 — une
+variable à la fois.

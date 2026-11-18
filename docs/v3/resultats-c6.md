@@ -4,23 +4,23 @@ Monde : `crowd_hall` (22 × 16 m, deux issues de 1,2 m), 60 agents, tick de 2 s.
 
 Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'intervalle observé, jamais un écart-type qui masquerait un run.
 
-| bras | scénario | décisions | appels (ok) | jetons | mural (s) | I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée | cibles résolues par le moteur |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `hybride` | contradiction | 374 | 120 (120) | 59898 | 68.6 | 0.84 | 1.00 | 0.95 [0.88–1.11] | 50 [42–52] | 0.38 | 0 |
-| `hybride` | split | 108 | 87 (87) | 43495 | 49.7 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
-| `llm_grand` | contradiction | 312 | 312 (312) | 153694 | 178.8 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
-| `llm_grand` | split | 310 | 310 (310) | 150138 | 176.1 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
-| `llm_petit` | contradiction | 312 | 312 (312) | 36876 | 15.7 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 312 |
-| `llm_petit` | split | 310 | 310 (310) | 36890 | 15.6 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 310 |
-| `regles` | contradiction | 119 | 0 (0) | 0 | 0.2 | 0.60 | 1.00 | 1.27 [1.19–1.59] | 24 [22–26] | 0.25 | 0 |
-| `regles` | split | 60 | 0 (0) | 0 | 0.2 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
+| bras | scénario | décisions | appels (ok) | jetons | mural (s) | I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée (dont faute de mieux) | paroles | cibles résolues par le moteur |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `hybride` | contradiction | 446 | 232 (232) | 148468 | 138.0 | 0.88 | 1.00 | 1.11 [0.88–1.35] | 54 [50–58] | 0.45 (0.00) | 446 | 0 |
+| `hybride` | split | 280 | 207 (207) | 127809 | 120.7 | 0.79 | 1.00 | 1.27 [1.03–1.75] | 28 [22–54] | 0.38 (0.00) | 280 | 0 |
+| `llm_grand` | contradiction | 517 | 517 (517) | 341036 | 313.3 | 0.92 | 1.00 | 1.11 [0.88–1.35] | 48 [34–50] | 0.40 (0.00) | 517 | 0 |
+| `llm_grand` | split | 525 | 525 (525) | 339694 | 315.2 | 0.78 | 1.00 | 1.19 [0.88–1.67] | 44 [44–52] | 0.31 (0.00) | 525 | 0 |
+| `llm_petit` | contradiction | 448 | 448 (448) | 52924 | 23.1 | 0.87 | 1.00 | 1.11 [0.95–1.67] | 30 [26–34] | 0.44 (0.00) | 448 | 448 |
+| `llm_petit` | split | 447 | 447 (447) | 53193 | 22.5 | 0.87 | 1.00 | 1.11 [0.80–1.67] | 28 [26–34] | 0.44 (0.00) | 447 | 447 |
+| `regles` | contradiction | 149 | 0 (0) | 0 | 0.3 | 0.69 | 1.00 | 1.27 [1.19–1.59] | 24 [22–26] | 0.29 (0.00) | 149 | 0 |
+| `regles` | split | 136 | 0 (0) | 0 | 0.3 | 0.72 | 1.00 | 1.03 [0.80–1.51] | 26 [22–26] | 0.24 (0.14) | 136 | 0 |
 
 ## Escalades et replis, par cause et par bras
 
 | bras | scénario | escalades | replis |
 |---|---|---|---|
-| `hybride` | contradiction | {'information_contradictoire': 446, 'situation_inedite': 161} | — |
-| `hybride` | split | {'information_contradictoire': 300, 'situation_inedite': 137} | — |
+| `hybride` | contradiction | {'information_contradictoire': 1002, 'situation_inedite': 152} | — |
+| `hybride` | split | {'information_contradictoire': 854, 'situation_inedite': 177} | — |
 | `llm_grand` | contradiction | — | — |
 | `llm_grand` | split | — | — |
 | `llm_petit` | contradiction | — | — |

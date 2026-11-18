@@ -66,8 +66,9 @@ class CrowdRun:
     escalations: dict[str, int] = field(default_factory=dict)
     replis: dict[str, int] = field(default_factory=dict)
     targeted_blocked: int = 0
-    #: décisions vers une porte crue bloquée alors qu'**aucune** autre n'était
-    #: crue praticable : ce n'est pas une erreur, c'est un monde sans option.
+    #: décisions vers la porte **désignée bloquée à t1** (celle qu'on lui a
+    #: annoncée), quand aucune autre n'était crue praticable : ce n'est pas une
+    #: erreur, c'est un monde sans option.
     targeted_blocked_least_bad: int = 0
     target_resolved: int = 0
     evacuations: int = 0
@@ -128,6 +129,13 @@ def run_arm(
     for agent_uid, message in steps[0].messages:
         if message.fact.startswith("La sortie "):
             believed[f"A{agent_uid:02d}"] = message.fact.split()[2]
+    # Définition exacte du compteur : `target == la porte annoncée bloquée à
+    # t1 pour cet agent`. Ce n'est pas « la porte qu'il croit bloquée
+    # maintenant » : la croyance de danger s'oublie (decay 0,98 par décision)
+    # et un ouï-dire peut la repasser sous le seuil 0,5. Le chiffre mesure donc
+    # un **scénario** (« revenir vers la porte qu'on lui a dite fermée »), pas
+    # un état de croyance instantané — c'est le choix de mesure, pas un
+    # raccourci.
     targeted_rows = [
         row
         for row in rows

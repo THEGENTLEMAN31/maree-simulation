@@ -439,6 +439,41 @@ croyance pondérée par `authority_trust` (D8).
 croyance, pas l'action engagée) deviennent mesurables. **Sans C7, le rapport
 ne peut pas revendiquer B2/B3 comme mesurés.**
 
+**État 2026-11-18 : fait et mesuré.** `agents/speech.py` : qui parle
+(altruisme ≥ 0,5, ou rôle de sécurité), de quoi (la sortie que l'on prend, ou
+un danger cru — jamais une sortie inconnue), à qui (voisins **vus**, 3 au
+plus). Le message émis à t est perçu à **t+1** : la barrière de tick tient.
+Journalisé `agent.message` (contrat 1.1). D8 : une annonce d'évacuation
+devient une croyance datée pondérée par `authority_trust`.
+
+Le null de B3 n'est plus un raisonnement, c'est un run : **le même monde, la
+même politique, `speaking=False`**. Mesuré à code identique, sur les bras
+`regles` et `llm_petit` (les autres coûtent 5 min/run) :
+
+| bras | scénario | I1 muet | I1 parlant | **E_social** | porte désignée bloquée : muet → parlant |
+|---|---|---|---|---|---|
+| `regles` | split | 0,63 | 0,72 | **+0,09** | 0,00 → **0,24** |
+| `regles` | contradiction | 0,60 | 0,69 | **+0,09** | 0,25 → 0,29 |
+| `llm_petit` | split | 0,63 | 0,87 | **+0,24** | 0,00 → 0,44 |
+| `llm_petit` | contradiction | 0,63 | 0,87 | **+0,24** | 0,00 → 0,44 |
+
+Deux lectures, et elles ne vont pas dans le même sens :
+
+1. **La parole construit de l'accord** : +0,09 (règles) à +0,24 (petit) de
+   consensus, sans changer la politique. C'est B2 mesuré, pas raconté.
+2. **La parole dégrade la décision** : les règles passent de 0,00 à 0,24 de
+   décisions revenant vers la porte qu'on leur a dite fermée. Le ouï-dire
+   (« la sortie A est praticable », dit par ceux qui croient B fermée) érode
+   la croyance de fermeture. Une foule qui s'accorde peut s'accorder à tort.
+
+**Conséquence sur la campagne C6, qui change la lecture du rapport** : avec la
+parole, le grand modèle ne fait plus 0,00 mais **0,31 (split) / 0,40
+(contradiction)** — et son coût passe de 150 k à **340 k jetons**, 310 s par
+run. L'avantage du modèle seul mesuré sans parole (0,00 contre 0,25 pour les
+règles) **ne survit pas** à un monde où les agents se parlent. C'est le
+résultat le plus important de la vague, et il est négatif pour l'hypothèse
+« le modèle trie mieux l'information » : il trie le prompt, pas la rumeur.
+
 ---
 
 ## 6. Ordre et portes
@@ -503,7 +538,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 | C4 — mesure | **fait** | 12 tests : I5 en noyau (2 voisins / π·4 m²), I5 ignore les sortis, I4 = tick × 10 s, I7 depuis le signal du monde, I6 nul sans fermeture, résumé sans le tick dégénéré, jetons = somme des lignes, appel raté compté (`attempted` > `ok`), note par décision (règles 1re=1,00 / « toujours A » 1re=0,50 et 6/10 bloquées) |
 | C5 — monde macro | **fait** | 6 tests (G2) : `hall_3` = 0,000 pers/m² à 60 agents, `crowd_hall` I5 pic 1,11–1,51 à t6–t7 (pas au spawn), 60/60 sortis, I7 22–24 s, variante clivée I1 < 0,8, déterminisme |
 | C6 — campagne macro | **fait** | 40 runs, 7 388 appels / 7 388 succès, 0 repli, 60/60 sortis 40 fois sur 40 ; grand 0,00 vs règles 0,25 vs hybride 0,38 de décisions vers une porte crue bloquée ; petit 0,00 mais 100 % des cibles résolues par le moteur ; tables dans `docs/v3/resultats-c6.md` |
-| C7 — communication | à faire (conditionnel) | — |
+| C7 — communication | **fait** | 12 tests : émission bornée (3 voisins), pas de parole sans décision, danger cru prioritaire, perception à t+1, null `speaking=False` réellement exécuté, annonce → croyance pondérée (D8) ; E_social **+0,09 à +0,24** à code identique |
 
 Mesure de contrôle C1 (hall_3, 60 agents, 10 ticks sans décision) :
 déplacement maximal **0,10 m** — les agents tiennent leur position au lieu de
