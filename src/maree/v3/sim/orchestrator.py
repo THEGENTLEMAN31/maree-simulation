@@ -25,6 +25,7 @@ from maree.v3.agents.agent import Agent, make_agent
 from maree.v3.agents.appraisal import Action
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision
+from maree.v3.agents.speech import as_message, utterance
 from maree.v3.core.ids import AgentId
 from maree.v3.core.ports import ExecutionMode, PolicyName
 from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
@@ -137,6 +138,7 @@ class Simulation:
         physics_steps_per_tick: int = 200,
         epsilon: float = 0.0,
         tick_seconds: float = TICK_SECONDS,
+        speaking: bool = True,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
@@ -148,6 +150,9 @@ class Simulation:
         self.physics_steps_per_tick = physics_steps_per_tick
         #: quota ε (instrument de sensibilité) — 0 par défaut.
         self.epsilon = epsilon
+        #: les agents émettent-ils des messages ? (C7). ``False`` = le null
+        #: « la rumeur n'a pas circulé », exécuté pour de vrai (B3).
+        self.speaking = speaking
         #: durée d'un tick (s). Réglée par scénario : une salle de 16 × 12 m se
         #: vide en 20 s, donc un tick de 10 s n'y produirait que deux points de
         #: mesure. I4 et I7 suivent cette horloge, elle est journalisée.
@@ -392,6 +397,11 @@ class Simulation:
                 self._record(agent, decision, t_prod=tick, t_trait=tick)
                 self._apply_intention(agent, decision)
 
+        # 2bis) les agents parlent (C7) — après leurs décisions, donc perçus
+        # au tick suivant : la barrière de tick n'est pas franchie.
+        if self.speaking:
+            self._emit_messages(tick)
+
         # 3) le corps bouge : la physique avance et l'on diffuse l'état
         if self.physics is not None:
             t_phys = time.perf_counter()
@@ -426,6 +436,30 @@ class Simulation:
             "total": sum(self.incidents.values()),
             "par_cause": dict(sorted(self.incidents.items())),
         })
+
+    def _emit_messages(self, tick: int) -> None:
+        """Chaque agent qui vient de décider parle à ses voisins vus (C7).
+
+        Le message est journalisé (``agent.message``) **et** déposé dans les
+        boîtes aux lettres pour le tick suivant. On ne filtre rien : un client
+        qui veut entendre la foule n'a pas à deviner qui a parlé.
+        """
+        for agent_id in sorted(self.scene.instances, key=lambda a: a.uid):
+            if agent_id.uid in self._evacuated:
+                continue
+            inst = self.scene.instances[agent_id]
+            perception = self.scene.perception_for(agent_id)
+            said = utterance(inst.agent, perception)
+            if said is None:
+                continue
+            message = as_message(said, agent_id, tick)
+            for uid in said.to:
+                self.scene.mails.setdefault(AgentId(uid), []).append(message)
+            self._emit("agent.message", tick, tick, {
+                "from": inst.agent.name,
+                "to": [f"A{uid:02d}" for uid in said.to],
+                **said.as_dict(),
+            })
 
     def _crowd_indicators(self, tick: int) -> dict[str, object]:
         """I1–I7 de l'instant (C4) : la même définition que la v2, portée ici.

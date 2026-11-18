@@ -13,7 +13,8 @@ from __future__ import annotations
 #: change de nom ou de sens (les clients comparent cette chaîne).
 #: 1.1 (2026-11-18) : additif — `arm` et `escalation_cause` dans
 #: `agent.decision`, types `agent.escalation`, `agent.reconsider`,
-#: `world.exit_closed`. Les trames 1.0 restent lisibles.
+#: `world.exit_closed`, `agent.message` (C7 : les agents parlent).
+#: Les trames 1.0 restent lisibles.
 SCHEMA_VERSION = "1.1"
 EVENT_SCHEMA_ID = f"maree.event/{SCHEMA_VERSION}"
 SUPPORTED_VERSIONS = ("1.0", "1.1")
@@ -27,6 +28,7 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
     "agent.evacuated": ("agent",),
     "agent.incident": ("agent", "cause"),
     "agent.escalation": ("agent", "cause", "detail"),
+    "agent.message": ("from", "to", "fact", "confidence"),
     "agent.reconsider": ("agent", "reason"),
     "world.smoke": ("visible",),
     "world.announcement": ("text",),

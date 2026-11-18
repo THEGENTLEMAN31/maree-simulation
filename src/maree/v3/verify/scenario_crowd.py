@@ -145,6 +145,7 @@ def build_sim(
     alias: str | None = None,
     agents: int = N_AGENTS,
     physics: bool = True,
+    speak: bool = True,
 ) -> Simulation:
     """Monte la salle calibrée, la foule et (éventuellement) JuPedSim."""
     w = world()
@@ -157,6 +158,7 @@ def build_sim(
         physics=crowd,
         physics_steps_per_tick=STEPS_PER_TICK,
         tick_seconds=TICK_SECONDS,
+        speaking=speak,
     ).build(w)
     sim.spawn("visiteur", agents, frozenset(EXITS), llm_alias=alias)
     return sim
@@ -171,6 +173,7 @@ def measure(
     scenario: str = "plain",
     agents: int = N_AGENTS,
     physics: bool = True,
+    speak: bool = True,
 ) -> dict[str, object]:
     """Joue le scénario et résume ce qu'il faut pour la porte G2.
 
@@ -180,7 +183,7 @@ def measure(
     """
     bus = MemoryBus()
     sim = build_sim(policy, seed=seed, bus=bus, alias=alias, agents=agents,
-                    physics=physics)
+                    physics=physics, speak=speak)
     if scenario == "split" or (split and scenario == "plain"):
         steps = split_timeline(seed)
     elif scenario == "contradiction":
@@ -202,6 +205,7 @@ def measure(
         "seed": seed,
         "split": split,
         "scenario": scenario,
+        "speak": speak,
         "n_agents": agents,
         "summary": summary,
         "peak_tick": peak_tick,

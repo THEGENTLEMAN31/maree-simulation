@@ -83,8 +83,10 @@ def test_le_vidage_dure_assez_pour_plusieurs_points_de_mesure() -> None:
 def test_le_scenario_clive_les_croyances_sans_bloquer_la_sortie() -> None:
     result = sc.measure(seed=1, split=True)
     summary = result["summary"]
-    # moitié « A bloquée », moitié « B bloquée » : le consensus n'est plus total
-    assert float(summary["I1_consensus"]) < 0.8
+    # moitié « A bloquée », moitié « B bloquée » : le consensus n'est pas total.
+    # Depuis C7 les agents se parlent, ce qui **remonte** l'accord (0,63 muet →
+    # 0,81 avec parole, graine 1) : le seuil est donc « pas total », pas 0,8.
+    assert float(summary["I1_consensus"]) < 1.0
     assert float(summary["I3_evacuated"]) == 1.0
 
 

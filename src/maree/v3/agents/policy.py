@@ -207,18 +207,33 @@ def rules_decide(
 
 
 def _most_confident_exit(knowledge: Knowledge) -> str | None:
-    """La sortie connue la plus confiante, en ignorant celles croyues bloquées."""
+    """La sortie connue la plus confiante, en ignorant celles croyues bloquées.
+
+    Si **toutes** les sorties connues sont crues bloquées, on ne se fige pas :
+    on prend la **moins mauvaise** (la croyance de danger la plus faible).
+    Une foule qui reste immobile parce qu'elle croit tout fermé n'est pas un
+    comportement de foule, c'est un arrêt de la simulation — mesuré le
+    2026-11-18 : 22 sortis sur 60 dès que les agents se transmettent les
+    fermetures. Le choix est journalisé par son explication, pas caché.
+    """
     best: tuple[float, str] | None = None
+    fallback: tuple[float, str] | None = None
     for key, belief in knowledge.beliefs.items():
         if not key.startswith("exit:"):
             continue
         label = key[len("exit:"):]
         if _believed_blocked(knowledge, label):
+            hazard = knowledge.beliefs[f"hazard:{label}"]
+            cand_blocked = (hazard.confidence, label)
+            if fallback is None or cand_blocked[0] < fallback[0]:
+                fallback = cand_blocked
             continue
         cand = (belief.confidence, label)
         if best is None or cand[0] > best[0]:
             best = cand
-    return best[1] if best else None
+    if best is not None:
+        return best[1]
+    return fallback[1] if fallback else None
 
 
 def _believed_blocked(knowledge: Knowledge, label: str) -> bool:

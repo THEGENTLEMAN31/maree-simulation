@@ -219,6 +219,23 @@ class Agent:
             self.memory.learn("fumée visible", Source.VU, tick, 0.9)
         if perception.announcement:
             self.memory.mark_signal_seen("annonce", perception.announcement, tick)
+            # D8 : une annonce n'est pas qu'un drapeau, c'est une **croyance**
+            # datée, pondérée par la confiance en l'autorité. Ce que dit la
+            # sono et ce que dit un voisin n'ont pas le même poids.
+            from maree.v3.agents.policy import _is_evacuation_order, _named_exit
+
+            if _is_evacuation_order(perception.announcement):
+                named = _named_exit(perception.announcement, set(self.known_exits))
+                if named is not None:
+                    self.knowledge.set(
+                        f"exit:{named}",
+                        Belief(
+                            named,
+                            0.5 + 0.5 * self.traits.authority_trust,
+                            Source.ANNONCE,
+                            tick,
+                        ),
+                    )
             if self._closure_word(perception.announcement):
                 weight = 0.6 + 0.4 * self.traits.authority_trust
                 for label in self._labels_in(perception.announcement):

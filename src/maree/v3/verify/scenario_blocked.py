@@ -81,6 +81,12 @@ def build(
         policy=policy,
         bus=bus or MemoryBus(),
         run_id=run_id or f"blocked_{alias or 'rules'}_s{seed}",
+        # Banc **stimulus contrôlé** : la seule information sociale admise est
+        # celle de la chronologie (une phrase à t2, par agent). Depuis C7 les
+        # agents parlent ; laisser la parole ici ajoutait des croyances non
+        # prévues et faisait passer les règles de 1,00 à 0,50 (mesuré). Une
+        # variable à la fois.
+        speaking=False,
     ).build(sample_worldspec())
     sim.spawn("visiteur", 4, frozenset({"A", "B"}), llm_alias=alias)
     return sim

@@ -34,7 +34,10 @@ def test_le_bus_memoire_recoit_les_evenements() -> None:
     tipos = {e.type for e in bus.envelopes}
     assert "world.smoke" in tipos and "agent.decision" in tipos
     decisions = bus.published("agent.decision")
-    assert len(decisions) == 4  # 2 agents × 2 signaux nouveaux (annonce, fumée)
+    # 2 agents × 2 signaux de la chronologie (annonce, fumée) **au moins** :
+    # depuis C7 les agents se parlent, et un message reçu est un front de plus.
+    assert len(decisions) >= 4
+    assert all(e.data["agent"] for e in decisions)
     # seq croissant, temps simulé cohérent (t_prod == t_trait en sync)
     seqs = [e.seq for e in bus.envelopes]
     assert seqs == sorted(seqs)
