@@ -6,12 +6,12 @@ Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'interv
 
 | bras | scénario | décisions | appels (ok) | jetons | mural (s) | I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée | cibles résolues par le moteur |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `hybride` | contradiction | 437 | 130 (130) | 64773 | 74.8 | 0.74 | 1.00 | 1.51 [1.27–1.75] | 30 [30–32] | 0.42 | 0 |
-| `hybride` | split | 310 | 87 (87) | 43533 | 49.8 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
-| `llm_grand` | contradiction | 312 | 312 (312) | 153694 | 180.0 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
-| `llm_grand` | split | 310 | 310 (310) | 150138 | 179.5 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
-| `llm_petit` | contradiction | 312 | 312 (312) | 36876 | 15.5 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 312 |
-| `llm_petit` | split | 310 | 310 (310) | 36890 | 15.5 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 310 |
+| `hybride` | contradiction | 374 | 120 (120) | 59898 | 68.6 | 0.84 | 1.00 | 0.95 [0.88–1.11] | 50 [42–52] | 0.38 | 0 |
+| `hybride` | split | 108 | 87 (87) | 43495 | 49.7 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
+| `llm_grand` | contradiction | 312 | 312 (312) | 153694 | 178.8 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
+| `llm_grand` | split | 310 | 310 (310) | 150138 | 176.1 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
+| `llm_petit` | contradiction | 312 | 312 (312) | 36876 | 15.7 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 312 |
+| `llm_petit` | split | 310 | 310 (310) | 36890 | 15.6 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 310 |
 | `regles` | contradiction | 119 | 0 (0) | 0 | 0.2 | 0.60 | 1.00 | 1.27 [1.19–1.59] | 24 [22–26] | 0.25 | 0 |
 | `regles` | split | 60 | 0 (0) | 0 | 0.2 | 0.63 | 1.00 | 0.64 [0.56–0.88] | 22 [20–24] | 0.00 | 0 |
 
@@ -19,7 +19,7 @@ Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'interv
 
 | bras | scénario | escalades | replis |
 |---|---|---|---|
-| `hybride` | contradiction | {'information_contradictoire': 446, 'situation_inedite': 205} | — |
+| `hybride` | contradiction | {'information_contradictoire': 446, 'situation_inedite': 161} | — |
 | `hybride` | split | {'information_contradictoire': 300, 'situation_inedite': 137} | — |
 | `llm_grand` | contradiction | — | — |
 | `llm_grand` | split | — | — |

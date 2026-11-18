@@ -550,3 +550,40 @@ par les règles (mesuré : 0,25 des décisions du scénario `contradiction`).
 C'est un choix de modèle — l'autorité prime sur la croyance personnelle —
 et c'est précisément le cas où l'hybride escalade vers le modèle. Tranché en
 C7, avec les chiffres des trois bras sous les yeux, pas avant.
+
+---
+
+## ADR-017 — La réponse du modèle tient jusqu'au prochain fait du monde
+
+_2026-11-18. Statut : accepté (correctif de la campagne C6)._
+
+### Contexte
+
+Mesuré sur le scénario `contradiction` : le bras `hybride` envoyait **0,42**
+de ses décisions vers une porte qu'il croyait bloquée, contre **0,00** pour le
+modèle seul. Cause : après l'escalade, un simple palier de densité
+(`contexte_change`) renvoyait l'agent aux règles, qui refaisaient le choix que
+le modèle venait de corriger.
+
+### Décision
+
+Une décision **escaladée** qui bouge (`EVACUER`) tient jusqu'à un front
+nouveau, un plan invalidé ou une revue. Une décision escaladée qui ne bouge
+pas ne tient pas : garder un « rester » sous fumée ne sort plus (mesuré : 45 à
+55 sortis sur 60 avant cette condition).
+
+### Effet mesuré
+
+- décisions du bras hybride : **310 → 108** sur `split`, pour le **même**
+  nombre d'appels (87). Une partie du coût de l'hybride n'était pas le modèle,
+  c'était la re-décision ;
+- sur `contradiction`, la part visant une porte crue bloquée tombe de 0,42 à
+  **0,38** — mieux, mais **toujours au-dessus des règles (0,25)**. L'escalade
+  ciblée ne corrige donc pas un conflit autorité/croyance qui dure. C'est un
+  résultat, pas un chantier à rouvrir sans données nouvelles.
+
+### Corollaire
+
+`scenario_crowd.MAX_TICKS` passe de 20 à 30 (60 s) : à 20 ticks, le scénario
+`contradiction` était **censuré** (55/60) et I4 se figeait au plafond. Un zéro
+qui ne mesure que la durée du run n'est pas une mesure.

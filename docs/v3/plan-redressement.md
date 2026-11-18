@@ -392,6 +392,43 @@ taux d'escalade par cause.
 **Preuve** : le résultat micro se retrouve-t-il dans la foule ? Si non, c'est
 un résultat (la foule absorbe le biais individuel) et il se publie.
 
+**État 2026-11-18 : fait et mesuré.** 40 runs (4 bras × 2 scénarios ×
+5 graines), **7 388 appels / 7 388 succès, 0 repli**, 60/60 sortis dans
+**40 runs sur 40**. Tables complètes : `docs/v3/resultats-c6.md`
+(reproduit par `scripts/rapport_crowd.py` depuis `runs/v3/campaign_crowd.json`).
+
+Ce que la foule dit, en trois lignes :
+
+| bras | appels | jetons | mural | décisions vers une porte crue bloquée (`contradiction`) |
+|---|---|---|---|---|
+| `regles` | 0 | 0 | 0,2 s | **0,25** |
+| `hybride` | 120 | 59 898 | 68,6 s | **0,38** |
+| `llm_grand` | 312 | 153 694 | 178,8 s | **0,00** |
+| `llm_petit` | 312 | 36 876 | 15,7 s | 0,00 *(100 % des cibles résolues par le moteur)* |
+
+1. **Le grand modèle est le seul bras qui refuse un ordre nommant une porte
+   qu'il croit bloquée** : 0,00 contre 0,25 pour les règles. C'est le
+   résultat de la campagne, et il coûte 4× les règles en jetons.
+2. **L'hybride ne domine pas les règles sur ce critère** : 0,38 contre 0,25.
+   Il escalade (120 appels, 446 escalades `information_contradictoire` sur
+   les 5 graines) mais la moitié non escaladée suit l'annonce, et ses
+   re-décisions repassent par les règles. **Résultat négatif, publié comme
+   tel** : l'escalade ciblée ne suffit pas à corriger un conflit
+   autorité/croyance qui dure.
+3. **Le petit modèle à 0,00 est un achat du moteur**, pas une lecture : 100 %
+   de ses cibles sont résolues par `_most_confident_exit`, qui écarte les
+   portes crues bloquées. Sans le drapeau `target_resolved`, on aurait publié
+   « le petit fait aussi bien que le grand ».
+
+Coût, même monde et mêmes décisions : `llm_petit` **15,7 s / 36,9 k jetons**
+contre **178,8 s / 153,7 k** pour le grand — 2,6× moins de jetons pour des
+prompts de 90 caractères au lieu d'un dossier JSON.
+
+Sur `split` (aucune annonce contradictoire), les quatre bras sont à 0,00 :
+quand la croyance et le plan ne se contredisent pas, la foule n'a pas besoin
+du modèle. Le goulot, lui, change : I5 = 1,19–1,59 pour les règles contre
+0,56–0,88 pour les bras LLM — le modèle étale la demande, il ne la réduit pas.
+
 ### C7 — Communication (2 j, conditionnel)
 
 Émission après les décisions (comme le plan §5 le prévoit) : qui parle
@@ -415,6 +452,16 @@ C0 ─► C1 ─► C2 ─► C3 ─► [G1] ─► C4 ─► C5 ─► [G2] ─
 | **G1** | À coût nul : `regles`=0 appel, `hybride` escalade avec la bonne cause sur le scénario bloqué, `llm` ne rappelle pas sans changement, « rester » reste | On ne mesure rien ; on répare C2/C3 |
 | **G2** | Le bras `regles` produit un goulot 0,8–1,5 pers/m², I5 ne culmine pas au spawn, I7 ∈ [40, 80] s | On recalibre C5, pas la politique |
 | **G3** | Sur 5 mondes : la part entrant dans une sortie crue bloquée est stable par bras (petit ≫ grand), et I3/I5/I7 sont cohérents avec la décision | On publie le désaccord décision/foule comme résultat |
+
+**G3, verdict 2026-11-18 : partiellement atteint, et le désaccord est publié.**
+La part visant une porte crue bloquée est **stable par bras** sur 5 graines
+(hybride 0,38 [0,37–0,39] ; règles 0,25 [0,24–0,25] ; grand 0,00 partout) —
+premier critère tenu. I3/I5/I7 sont cohérents (I3 = 1,00 partout, I5 pic en
+marche). Mais l'hypothèse « **petit ≫ grand** » est **fausse** : le petit est
+à 0,00, non parce qu'il lit mieux, mais parce que le moteur choisit ses
+cibles. Le chiffre qui aurait dû départager les tailles ne départage rien —
+il faut lire `target_resolved` avec. C'est exactement le cas prévu par la
+porte : on publie le désaccord décision/mesure au lieu de le maquiller.
 
 Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 **C7 ≈ 2 j**. Rien de tout cela ne demande de GPU avant C6.
@@ -455,7 +502,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 | C3 — calendrier + bras + escalade | **fait** | 8 tests : `regles` 0 appel, `hybride` 4 escalades à t2 (`information_contradictoire`) avec sortie nommée, `llm` borné (t2/t3/t10 seulement), escalade avant décision, pas de décision au spawn, ε = SHA-256 recalculé, contrat 1.1 + 1.0 |
 | C4 — mesure | **fait** | 12 tests : I5 en noyau (2 voisins / π·4 m²), I5 ignore les sortis, I4 = tick × 10 s, I7 depuis le signal du monde, I6 nul sans fermeture, résumé sans le tick dégénéré, jetons = somme des lignes, appel raté compté (`attempted` > `ok`), note par décision (règles 1re=1,00 / « toujours A » 1re=0,50 et 6/10 bloquées) |
 | C5 — monde macro | **fait** | 6 tests (G2) : `hall_3` = 0,000 pers/m² à 60 agents, `crowd_hall` I5 pic 1,11–1,51 à t6–t7 (pas au spawn), 60/60 sortis, I7 22–24 s, variante clivée I1 < 0,8, déterminisme |
-| C6 — campagne | à faire | — |
+| C6 — campagne macro | **fait** | 40 runs, 7 388 appels / 7 388 succès, 0 repli, 60/60 sortis 40 fois sur 40 ; grand 0,00 vs règles 0,25 vs hybride 0,38 de décisions vers une porte crue bloquée ; petit 0,00 mais 100 % des cibles résolues par le moteur ; tables dans `docs/v3/resultats-c6.md` |
 | C7 — communication | à faire (conditionnel) | — |
 
 Mesure de contrôle C1 (hall_3, 60 agents, 10 ticks sans décision) :
