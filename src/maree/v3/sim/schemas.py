@@ -33,6 +33,10 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
     "world.exit_closed": ("exit",),
     "world.snapshot": ("agents",),
     "indicator.emergence": ("consensus", "couplage", "emergence"),
+    "indicator.crowd": (
+        "tick", "I1_consensus", "I2_entropy", "I3_evacuated", "I4_seconds",
+        "I5_max_density", "I6_belief_gap", "I7_delay_seconds",
+    ),
     "indicator.incidents": ("total", "par_cause"),
 }
 

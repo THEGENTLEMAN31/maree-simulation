@@ -26,7 +26,7 @@ from maree.v3.agents.perception import Message  # noqa: E402
 from maree.v3.core.ids import AgentId  # noqa: E402
 from maree.v3.core.ports import PolicyName  # noqa: E402
 from maree.v3.sim.orchestrator import Simulation, Timestep  # noqa: E402
-from maree.v3.verify.emergence import emergence_report  # noqa: E402
+from maree.v3.verify.emergence import active_agents, emergence_report  # noqa: E402
 from maree.v3.world.generate import build  # noqa: E402
 from maree.v3.world.navgraph import NavigationGraph  # noqa: E402
 from maree.v3.world.simartifact import build_sim_artifact  # noqa: E402
@@ -61,7 +61,7 @@ def main() -> int:
         g = ("B bloquée" if r.agent in ("A01", "A02")
              else "B libre" if r.agent in ("A03", "A04") else "habitué")
         print(f"  t{r.tick:>3} {r.agent:<6} [{g:<9}] {r.action:<22} -> {r.target}{'  ✔ évac' if r.agent in {f'A{t:02d}' for t in sim._evacuated} else ''}")
-    report = emergence_report([inst.agent for inst in sim.scene.instances.values()])
+    report = emergence_report(active_agents(sim))
     print(f"\nÉVACUÉS : {sorted(sim._evacuated)} | consensus={report['consensus']} "
           f"couplage={report['couplage']} émergence={report['emergence']}")
     print("Message: groupes 'B bloquée' vs 'B libre' → choix de sortie différents au REAL modèle ?")

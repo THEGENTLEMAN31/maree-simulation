@@ -309,6 +309,37 @@ un run à 2 décisions par agent ; un test vérifie que I5 est nul sur un monde
 vide et > 0 au goulot ; un test vérifie que le score micro distingue
 « A puis B » de « B puis B ».
 
+**État 2026-11-18 : fait.** `verify/indicators.py` porte I1–I7 (noyau 2 m,
+partie active, censure, I7 depuis le premier danger du **monde**) ; le moteur
+publie `indicator.crowd` à chaque tick, `indicator.emergence` porte désormais
+`null_consensus` et `social_excess`. `verify/campaign.py` lit le coût **ligne
+par ligne** (`llm_attempted`, `llm_ok`, jetons, `wall_llm_s`,
+`wall_physics_s`), agrège aussi les sept indicateurs, et accepte n'importe
+quel bus (un enregistreur enveloppe le bus réel).
+
+Ce que la mesure a changé, et pas seulement documenté :
+
+- **le couplage ne pouvait pas être un null par permutation** : permuter les
+  mémoires laisse la distribution des préférences identique, donc le null
+  valait toujours l'observé (`social_excess = 0`). Le null est le monde
+  **sans ce qui vient des autres** (croyances `ENTENDU`/`ANNONCE` retirées).
+  Sur le banc bloqué il donne −1,0 : l'ouï-dire y *crée* le désaccord, ce qui
+  est le résultat, pas un défaut ;
+- **`couplage` = la préférence a changé** après un ouï-dire. Un message qui
+  confirme la sortie déjà préférée est de la diffusion : il ne compte plus
+  (le test « consensus imposé » le vérifie) ;
+- **D14 est corrigé à la source** : après C3 (une notice de fermeture n'est
+  pas un ordre), les règles ne visent plus la sortie crue bloquée, même à
+  t2 — `first_accuracy` vaut 1,00 et `decisions_to_blocked` 0. La note
+  « toujours A » reste à 0,50 avec 6 décisions sur 10 vers la porte crue
+  bloquée : c'est la mesure, pas la politique, qui distingue les deux.
+
+**Un chiffre honnête à garder sous les yeux** : avec la chronologie par
+défaut (fumée t10, annonce nommant une seule sortie à t20), le bras
+`hybride` fait **0 appel** — aucune contradiction, aucune annonce ambiguë.
+Ce n'est pas un bug : c'est la définition d'ADR-014. Un scénario qui veut
+mesurer l'apport du modèle doit *contenir* l'ambiguïté (C5/C6).
+
 ### C5 — Monde macro calibré (1,5 j)
 
 Choisir (population, largeur de sortie, surface) pour que le bras `regles`
@@ -391,7 +422,7 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 | C1 — physique honnête | **fait** | 4 tests : « rester reste » (±0,3 m sur 10 s), `Target.at` réel, 60/60 placements distincts (2,37 m mini), mapping des 7 actions |
 | C2 — perception | **fait** | 9 tests : 8 voisins ordonnés, densité noyau 2 m, distance au foyer, sorties visibles (A/C oui, B à 60 m non), état qui évolue (fatigue = 10 m × 0,0015), `SUIVRE` atteignable (4 voisins), idempotence |
 | C3 — calendrier + bras + escalade | **fait** | 8 tests : `regles` 0 appel, `hybride` 4 escalades à t2 (`information_contradictoire`) avec sortie nommée, `llm` borné (t2/t3/t10 seulement), escalade avant décision, pas de décision au spawn, ε = SHA-256 recalculé, contrat 1.1 + 1.0 |
-| C4 — mesure | à faire | — |
+| C4 — mesure | **fait** | 12 tests : I5 en noyau (2 voisins / π·4 m²), I5 ignore les sortis, I4 = tick × 10 s, I7 depuis le signal du monde, I6 nul sans fermeture, résumé sans le tick dégénéré, jetons = somme des lignes, appel raté compté (`attempted` > `ok`), note par décision (règles 1re=1,00 / « toujours A » 1re=0,50 et 6/10 bloquées) |
 | C5 — monde macro | à faire | — |
 | C6 — campagne | à faire | — |
 | C7 — communication | à faire (conditionnel) | — |

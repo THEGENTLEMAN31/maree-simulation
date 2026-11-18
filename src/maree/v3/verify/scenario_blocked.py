@@ -27,7 +27,7 @@ que 0,50 est un plafond de méthode, pas une opinion.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from maree.v3.agents.perception import Message
 from maree.v3.core.ids import AgentId
@@ -88,41 +88,99 @@ def build(
 
 @dataclass(frozen=True, slots=True)
 class BlockedScore:
-    """Ce que le scénario mesure : la sortie évitée, agent par agent."""
+    """Ce que le scénario mesure : la sortie évitée, **par décision**.
+
+    D14 : garder seulement la dernière cible faisait passer une politique qui
+    se corrige à t10 pour une politique qui a bien choisi à t2. On publie donc
+    trois choses distinctes :
+
+    - ``choices`` : la dernière cible d'évacuation de chaque agent (l'état
+      final, celui que le corps suit) ;
+    - ``first_choices`` : la **première** cible d'évacuation (le choix fait
+      avant toute correction) ;
+    - ``decisions_to_blocked`` / ``decisions_total`` : la part des décisions
+      qui visent une sortie **crue bloquée** — c'est le coût réel, celui que
+      la physique transforme en mètres parcourus au mauvais endroit.
+    """
 
     choices: dict[str, str | None]
-    #: agents ayant choisi une sortie *autre* que celle qu'ils croient bloquée.
     avoided: int
     total: int
+    first_choices: dict[str, str | None] = field(default_factory=dict)
+    decisions_to_blocked: int = 0
+    decisions_total: int = 0
 
     @property
     def accuracy(self) -> float:
         return self.avoided / self.total if self.total else 0.0
 
+    @property
+    def first_accuracy(self) -> float:
+        first = sum(
+            1
+            for agent, blocked in BLOCKED.items()
+            if self.first_choices.get(agent) not in (None, blocked)
+        )
+        decided = sum(
+            1 for agent in BLOCKED if self.first_choices.get(agent) is not None
+        )
+        return first / decided if decided else 0.0
+
+    @property
+    def part_decisions_bloquees(self) -> float:
+        """Part **des décisions** visant une sortie crue bloquée (D14)."""
+        if not self.decisions_total:
+            return 0.0
+        return self.decisions_to_blocked / self.decisions_total
+
     def as_dict(self) -> dict[str, object]:
         return {
             "choices": self.choices,
+            "first_choices": self.first_choices,
             "avoided": self.avoided,
             "total": self.total,
             "accuracy": round(self.accuracy, 3),
+            "first_accuracy": round(self.first_accuracy, 3),
+            "decisions_to_blocked": self.decisions_to_blocked,
+            "decisions_total": self.decisions_total,
+            "part_decisions_bloquees": round(self.part_decisions_bloquees, 3),
         }
 
 
 def score(sim: Simulation) -> BlockedScore:
-    """Note le run : la **dernière** cible d'évacuation de chaque agent."""
+    """Note le run **par décision** : dernière cible, première cible, et la
+    part de décisions qui visent la sortie que l'agent croit bloquée."""
     last: dict[str, str] = {}
+    first: dict[str, str] = {}
+    to_blocked = 0
+    total = 0
     for row in sim.log.rows:
-        if row.action.startswith("évacuer") and row.target:
-            last[row.agent] = row.target
+        if not (row.action.startswith("évacuer") and row.target):
+            continue
+        total += 1
+        last[row.agent] = row.target
+        first.setdefault(row.agent, row.target)
+        if BLOCKED.get(row.agent) == row.target:
+            to_blocked += 1
     choices: dict[str, str | None] = {
         agent: last.get(agent) for agent in sorted(BLOCKED)
+    }
+    first_choices: dict[str, str | None] = {
+        agent: first.get(agent) for agent in sorted(BLOCKED)
     }
     avoided = sum(
         1
         for agent, blocked in BLOCKED.items()
         if choices.get(agent) not in (None, blocked)
     )
-    return BlockedScore(choices=choices, avoided=avoided, total=len(BLOCKED))
+    return BlockedScore(
+        choices=choices,
+        avoided=avoided,
+        total=len(BLOCKED),
+        first_choices=first_choices,
+        decisions_to_blocked=to_blocked,
+        decisions_total=total,
+    )
 
 
 def run(

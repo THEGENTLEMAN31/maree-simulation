@@ -48,7 +48,7 @@ from maree.v3.agents import policy_llm  # noqa: E402
 from maree.v3.core.ports import PolicyName  # noqa: E402
 from maree.v3.sim.bus import MemoryBus  # noqa: E402
 from maree.v3.verify import scenario_blocked as sb  # noqa: E402
-from maree.v3.verify.emergence import emergence_report  # noqa: E402
+from maree.v3.verify.emergence import active_agents, emergence_report  # noqa: E402
 
 SEEDS = [int(a) for a in sys.argv[1:]] or [1, 2, 3, 4, 5]
 #: (nom, politique, alias, ablation du champ ``dangers``)
@@ -82,7 +82,6 @@ def run(
     result = sb.score(sim)
     # le contexte réellement envoyé au modèle (audit : dangers y figure-t-il ?)
     danger_in_prompt: dict[str, bool] = {}
-    tokens = 0
     for agent_name in sorted(sb.BLOCKED):
         agent = next(
             i.agent for i in sim.scene.instances.values() if i.agent.name == agent_name
@@ -91,27 +90,34 @@ def run(
         trace = decision.llm_trace if decision else None
         if trace is None:
             continue
-        tokens += trace.response.prompt_tokens + trace.response.completion_tokens
         try:
             payload = json.loads(trace.request.messages[-1].content)
         except ValueError:
             continue
         danger_in_prompt[agent_name] = bool(payload.get("dangers"))
 
-    report = emergence_report([i.agent for i in sim.scene.instances.values()])
+    report = emergence_report(active_agents(sim))
+    rows = sim.log.rows
     return {
         "config": config,
         "seed": seed,
         "evite_bloquee": result.accuracy,
+        "evite_bloquee_1re": result.first_accuracy,
+        "part_decisions_bloquees": result.part_decisions_bloquees,
         "choix": result.choices,
+        "premiers_choix": result.first_choices,
         "bloquees": dict(sb.BLOCKED),
         "danger_dans_prompt": danger_in_prompt,
         "consensus": report["consensus"],
         "couplage": report["couplage"],
-        "llm_calls": sum(1 for r in sim.log.rows if r.llm_model),
-        "replis": sum(1 for r in sim.log.rows if r.fallback),
+        "social_excess": report["social_excess"],
+        "llm_calls": sum(1 for r in rows if r.llm_attempted),
+        "llm_ok": sum(1 for r in rows if r.llm_ok),
+        "replis": sum(1 for r in rows if r.fallback),
+        # C4 : les jetons sont la somme des lignes du journal, pas la trace
+        # de la dernière décision de chaque agent.
+        "tokens": sum(r.prompt_tokens + r.completion_tokens for r in rows),
         "incidents": dict(sorted(sim.incidents.items())),
-        "tokens": tokens,
     }
 
 
@@ -125,6 +131,8 @@ def main() -> int:
             rows.append(r)
             print(
                 f"  {config:<18} s{seed}  evite={r['evite_bloquee']:.2f} "
+                f"1re={r['evite_bloquee_1re']:.2f} "
+                f"bloq={r['part_decisions_bloquees']:.2f} "
                 f"calls={r['llm_calls']:>2} repli={r['replis']} "
                 f"tokens={r['tokens']:>4} danger_prompt={r['danger_dans_prompt']} "
                 f"choix={r['choix']}"
@@ -141,8 +149,10 @@ def main() -> int:
             sum(1 for v in r["danger_dans_prompt"].values() if v)  # type: ignore[union-attr]
             for r in rs
         )
+        first = statistics.median(float(r["evite_bloquee_1re"]) for r in rs)  # type: ignore[arg-type]
+        blocked = statistics.median(float(r["part_decisions_bloquees"]) for r in rs)  # type: ignore[arg-type]
         print(
-            f"  {config:<18} evite={evite:.2f} "
+            f"  {config:<18} evite={evite:.2f} 1re={first:.2f} bloq={blocked:.2f} "
             f"[{min(float(r['evite_bloquee']) for r in rs):.2f}–"  # type: ignore[arg-type]
             f"{max(float(r['evite_bloquee']) for r in rs):.2f}] "  # type: ignore[arg-type]
             f"appels={statistics.median(int(r['llm_calls']) for r in rs):.0f} "  # type: ignore[arg-type]

@@ -12,6 +12,7 @@ cognition. C'est le support de l'évaluation de la pipeline avec un vrai LLM.
 from __future__ import annotations
 
 import math
+import time
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -30,6 +31,7 @@ from maree.v3.sim.bus import EventBus, EventEnvelope, MemoryBus
 from maree.v3.sim.physics import CrowdPhysics, Target
 from maree.v3.sim.scene import Scene
 from maree.v3.verify.emergence import emergence_report
+from maree.v3.verify.indicators import compute, from_agents
 from maree.v3.world.navgraph import NavigationGraph
 from maree.v3.world.simartifact import SimArtifact, build_sim_artifact
 from maree.v3.world.validate import validate_or_raise
@@ -81,6 +83,12 @@ class LogRow:
     arm: str = "regles"
     #: cause d'escalade vers le modèle (hybride), None en routine.
     escalation_cause: str | None = None
+    #: coût de l'appel LLM, **par décision** (jamais relu sur l'agent) :
+    #: ``llm_attempted`` distingue « pas d'appel » de « appel raté ».
+    llm_attempted: bool = False
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    latency_s: float = 0.0
 
     @property
     def lag(self) -> int:
@@ -154,6 +162,13 @@ class Simulation:
         self.navgraph: NavigationGraph | None = None
         self.artifact: SimArtifact | None = None
         self.world: WorldSpec | None = None
+        #: premier signal de danger du **monde** (fumée, annonce, fermeture) :
+        #: l'origine de I7, jamais le premier agent qui bouge.
+        self._first_danger_tick: int | None = None
+        #: dernier tick où un agent a franchi une issue (I7, I3).
+        self._last_exit_tick: int | None = None
+        #: temps mural passé dans la physique (C4, mesuré, pas estimé).
+        self.wall_physics_s: float = 0.0
         self.scene = Scene()
         self.scene.physics_active = physics is not None
         self.log = RunLog()
@@ -255,8 +270,10 @@ class Simulation:
                 # fumée de t10 et le monde mentait).
                 if ts.smoke:
                     self.scene.smoke = True
+                    self._note_danger(tick)
                 if ts.announcement is not None:
                     self.scene.announcement = ts.announcement
+                    self._note_danger(tick)
                 if ts.hazard_origin is not None:
                     self.scene.hazard_origin = ts.hazard_origin
                 if ts.smoke:
@@ -266,6 +283,7 @@ class Simulation:
                 for label in ts.closed_exits:
                     if label not in self.scene.closed_exits:
                         self.scene.closed_exits.add(label)
+                        self._note_danger(tick)
                         self._emit("world.exit_closed", tick, tick, {"exit": label})
                 for agent_uid, msg in ts.messages:
                     self.scene.mails.setdefault(AgentId(agent_uid), []).append(msg)
@@ -288,6 +306,7 @@ class Simulation:
             kind = payload.get("kind")
             if kind == "smoke":
                 self.scene.smoke = True
+                self._note_danger(tick)
                 origin = payload.get("origin")
                 if isinstance(origin, (list, tuple)) and len(origin) == 2:
                     self.scene.hazard_origin = (float(origin[0]), float(origin[1]))
@@ -295,11 +314,13 @@ class Simulation:
             elif kind == "announcement":
                 text = str(payload.get("text", ""))
                 self.scene.announcement = text
+                self._note_danger(tick)
                 self._emit("world.announcement", tick, tick, {"text": text})
             elif kind == "close_exit":
                 label = str(payload.get("exit", ""))
                 if label and label not in self.scene.closed_exits:
                     self.scene.closed_exits.add(label)
+                    self._note_danger(tick)
                     self._emit("world.exit_closed", tick, tick, {"exit": label})
             elif kind == "message":
                 raw_uid = payload.get("agent", 0)
@@ -366,10 +387,13 @@ class Simulation:
 
         # 3) le corps bouge : la physique avance et l'on diffuse l'état
         if self.physics is not None:
+            t_phys = time.perf_counter()
             self.physics.advance(self.physics_steps_per_tick)
+            self.wall_physics_s += time.perf_counter() - t_phys
             new_evac = self.physics.evacuated() - self._evacuated
             self._evacuated |= new_evac
             for tag in sorted(new_evac):
+                self._last_exit_tick = tick
                 self._emit("agent.evacuated", tick, tick, {"agent": f"A{tag:02d}"})
             positions = self.physics.positions()
             self._emit("world.snapshot", tick, tick, {
@@ -377,17 +401,66 @@ class Simulation:
             })
 
         # 4) indicateurs calculés PENDANT le run, pas après (B2/A4)
-        agents = [self.scene.instances[a].agent for a in self.scene.instances]
-        rep = emergence_report(agents)
+        active = [
+            inst.agent
+            for agent_id, inst in self.scene.instances.items()
+            if agent_id.uid not in self._evacuated
+        ]
+        rep = emergence_report(active, seed=self.seed + tick)
         self._emit("indicator.emergence", tick, tick, {
             "consensus": rep["consensus"],
             "couplage": rep["couplage"],
             "emergence": rep["emergence"],
+            "null_consensus": rep["null_consensus"],
+            "social_excess": rep["social_excess"],
         })
+        self._emit("indicator.crowd", tick, tick, self._crowd_indicators(tick))
         self._emit("indicator.incidents", tick, tick, {
             "total": sum(self.incidents.values()),
             "par_cause": dict(sorted(self.incidents.items())),
         })
+
+    def _crowd_indicators(self, tick: int) -> dict[str, object]:
+        """I1–I7 de l'instant (C4) : la même définition que la v2, portée ici.
+
+        Trois pièges v2 sont tenus par construction : I5 est un noyau de 2 m
+        (pas une grille), le consensus ne compte que les agents **actifs**, et
+        I7 part du premier signal de danger du monde. I6 est **0 par
+        construction** s'il n'y a pas de fermeture : le champ ``closed`` le dit
+        pour qu'on ne publie pas un zéro qui ne mesure rien.
+        """
+        pairs: list[tuple[Agent, tuple[float, float], bool]] = []
+        for agent_id, inst in self.scene.instances.items():
+            pairs.append(
+                (
+                    inst.agent,
+                    self.scene.position_of(agent_id),
+                    agent_id.uid in self._evacuated,
+                )
+            )
+        exits = set(self._known_exit_ids()) | set(self.scene.closed_exits)
+        open_exits = {
+            label for label in self._known_exit_ids()
+            if label not in self.scene.closed_exits
+        }
+        states = from_agents(pairs, n_exits=max(1, len(exits)))
+        ind = compute(
+            states,
+            n_exits=max(1, len(exits)),
+            open_exits=open_exits,
+            tick=tick,
+            signal_tick=self._first_danger_tick,
+            last_exit_tick=self._last_exit_tick,
+        )
+        data = ind.to_dict()
+        data["closed_exits"] = sorted(self.scene.closed_exits)
+        return data
+
+    def _known_exit_ids(self) -> list[str]:
+        """Les sorties du plan (source de vérité pour I6)."""
+        if self.world is None:
+            return []
+        return [exit_spec.id for level in self.world.levels for exit_spec in level.exits]
 
     def _apply_intention(self, agent: Agent, decision: Decision) -> None:
         """Traduit une décision en intention physique.
@@ -476,6 +549,16 @@ class Simulation:
                 "action": decision.action.value,
             })
 
+    def _note_danger(self, tick: int) -> None:
+        """Retient le **premier** signal de danger du monde (origine de I7).
+
+        L'ordre des déclencheurs n'importe pas : fumée, annonce et fermeture
+        sont tous des signaux de danger ; I7 part du premier, jamais du
+        premier agent qui bouge (un guide ou un proche cherché part avant).
+        """
+        if self._first_danger_tick is None:
+            self._first_danger_tick = tick
+
     def _emit(self, event_type: str, t_prod: int, t_trait: int, data: dict[str, object]) -> None:
         """Publie une enveloppe (C1) avec sa chronologie simulée (C3)."""
         self._seq += 1
@@ -509,6 +592,12 @@ class Simulation:
             llm_model=None if trace is None else trace.response.model,
             arm=agent.policy.value,
             escalation_cause=decision.escalation_cause,
+            llm_attempted=trace is not None,
+            prompt_tokens=0 if trace is None else trace.response.prompt_tokens,
+            completion_tokens=(
+                0 if trace is None else trace.response.completion_tokens
+            ),
+            latency_s=0.0 if trace is None else trace.response.latency_s,
         )
 
 

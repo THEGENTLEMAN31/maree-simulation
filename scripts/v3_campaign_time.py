@@ -29,7 +29,7 @@ from maree.v3.core.ids import AgentId  # noqa: E402
 from maree.v3.core.ports import ExecutionMode, PolicyName  # noqa: E402
 from maree.v3.sim.bus import MemoryBus  # noqa: E402
 from maree.v3.sim.orchestrator import Simulation, Timestep  # noqa: E402
-from maree.v3.verify.emergence import emergence_report  # noqa: E402
+from maree.v3.verify.emergence import active_agents, emergence_report  # noqa: E402
 from maree.v3.world.generate import build  # noqa: E402
 
 SEEDS = [int(a) for a in sys.argv[1:]] or [1, 2, 3]
@@ -45,7 +45,7 @@ def run(mode: ExecutionMode, seed: int) -> dict:
         (3, Message("B est libre", AgentId(99), 3)), (4, Message("B est libre", AgentId(99), 3)),
     )
     sim.run([Timestep(2, messages=msgs), Timestep(10, smoke=True), Timestep(20), Timestep(30)])
-    report = emergence_report([i.agent for i in sim.scene.instances.values()])
+    report = emergence_report(active_agents(sim))
     tokens = sum((i.agent._last_decision.llm_trace.response.prompt_tokens +
                   i.agent._last_decision.llm_trace.response.completion_tokens)
                  for i in sim.scene.instances.values() if i.agent._last_decision and i.agent._last_decision.llm_trace)

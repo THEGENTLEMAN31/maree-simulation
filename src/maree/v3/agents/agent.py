@@ -17,6 +17,7 @@ from maree.v3.agents.memory import EpisodeKind, Memory
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision, _believed_blocked, rules_decide
 from maree.v3.agents.policy_llm import LLMPolicy, hybrid_decide
+from maree.v3.agents.preference import preferred_exit
 from maree.v3.agents.prehistory import prehistory_for, seed_prehistory
 from maree.v3.agents.schedule import (
     DENSITY_UNSEEN,
@@ -57,6 +58,9 @@ class Agent:
     run_id: str = "v3"
     #: quota ε (0 = jamais) — instrument de sensibilité, jamais un bras.
     epsilon: float = 0.0
+    #: vrai si un ouï-dire a **effectivement changé** la sortie préférée (B2) ;
+    #: une rumeur qui confirme n'est pas une construction sociale.
+    preference_changed_by_hearsay: bool = False
     _last_decision: Decision | None = field(default=None, init=False)
     #: empreinte de la dernière perception *décidée* (calendrier LLM/hybride).
     _last_perception_key: str | None = field(default=None, init=False)
@@ -222,6 +226,7 @@ class Agent:
             self.memory.learn(f"{label} est fermée", Source.VU, tick, 1.0)
         for k in list(self.social.kin):
             self.memory.mark_signal_seen("proche", str(k), tick)
+        before_preference = preferred_exit(self)
         for m in perception.heard:
             self.memory.mark_signal_seen("message", m.fact, tick)
             # influence sociale : je crois ce que dit un émetteur, pondéré
@@ -247,6 +252,17 @@ class Agent:
                         Belief(label, weight, Source.ENTENDU, tick),
                     )
                     self.memory.learn(f"{label} est praticable", Source.ENTENDU, tick, weight)
+
+        # B2 : couplage réel = la préférence a **changé** à cause d'un ouï-dire.
+        # « la source est ENTENDU » ne suffit pas : un message qui confirme la
+        # sortie déjà préférée est de la diffusion, pas une construction.
+        if perception.heard:
+            after_preference = preferred_exit(self)
+            if (
+                after_preference is not None
+                and after_preference != before_preference
+            ):
+                self.preference_changed_by_hearsay = True
 
         # plan invalidé : on mémorise ce qui a déjà été signalé pour ne pas
         # rappeler le modèle pour la même cible à chaque tick.

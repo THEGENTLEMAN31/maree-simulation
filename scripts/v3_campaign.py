@@ -62,18 +62,19 @@ def main() -> int:
         for seed in SEEDS:
             r = run_once(world, cfg, seed, run_id_prefix="campaign")
             results.append(r)
-            print(f"  {cfg.name:<8} seed {seed}  dec={r.decisions:>2} calls={r.llm_calls:>2}"
-                  f" repli={r.replis} tokens={r.tokens:>4} cons={r.consensus:.2f} coupl={r.couplage:.2f}")
+            print(f"  {cfg.name:<8} seed {seed}  dec={r.decisions:>2} "
+                  f"appels={r.llm_attempted:>2}/{r.llm_ok:<2} repli={r.replis}"
+                  f" tokens={r.tokens:>5} cons={r.consensus:.2f} coupl={r.couplage:.2f}")
 
     agg = aggregate(results)
     print("\n=== AGRÉGAT (médiane, dispersion) ===")
     for name, a in agg.items():
-        calls = a["llm_calls_med"]
-        tokens = a["tokens_med"]
-        span = a["llm_calls_span"]
-        print(f"  {name:<8} décisions={a['decisions_med']} appels={calls} "
-              f"[{span[0]}..{span[1]}] tokens={tokens} consensus={a['consensus_med']} "
-              f"couplage={a['couplage_med']} émergence={a['empreinte_emergence']}/{a['n_runs']}")
+        span = a["llm_attempted_span"]
+        print(f"  {name:<8} décisions={a['decisions_med']} "
+              f"appels={a['llm_attempted_med']} [{span[0]}..{span[1]}] "
+              f"tokens={a['tokens_med']} I1={a['I1_med']} I3={a['I3_med']} "
+              f"I5={a['I5_med']} I7={a['I7_med']} "
+              f"émergence={a['empreinte_emergence']}/{a['n_runs']}")
 
     out = Path("runs") / "v3"
     out.mkdir(parents=True, exist_ok=True)

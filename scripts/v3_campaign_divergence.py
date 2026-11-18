@@ -35,7 +35,7 @@ from maree.v3.core.ids import AgentId  # noqa: E402
 from maree.v3.core.ports import PolicyName  # noqa: E402
 from maree.v3.sim.bus import MemoryBus  # noqa: E402
 from maree.v3.sim.orchestrator import Simulation, Timestep  # noqa: E402
-from maree.v3.verify.emergence import emergence_report  # noqa: E402
+from maree.v3.verify.emergence import active_agents, emergence_report  # noqa: E402
 from maree.v3.world.generate import build  # noqa: E402
 from maree.v3.world.navgraph import NavigationGraph  # noqa: E402
 from maree.v3.world.simartifact import build_sim_artifact  # noqa: E402
@@ -81,7 +81,7 @@ def run(config_policy, alias, seed) -> dict:
                   if last_target.get(a) == exp or (exp == "A" and last_target.get(a) not in ("B",)))
     mem_acc = correct / len(EXPECTED)
 
-    report = emergence_report([i.agent for i in sim.scene.instances.values()])
+    report = emergence_report(active_agents(sim))
     tokens = 0
     for i in sim.scene.instances.values():
         d = i.agent._last_decision
