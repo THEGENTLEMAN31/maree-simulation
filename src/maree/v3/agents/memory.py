@@ -84,6 +84,13 @@ class Memory:
     #: fronts de signal déjà vus : (genre, valeur). Empêche la re-décision
     #: pour un signal déjà mémorisé.
     signals_seen: set[tuple[str, str | int | bool]] = field(default_factory=set)
+    #: tick où chaque signal a été vu pour la première fois. Sert à distinguer
+    #: « déjà vu avant ce tick » de « vu à l'instant » : une croyance écrite en
+    #: tête de tick (``Agent._learn``) ne doit pas effacer le fait que
+    #: l'information est **nouvelle** pour le calendrier de ce tick.
+    signal_ticks: dict[tuple[str, str | int | bool], Tick] = field(
+        default_factory=dict
+    )
     consolidated_at: Tick = 0
     #: registre des opérations d'écriture (audit + rejeu exact).
     ops: list[MemoryOp] = field(default_factory=list)
@@ -127,11 +134,18 @@ class Memory:
         return receipt
 
     def mark_signal_seen(self, genre: str, value: str | int | bool, tick: Tick = 0) -> None:
-        self.signals_seen.add((genre, value))
+        key = (genre, value)
+        self.signals_seen.add(key)
+        self.signal_ticks.setdefault(key, tick)
         self._record("signal", tick, f"{genre}:{value}", genre=genre, value=value)
 
     def has_seen_signal(self, genre: str, value: str | int | bool) -> bool:
         return (genre, value) in self.signals_seen
+
+    def is_new_signal(self, genre: str, value: str | int | bool, tick: Tick) -> bool:
+        """Le signal est-il nouveau **à ce tick** (jamais vu avant) ?"""
+        seen_at = self.signal_ticks.get((genre, value))
+        return seen_at is None or seen_at >= tick
 
     def receipt_for(self, fact: str) -> Receipt | None:
         return self.receipts.get(fact)

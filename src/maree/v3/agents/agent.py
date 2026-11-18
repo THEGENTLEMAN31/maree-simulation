@@ -83,6 +83,23 @@ class Agent:
             if not gate.decide:
                 return self._last_decision
 
+        # Ce que l'on croyait bloqué **avant** ce tick : sert à distinguer
+        # « je viens de l'apprendre » (une correction reste à faire) de « je le
+        # savais et j'ai quand même choisi » (on ne rappelle pas le modèle à
+        # chaque tick pour la même cible).
+        blocked_before = {
+            label
+            for label in self.known_exits
+            if _believed_blocked(self.knowledge, label)
+        }
+        # La perception est **consommée avant** la décision : un message entendu
+        # à t fait partie de ce que l'agent sait lorsqu'il décide à t. Avant ce
+        # correctif (2026-11-18), la croyance n'était écrite qu'après la
+        # décision : « A est bloquée » au même tick que la fumée n'était donc
+        # jamais utilisée, et les règles partaient vers la porte qu'elles
+        # venaient d'apprendre fermée.
+        self._learn(perception)
+
         ap = appraise(
             perception=perception,
             traits=self.traits,
@@ -91,7 +108,7 @@ class Agent:
             name=self.name,
         )
         decision = self._decide(perception, ap)
-        self._consume(perception, decision, ap)
+        self._record(perception, decision, blocked_before)
         self._last_decision = decision
         self._last_perception_key = perception_key(perception)
         return decision
@@ -186,20 +203,16 @@ class Agent:
         """Compatibilité : un front nouveau existe-t-il ? (usage interne)."""
         return novel_front(self, perception) is not None
 
-    def _consume(
-        self, perception: Perception, decision: Decision, ap: Appraisal
-    ) -> None:
-        """Journalise la décision et l'apprentissage dans la mémoire."""
+    def _learn(self, perception: Perception) -> None:
+        """Intègre la perception dans les croyances — **avant** de décider.
+
+        Un message, une annonce de fermeture et une sortie vue fermée sont des
+        perceptions : ils doivent peser sur la décision du tick où ils sont
+        perçus, pas seulement sur la suivante. Le calendrier reste inchangé :
+        ce sont les *fronts* qui déclenchent une reconsidération, pas
+        l'écriture d'une croyance.
+        """
         tick = perception.tick
-        # ce que l'on croyait bloqué **avant** d'apprendre les messages de ce
-        # tick : sert à distinguer « je viens de l'apprendre » (une correction
-        # reste à faire) de « je le savais et j'ai quand même choisi » (on ne
-        # rappelle pas le modèle à chaque tick pour la même cible).
-        blocked_before = {
-            label
-            for label in self.known_exits
-            if _believed_blocked(self.knowledge, label)
-        }
         # fronts mémorisés : on ne re-décide plus pour eux
         if perception.smoke_visible:
             self.memory.mark_signal_seen("fumée", True, tick)
@@ -264,6 +277,14 @@ class Agent:
             ):
                 self.preference_changed_by_hearsay = True
 
+    def _record(
+        self,
+        perception: Perception,
+        decision: Decision,
+        blocked_before: set[str],
+    ) -> None:
+        """Journalise la décision, les marques de calendrier et l'oubli."""
+        tick = perception.tick
         # plan invalidé : on mémorise ce qui a déjà été signalé pour ne pas
         # rappeler le modèle pour la même cible à chaque tick.
         if decision.action is Action.EVACUER and decision.target:

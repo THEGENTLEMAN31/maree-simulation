@@ -246,7 +246,10 @@ def _live_contradiction(agent: Agent, perception: Perception) -> Escalation | No
     de rappeler le modèle huit fois pour la même rumeur.
     """
     for message in perception.heard:
-        if agent.memory.has_seen_signal("message", message.fact):
+        # « nouvelle à ce tick » et non « jamais vue » : la croyance est écrite
+        # en tête de tick (Agent._learn), le critère d'escalade doit rester
+        # sensible à l'information qui vient d'arriver.
+        if not agent.memory.is_new_signal("message", message.fact, perception.tick):
             continue
         for label in labels_in(message.fact, agent.known_exits):
             if closure_word(message.fact):
@@ -271,8 +274,8 @@ def _live_contradiction(agent: Agent, perception: Perception) -> Escalation | No
                     },
                 )
     announcement = perception.announcement
-    if announcement and not agent.memory.has_seen_signal(
-        "annonce", announcement
+    if announcement and agent.memory.is_new_signal(
+        "annonce", announcement, perception.tick
     ):
         for label in named_exits(announcement, agent.known_exits):
             if _believed_blocked(agent.knowledge, label):
@@ -291,7 +294,9 @@ def _ambiguous_announcement(
     agent: Agent, perception: Perception
 ) -> Escalation | None:
     announcement = perception.announcement
-    if not announcement or agent.memory.has_seen_signal("annonce", announcement):
+    if not announcement or not agent.memory.is_new_signal(
+        "annonce", announcement, perception.tick
+    ):
         return None
     named = named_exits(announcement, agent.known_exits)
     if len(named) == 0 or len(named) >= 2:
@@ -307,7 +312,7 @@ def _unprecedented(agent: Agent, perception: Perception) -> Escalation | None:
         return Escalation("situation_inedite", {"quoi": "aucune_sortie_connue"})
     if (
         perception.smoke_visible
-        and not agent.memory.has_seen_signal("fumée", True)
+        and agent.memory.is_new_signal("fumée", True, perception.tick)
         and perception.distance_to_danger is not None
         and perception.distance_to_danger < CLOSE_DANGER_M
     ):
