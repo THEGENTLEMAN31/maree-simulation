@@ -107,6 +107,33 @@ def split_timeline(seed: int = 0) -> list[Timestep]:
     ]
 
 
+def contradiction_timeline(seed: int = 0) -> list[Timestep]:
+    """L'annonce officielle contredit une croyance personnelle.
+
+    À t1 : la moitié croit « A bloquée », l'autre « B bloquée », et l'annonce
+    nomme **A**. La moitié qui croit A bloquée reçoit donc une consigne qui
+    contredit ce qu'elle tient pour vrai : c'est le cas
+    ``information_contradictoire`` de ``schedule.escalation_cause``, et le
+    seul où un modèle peut faire autre chose qu'appliquer une consigne.
+    """
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(N_AGENTS)
+    messages: list[tuple[int, Message]] = []
+    for k, agent_index in enumerate(order):
+        label = "A" if k < N_AGENTS // 2 else "B"
+        messages.append(
+            (
+                int(agent_index) + 1,
+                Message(f"La sortie {label} est bloquée", AgentId(999), 1, 0.8),
+            )
+        )
+    return [
+        Timestep(1, smoke=True, hazard_origin=(11.0, 8.0), messages=tuple(messages)),
+        Timestep(2, announcement="Veuillez évacuer par la sortie A"),
+        *[Timestep(t) for t in range(3, MAX_TICKS + 1)],
+    ]
+
+
 def build_sim(
     policy: PolicyName = PolicyName.RULES,
     *,
@@ -138,6 +165,7 @@ def measure(
     seed: int = 1,
     alias: str | None = None,
     split: bool = False,
+    scenario: str = "plain",
     agents: int = N_AGENTS,
     physics: bool = True,
 ) -> dict[str, object]:
@@ -150,7 +178,12 @@ def measure(
     bus = MemoryBus()
     sim = build_sim(policy, seed=seed, bus=bus, alias=alias, agents=agents,
                     physics=physics)
-    steps = split_timeline(seed) if split else timeline()
+    if scenario == "split" or (split and scenario == "plain"):
+        steps = split_timeline(seed)
+    elif scenario == "contradiction":
+        steps = contradiction_timeline(seed)
+    else:
+        steps = timeline()
     sim.run(steps)
     series: list[dict[str, object]] = [
         dict(env.data) for env in bus.published("indicator.crowd")
@@ -165,6 +198,7 @@ def measure(
         "policy": policy.value,
         "seed": seed,
         "split": split,
+        "scenario": scenario,
         "n_agents": agents,
         "summary": summary,
         "peak_tick": peak_tick,
@@ -183,6 +217,11 @@ def measure(
     }
 
 
+def summarise_series(series: list[dict[str, object]]) -> dict[str, float]:
+    """I1–I7 résumés d'une série de trames ``indicator.crowd``."""
+    return summarise(series)
+
+
 __all__ = [
     "EXITS",
     "MAX_TICKS",
@@ -191,8 +230,10 @@ __all__ = [
     "TICK_SECONDS",
     "T_SMOKE",
     "build_sim",
+    "contradiction_timeline",
     "measure",
     "split_timeline",
+    "summarise_series",
     "timeline",
     "world",
 ]
