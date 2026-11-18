@@ -57,8 +57,11 @@ STEPS_PER_TICK = 40
 N_AGENTS = 60
 EXITS = ("A", "B")
 #: instant de la fumée (premier danger) et plafond du run.
+#: 30 ticks = 60 s : mesuré nécessaire pour que le scénario `contradiction`
+#: ne soit pas **censuré** (à 20 ticks, certains bras finissaient à 55/60 et
+#: I4 se figeait au plafond — un zéro qui ne mesurait que la durée du run).
 T_SMOKE = 1
-MAX_TICKS = 20
+MAX_TICKS = 30
 
 
 def world() -> WorldSpec:

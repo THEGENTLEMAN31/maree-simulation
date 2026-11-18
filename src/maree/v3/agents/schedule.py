@@ -372,6 +372,21 @@ def should_decide(agent: Agent, perception: Perception) -> Reconsideration:
         return Reconsideration(True, plan)
     if review_due(agent, perception):
         return Reconsideration(True, "revue")
+    if (
+        agent.policy is PolicyName.HYBRID
+        and agent._last_decision.escalation_cause is not None
+        and agent._last_decision.action is Action.EVACUER
+    ):
+        # Le modèle a parlé et sa réponse **bouge** : elle tient jusqu'à ce que
+        # le monde change matériellement (front, plan invalidé, revue). Sans
+        # cette règle, un simple palier de densité renvoyait l'agent aux règles,
+        # qui refaisaient le choix que le modèle venait de corriger (mesuré C6 :
+        # 0,42 des décisions du bras hybride visant une porte crue bloquée,
+        # contre 0,00 pour le modèle seul).
+        # Si le modèle a répondu « rester », on ne tient **pas** : une foule
+        # qui garde un « rester » sous fumée ne sort plus (mesuré : 45 à 55
+        # sortis sur 60 avant cette condition).
+        return Reconsideration(False)
     key = perception_key(perception)
     if agent._last_perception_key is not None and key != agent._last_perception_key:
         return Reconsideration(True, "contexte_change")
