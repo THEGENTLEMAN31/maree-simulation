@@ -510,3 +510,43 @@ une marche. Trois faits mesurés ont forcé trois décisions.
   ne pas le déclarer comme un résultat.
 - Les comparaisons C6 se font sur ce monde, à population et horloge fixes.
   Un run sur `hall_3` ne se compare pas à un run sur `crowd_hall`.
+
+---
+
+## ADR-016 — La perception est consommée avant de décider
+
+_2026-11-18. Statut : accepté (constat de campagne C6)._
+
+### Contexte
+
+`Agent.react` décidait d'abord, puis écrivait les croyances tirées de la
+perception (`_consume`). Conséquence mesurée sur le scénario macro à
+croyances clivées (60 agents) : **0,50 des décisions visaient une porte que
+l'agent venait d'apprendre bloquée**. Un message de t1 (« la sortie A est
+bloquée ») et une fumée de t1 ne pesaient donc jamais sur la décision de t1,
+puisque le calendrier par fronts ne redécidait plus ensuite.
+
+Ce n'est pas un détail d'implémentation : c'est la moitié des décisions
+d'évacuation qui partaient vers la mauvaise porte.
+
+### Décision
+
+1. `Agent._learn(perception)` écrit les croyances **avant** l'appréciation et
+   la décision. `Agent._record(...)` garde l'épisode, les marques de plan
+   invalidé et l'oubli, après.
+2. Le **calendrier ne change pas** : ce sont les fronts qui déclenchent une
+   reconsidération, pas l'écriture d'une croyance. Sinon on retomberait sur
+   la décision à chaque tick (le coût de la v1).
+3. Les critères d'escalade distinguent « **déjà vu avant ce tick** » de « vu
+   à l'instant » : `Memory.signal_ticks` + `is_new_signal(genre, valeur, tick)`.
+   Sans cette distinction, écrire la croyance en tête de tick rendait toute
+   information « déjà vue » et l'hybride ne faisait plus aucune escalade
+   (mesuré : 4 → 0 sur le banc bloqué).
+
+### Ce que cela ne tranche pas
+
+Un ordre officiel qui nomme une porte que l'agent croit bloquée reste suivi
+par les règles (mesuré : 0,25 des décisions du scénario `contradiction`).
+C'est un choix de modèle — l'autorité prime sur la croyance personnelle —
+et c'est précisément le cas où l'hybride escalade vers le modèle. Tranché en
+C7, avec les chiffres des trois bras sous les yeux, pas avant.
