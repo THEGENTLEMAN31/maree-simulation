@@ -23,6 +23,27 @@ se déforme, et parfois piège la foule qui l'a adoptée.
 
 ## Démarrage
 
+### Frontend web
+
+L'observatoire web n'invente aucune donnée locale : il se connecte
+automatiquement à `ws://127.0.0.1:8765` dès que `maree serve` (rejeu d'un
+run enregistré) ou `maree live` (simulation en direct) tourne :
+
+```bash
+python3 -m http.server 4173 --directory web
+# ouvrir http://127.0.0.1:4173
+```
+
+Dans un second terminal, diffuser un run réel ou lancer le moteur en direct :
+
+```bash
+uv run maree serve --run-id demo_replay --speed 3
+# ou : uv run maree live --tick-ms 600
+```
+
+Le client Godot reste disponible comme client de référence du protocole,
+mais le frontend principal visible est désormais la page web dans `web/`.
+
 ### Sans GPU, sans Docker — le chemin le plus court
 
 ```bash
