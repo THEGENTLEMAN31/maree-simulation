@@ -13,10 +13,11 @@ pour le corps, trois façons de décider (règles / modèle / hybride), un
 journal qui est la source de vérité. L'objet d'étude est **ce qu'un LLM
 apporte à une décision de foule**, mesuré, pas raconté.
 
-État : moteur réparé (C1–C7), deux portes franchies (G1, G2), campagne macro
-mesurée, rapport rédigé. Le résultat central est **négatif** pour les petits
-modèles embarqués : sous rumeur, le grand modèle ne trie pas mieux que les
-règles, et coûte 7× plus.
+État : moteur réparé (C1–C7), campagne macro à 10 graines, cinquième bras
+ajouté (classifieur de décision). Le résultat central n'est pas « LLM ou
+règles » mais **quelle nature de modèle** : sur 10 graines, les décisions
+visant une porte crue bloquée tombent de **0,41** (règles) à **0,20** (Gemma 4
+E2B, générateur) et **0,03** (Kev-4B, classifieur) — p = 0,002, 10/10 graines.
 
 ---
 
@@ -65,7 +66,12 @@ Les serveurs locaux (RTX 3050, 4 Go) :
 
 ---
 
-## 4. Les trois chiffres à connaître
+## 4. Les quatre chiffres à connaître
+
+0. **En foule, 10 graines** : décisions vers une porte crue bloquée —
+   `regles` 0,41, `hybride` 0,26, `llm_grand` 0,20, `decision_head` **0,03**
+   (p = 0,002, 10/10). Fautes par run : 52 / 71 / 104 / **18**. Jetons :
+   0 / 125 k / 337 k / 100 k.
 
 1. **Mission n°1** : deux jumeaux, même archétype, mémoires opposées →
    accord **0,00** (chacun prend sa porte) ; mémoire coupée → accord **1,00**.
@@ -85,9 +91,10 @@ Les serveurs locaux (RTX 3050, 4 Go) :
 - **Généralisation hors des petits modèles** : la conclusion négative vaut
   pour gemma-4-E2B / qwen3-0.6B. Un modèle plus gros (E4B est téléchargé,
   4,97 Go) demande une expérience bornée en RAM.
-- **Bras `decision_head`** : `PolicyName.DECISION_HEAD` existe et n'est pas
-  implémenté. llama.cpp ≥ 2026-10-02 expose `/v1/systemone` ; `Kev-4B`
-  (3,03 Go, Apache 2.0) est le candidat local.
+- **Bras `decision_head`** : implémenté (Kev-4B sur `/v1/systemone`, port
+  8083, `MAREE_HEAD_URL`). Reste : un modèle de décision plus gros, et la
+  même mesure avec un état d'entrée plus riche (les options sont aujourd'hui
+  « rester » + une sortie par sortie connue).
 - **Deux tiers en foule** et **courbe ε** : préparés, pas mesurés.
 - **Énergie** : chiffres v2, non remesurés après refonte.
 - **Godot et les assets** : chantier volontairement non ouvert (travail

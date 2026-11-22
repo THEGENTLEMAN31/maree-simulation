@@ -175,8 +175,8 @@ condition n'est pas tenue.
 | phase | état | preuve |
 |---|---|---|
 | 0 — instrumentation | **fait** | 7 tests (`test_prehistoire.py`, `test_mesure.py`) ; mission n°1 : accord **0,00** avec mémoire / **1,00** sans (200 paires), et en foule 60 agents **1,00 / 0,00** (5 graines) ; préhistoire → croyances sourcées datées ; proches à 1,1–1,9 m, lien symétrique, `CHERCHER_PROCHE` en run |
-| 1 — statistique | en cours | P1.2 fait : 5 mondes, 5/5 dans la bande (1,27–1,51), pic à t6–t8, 60/60 sortis ; P1.1 : campagne 10 graines × 3 bras lancée |
-| 2 — comportements | en cours | P2.1 fermeture : I6 0,43 → 0,04, 60/60, I7 38 s ; P2.2 démenti : part atteinte 1,00 à tout instant, sortie par A 0 → 31 selon le retard, I7 26 → 38 s ; H5 falsifiée |
-| 3 — modèles | en cours | `decision_head` : banc bloqué 1,00 (3 graines) ; P3.3 rumeur vs autorité fait ; reste le gros modèle en RAM (P3.2) |
+| 1 — statistique | **fait** | P1.2 : 5 mondes, 5/5 dans la bande ; P1.1 : 10 graines × 3 bras, Wilcoxon apparié — grand −0,20 et hybride −0,15/−0,20 vs règles, p = 0,002, 10/10 ; **le compteur ambigu a été remplacé** (`target_believed_blocked`) et il change la conclusion |
+| 2 — comportements | en cours | P2.1 fermeture : I6 0,43 → 0,04 ; P2.2 démenti : H5 falsifiée (part atteinte 1,00, sortie par A 0 → 31, I7 26 → 38 s) ; P2.3/P2.4 (deux tiers, ε) en campagne |
+| 3 — modèles | **fait** (P3.2 restant) | `decision_head` : **0,03 vs 0,41** en foule (10 graines, p = 0,002) pour 100 k jetons ; banc bloqué 1,00 ; P3.3 rumeur vs autorité fait ; reste le gros modèle en RAM |
 | 4 — contrat | **fait** | frames.py mappe parole/escalade/reconsidération/fermeture/crowd ; `test_ws_e2e.py` : serveur réel, client réel, séquence world → hello → snapshot → crowd → end, injection + dossier étiqueté |
 | 5 — mémoire/livraison | en cours | AGENTS.md v3 écrit ; HANDOFF + cibles make ; pré-enregistrement des campagnes A–F ; rapport à réécrire après P1 |
