@@ -204,6 +204,23 @@ Deux réserves, mesurées :
   restent dans la salle au plafond. Ce n'est pas une censure du run, c'est un
   délai réel.
 
+### 5.8 Une sonde sur un modèle plus gros : la taille n'achète pas le jugement
+
+Gemma 4 E4B (4,97 Go, 20 couches sur GPU, le reste en RAM), quatre cas du banc,
+3–4 s par décision :
+
+| cas | réponse d'E4B | attendu |
+|---|---|---|
+| calme (rien ne menace) | **évacuer A** | rester |
+| fumée | évacuer A | évacuer — correct |
+| annonce nommant B | évacuer B | correct |
+| A crue bloquée + fumée | évacuer B | correct |
+
+Le modèle plus gros **évacue sans danger** — là où E2B reste. Sonde bornée,
+pas une campagne : elle ne prouve pas qu'un modèle de frontière jugerait
+moins bien, elle prouve qu'**on ne peut pas acheter le jugement avec des
+paramètres** sur ce dispositif. Résultat : `runs/v3/big_model_probe.json`.
+
 ---
 
 ## 6. Quatre expériences de comportement
@@ -313,9 +330,9 @@ valeurs par bras sont dans `stats.json`), `twins.json`,
    largement. Reste à mesurer un générateur **contraint à la cadence des
    règles** : si l'écart se referme, le problème du générateur est le
    calendrier, pas la lecture.
-2. **Un modèle plus gros change-t-il la conclusion ?** Non testé : 2 B et 4 B
-   seulement. Gemma 4 E4B est téléchargé (4,97 Go) mais ne tient pas avec les
-   autres sur 4 Go.
+2. **Un modèle plus gros change-t-il la conclusion ?** Sonde seulement (§5.8) :
+   E4B évacue sans danger, là où E2B reste. Un modèle de frontière (30 B+)
+   demanderait un autre matériel ; le dire vaut mieux que l'extrapoler.
 3. **La géographie reste statique** : un message ne fait pas apprendre une
    sortie inconnue.
 4. **L'hybride demande un état de plan explicite**, pas un calendrier plus

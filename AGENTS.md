@@ -684,3 +684,13 @@ dans `docs/v3/decisions.md`.
   500/jour), `gemma-4-31b-it` (souvent 503).
 - **Commit avec des backticks** : bash les interprète. Écrire le message dans
   un fichier (`git commit -F`) ou l'échapper.
+
+- **Un serveur lancé en tâche de fond doit être détaché avec `setsid`.**
+  `nohup … &` ne suffit pas : le nettoyage de groupe de processus du shell tue
+  le serveur ~30 s après le lancement, et il meurt en silence
+  (« cleaning up before exit » dans son journal). `setsid nohup … & < /dev/null`
+  survit. Deux serveurs (Kev-4B puis Gemma E4B) sont morts ainsi le 2026-11-22.
+- **Un JSON de campagne est un artefact, pas un brouillon.** Une campagne
+  filtrée (`--arms=…`) a écrasé 60 runs. Les scripts écrivent désormais un
+  fichier par sélection d'armes ; ne jamais faire tourner deux campagnes qui
+  écrivent le même chemin.

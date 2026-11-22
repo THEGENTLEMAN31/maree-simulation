@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-22",
+  "objet": "P3.2 — un generateur plus gros juge-t-il mieux ? Sonde bornee, pas une campagne.",
+  "modele": "gemma-4-E4B-it-Q4_K_M (4,97 Go, 20 couches sur GPU, reste en RAM)",
+  "protocole": "4 cas du banc de decision, contrat JSON du grand modele, temperature 0, max_tokens 64",
+  "latence_s": [3.2, 2.9, 4.1, 3.8],
+  "resultats": {
+    "calme": "evacuer A (faux : rien ne menace)",
+    "fumee": "evacuer A (correct)",
+    "annonce B": "evacuer B (correct)",
+    "A bloquee": "evacuer B (correct)"
+  },
+  "comparaison": {
+    "gemma-4-E2B": "reste en calme (mesure de la campagne)",
+    "qwen3-0.6B": "reste en calme avec le protocole a drapeaux"
+  },
+  "lecture": "La taille n'achete pas le jugement : sur ce cas, le modele plus gros evacue sans danger. La question 'un modele de frontiere juge-t-il mieux ?' reste ouverte — elle demande un modele qu'on ne peut pas faire tourner ici."
+}
