@@ -164,6 +164,9 @@ condition n'est pas tenue.
 | 2026-11-22 | Le compteur de croyance est journalisé **au moment de décider** (`target_believed_blocked`) | le compteur « désignée à t1 » confondait « se trompe » et « ne croit plus fermé » | à 60 agents : 52 crue-au-moment contre 30 désignée, dont 21 faute de mieux |
 | 2026-11-22 | La fermeture d'issue se **perçoit à 8 m** (ligne de vue exigée) | une fermeture lue par tous au même tick rendait I6 nul par construction | I6 monte à 0,43 puis retombe à 0,04 ; réacheminement complet |
 | 2026-11-22 | **H5 reformulée** : on mesure séparément « qui le démenti atteint » et « qui change d'action » | l'hypothèse « le démenti corrige la croyance, pas l'action » se teste mal en un seul chiffre | H5 **falsifiée** : toutes les personnes atteintes changent, sans délai. Ce qui limite un démenti tardif, c'est le nombre de gens déjà dehors |
+| 2026-11-22 | Bras `decision_head` implémenté avec **Kev-4B** (3,03 Go, Apache 2.0) sur `/v1/systemone` | llama.cpp ≥ 2026-10-02 expose l'endpoint ; OpenJev 27B (19 Go) dépasse la carte ; Kev tourne seul sur 4 Go et même sur CPU à 1,3 s/décision | banc bloqué 1,00 sur 3 graines, 0 décision vers une porte crue bloquée (ADR-019) |
+| 2026-11-22 | L'état donné au head nomme la fumée comme **danger** | à état identique, « Fumée visible » le laisse sur RESTER (0,42) et « Danger : » le fait sortir (0,41) | consigné : un System 1 classe, il ne raisonne pas |
+| 2026-11-22 | Trois modes de parole (`all` / `guards` / `none`) plutôt qu'un booléen | séparer « l'autorité informe » de « tout le monde raconte » | c'est la rumeur : I1 0,63 / 0,62 / 0,70 et décisions bloquées 0,00 / 0,07 / 0,38 |
 
 ---
 
@@ -174,6 +177,6 @@ condition n'est pas tenue.
 | 0 — instrumentation | **fait** | 7 tests (`test_prehistoire.py`, `test_mesure.py`) ; mission n°1 : accord **0,00** avec mémoire / **1,00** sans (200 paires), et en foule 60 agents **1,00 / 0,00** (5 graines) ; préhistoire → croyances sourcées datées ; proches à 1,1–1,9 m, lien symétrique, `CHERCHER_PROCHE` en run |
 | 1 — statistique | en cours | P1.2 fait : 5 mondes, 5/5 dans la bande (1,27–1,51), pic à t6–t8, 60/60 sortis ; P1.1 : campagne 10 graines × 3 bras lancée |
 | 2 — comportements | en cours | P2.1 fermeture : I6 0,43 → 0,04, 60/60, I7 38 s ; P2.2 démenti : part atteinte 1,00 à tout instant, sortie par A 0 → 31 selon le retard, I7 26 → 38 s ; H5 falsifiée |
-| 3 — modèles | à faire | — |
-| 4 — contrat | à faire | — |
-| 5 — mémoire/livraison | à faire | — |
+| 3 — modèles | en cours | `decision_head` : banc bloqué 1,00 (3 graines) ; P3.3 rumeur vs autorité fait ; reste le gros modèle en RAM (P3.2) |
+| 4 — contrat | **fait** | frames.py mappe parole/escalade/reconsidération/fermeture/crowd ; `test_ws_e2e.py` : serveur réel, client réel, séquence world → hello → snapshot → crowd → end, injection + dossier étiqueté |
+| 5 — mémoire/livraison | en cours | AGENTS.md v3 écrit ; HANDOFF + cibles make ; pré-enregistrement des campagnes A–F ; rapport à réécrire après P1 |
