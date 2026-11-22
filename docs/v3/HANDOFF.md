@@ -1,160 +1,104 @@
-# Passation — état du projet au 2026-11-04
+# HANDOFF — reprendre MARÉE v3 sans son auteur
 
-_Ce document sert à reprendre le travail dans une nouvelle session, sans
-reconstruire le contexte. Il est volontairement factuel._
-
----
-
-## 1. Où est le dépôt
-
-```text
-/home/jose/school/mondes_vivants/maree-simulation
-branche : main
-```
-
-Le dépôt est la source de vérité. Les fichiers sont sur disque : fermer une
-fenêtre de conversation ne perd rien. En revanche, **l'arbre de travail n'est
-pas commité** (voir §3).
+_Écrit le 2026-11-22. À lire avec `AGENTS.md` (les pièges) et
+`docs/v3/rapport-v3.md` (les résultats). Ce fichier dit **où l'on en est**,
+**comment rejouer chaque affirmation**, et **ce qui reste ouvert**._
 
 ---
 
-## 2. Ce qui a été décidé (ne pas rediscuter sans raison)
+## 1. En trente secondes
 
-La v3 change de mission :
+Simulation d'évacuation de foule : 60 agents, une salle calibrée, JuPedSim
+pour le corps, trois façons de décider (règles / modèle / hybride), un
+journal qui est la source de vérité. L'objet d'étude est **ce qu'un LLM
+apporte à une décision de foule**, mesuré, pas raconté.
 
-> **Mission 1 : le comportement humain.** Deux agents du même archétype doivent
-> diverger à cause de leur mémoire personnelle.
-> **Mission 2 : l'aide à la conception** (sorties, feux, variantes), secondaire.
-
-Décisions structurantes (détail dans `docs/v3/decisions.md`) :
-
-| # | Décision |
-|---|---|
-| ADR-001 | comportement d'abord |
-| ADR-002 | Godot est le front de référence, glTF est le contrat |
-| ADR-003 | aucune rétrocompatibilité v2 |
-| ADR-004 | mono-étage en v3.0, multi-étages en v3.1 |
-| ADR-005 | aucun moteur de foule maison : JuPedSim + `jupedsim-network` + coordinateur |
-| ADR-006 | fumée grossière, pas de propagation de flammes |
-| ADR-007 | OpenJev = tête de décision optionnelle, évaluée avant adoption |
-| ADR-008 | matrice de stockage, pas de base unique |
-| ADR-009 | assets importés, pas générés |
-| ADR-010 | Graphify = outil de développement, pas runtime |
-| ADR-011 | dossier agent configurable, 3 étiquettes (`measured`, `derived`, `generated`) |
-| ADR-012 | validation ISO 20414 + protocole comportemental |
+État : moteur réparé (C1–C7), deux portes franchies (G1, G2), campagne macro
+mesurée, rapport rédigé. Le résultat central est **négatif** pour les petits
+modèles embarqués : sous rumeur, le grand modèle ne trie pas mieux que les
+règles, et coûte 7× plus.
 
 ---
 
-## 3. État Git exact
-
-Arbre de travail **non commité** :
-
-```text
-M .gitignore
-M AGENTS.md
-M Makefile
-M README.md
-M src/maree/agents/graph.py
-M src/maree/engine/replay.py
-M src/maree/engine/trace.py
-M tests/test_replay.py
-M tests/test_trace.py
-?? .graphifyrc
-?? .graphifyignore
-?? docs/schemas.md
-?? docs/v3/
-```
-
-Deux choses distinctes sont mélangées :
-
-1. **Correctifs v2 validés** (`replay.py`, `trace.py`, `graph.py`, tests) :
-   rejeu du tier `small`, `known_exits`, `mismatch_count`, `trace` sans
-   `KeyError`. Tests : `214 passed`.
-2. **Plan v3 + Graphify** (`docs/v3/`, `.graphifyrc`, `.graphifyignore`,
-   Makefile, README, AGENTS).
-
-### Première action recommandée
-
-Faire deux commits séparés :
+## 2. Ce qui tourne, et comment
 
 ```bash
-git add src/maree/agents/graph.py src/maree/engine/replay.py \
-        src/maree/engine/trace.py tests/test_replay.py tests/test_trace.py \
-        AGENTS.md
-git commit -m "fix(replay): re-parser le tier small, tracer les chaînes causales"
+uv sync --all-extras
+uv run pytest                 # 411 tests, aucun GPU
+make lint type                # ruff + mypy
 
-git add docs/v3 docs/schemas.md .graphifyrc .graphifyignore \
-        Makefile README.md .gitignore AGENTS.md
-git commit -m "docs(v3): plan de conception et intégration Graphify"
+# les affirmations du rapport, une commande chacune (aucun GPU) :
+make v3-twins                 # mission n°1 : la mémoire fait diverger les jumeaux
+make v3-worlds                # cinq salles : le goulot tient-il ?
+make v3-denial                # H5 : un démenti tardif, qui atteint-il ?
+
+# campagnes (serveurs 8081 grand / 8082 petit requis) :
+make v3-crowd                 # 4 bras × 2 scénarios × 5 graines (~1 h)
+make v3-crowd-null            # le null de B3 (sans émission)
+make v3-tables                # régénère docs/v3/resultats-c6.md
 ```
 
-Vérifier avant : `uv run pytest` (attendu : 214 passed).
+Les serveurs locaux (RTX 3050, 4 Go) :
+
+```bash
+/mnt/data/llama.cpp/build/bin/llama-server \
+  --model /mnt/data/maree-models/gemma-4-E2B-it-Q4_K_M.gguf \
+  --alias gemma4-e2b --port 8081 --ctx-size 4096 --parallel 1 \
+  --n-gpu-layers 99 --flash-attn on --threads 4 --no-webui --jinja --reasoning off
+```
+
+(même chose avec `Qwen3-0.6B-Q4_K_M.gguf --alias qwen3-0-6b --port 8082 --ctx-size 2048`.)
 
 ---
 
-## 4. Ce qui tourne déjà
+## 3. Où sont les choses
 
-- `graphify 0.9.90` installé ;
-- `make graph` construit `graphify-out/` (1 227 nœuds, 2 941 arêtes,
-  58 communautés, 86 % EXTRACTED / 14 % INFERRED) ;
-- `make graph-report`, `make graph-query Q="..."` disponibles ;
-- `graphify-out/` est ignoré par Git.
-
----
-
-## 5. Par où reprendre
-
-Lire, dans cet ordre :
-
-1. `docs/v3/README.md` — mission, objectifs, non-objectifs, index ;
-2. `docs/v3/decisions.md` — les 12 ADR ;
-3. `docs/v3/comportement.md` — le cœur (mémoire, individualité, phénomènes) ;
-4. `docs/v3/architecture.md` — les 4 artefacts et les contrats ;
-5. `docs/v3/roadmap.md` — la semaine 1.
-
-Puis exécuter la **semaine 1** :
-
-- squelette `src/maree/v3/` (dossiers + `__init__`) ;
-- CI minimale (lint, type, tests, build) ;
-- `bootstrap.py` : point d'assemblage unique ;
-- vérifier que `make graph` et `uv run pytest` passent ;
-- ne pas encore implémenter le comportement (semaine 2).
+| quoi | où |
+|---|---|
+| le journal, les runs, les JSON de campagne | `runs/v3/` (archives : `runs/v3/avant_correctif/`) |
+| le moteur | `src/maree/v3/` — `sim/` (orchestrateur, scène, physique), `agents/` (perception, calendrier, politiques, parole), `verify/` (mesure) |
+| les mondes de mesure | `world.generate.preset` (`crowd_hall`), `verify/worlds.py` (famille) |
+| les scénarios | `verify/scenario_blocked.py` (micro), `verify/scenario_crowd.py` (foule, 5 variantes) |
+| les tables du rapport | `docs/v3/resultats-c6.md`, régénérables par `scripts/rapport_crowd.py` |
+| les décisions | `docs/v3/decisions.md` (ADR-014 → 018) |
+| le plan de travail autonome | `docs/v3/plan-autonomie.md` (phases, portes, journal) |
 
 ---
 
-## 6. Règles à ne pas enfreindre
+## 4. Les trois chiffres à connaître
 
-- **Ne pas réintroduire de configuration morte.** Un paramètre déclaré est lu,
-  ou supprimé.
-- **Ne pas écrire de moteur de foule, de base de données, d'index vectoriel,
-  de serveur HTTP, d'auth ou de moteur de rendu.**
-- **Ne pas utiliser le LLM à chaque tick.** Politique `hybrid` par défaut.
-- **Ne pas confondre Graphify et la connaissance des agents.** Graphify lit le
-  code ; les agents lisent le `KnowledgeStore`.
-- **Ne pas promettre du photoréalisme.** Low-poly stylisé assumé.
-- **Ne pas réintroduire la compatibilité v2.**
-- **Toute décision structurante va dans `docs/v3/decisions.md`.**
-- **Toute affirmation doit être mesurée** (test, run, ablation).
-
----
-
-## 7. Pièges connus de la v2 (à ne pas répéter)
-
-- deux tables de croyances, dont une jamais écrite → le prompt voit
-  « aucune croyance » ;
-- `config_hash` sans monde, sans modèle, sans corpus ;
-- `recall_k`, `rag.k`, `temperature`, `max_tokens`, `api_key` déclarés mais
-  jamais lus ;
-- 83 % des octets du journal sont des snapshots ; `state.json` les duplique ;
-- WebSocket qui relit tout le journal à chaque boucle ;
-- `hello.plan` vient de la config courante, pas du journal ;
-- pas de CI, packaging non autonome, Docker cassé.
+1. **Mission n°1** : deux jumeaux, même archétype, mémoires opposées →
+   accord **0,00** (chacun prend sa porte) ; mémoire coupée → accord **1,00**.
+   En foule : **1,00** des agents ignorent la porte qu'ils croient bloquée,
+   **0,00** sans mémoire.
+2. **Une fermeture d'issue** (A ferme à t4) : I6 monte à **0,43** puis
+   retombe à 0,04 ; la foule se rabat sur B ; 60/60 sortis ; I5 1,75.
+3. **Un démenti tardif** : il atteint **toutes** les personnes encore dans la
+   salle (changement immédiat), mais à t8 il n'en reste que 29 sur 60 — et I7
+   passe de 26 à 38 s. H5 (« le démenti corrige la croyance, pas l'action »)
+   est **falsifiée** : ce qui limite un démenti tardif, c'est l'audience.
 
 ---
 
-## 8. Ce qu'il faut demander à l'utilisateur
+## 5. Ce qui reste ouvert
 
-- confirmer les deux commits ci-dessus ;
-- confirmer le périmètre de la semaine 1 ;
-- dire si le style low-poly importé est validé (sinon, choisir les packs
-  d'assets et les licences).
+- **Généralisation hors des petits modèles** : la conclusion négative vaut
+  pour gemma-4-E2B / qwen3-0.6B. Un modèle plus gros (E4B est téléchargé,
+  4,97 Go) demande une expérience bornée en RAM.
+- **Bras `decision_head`** : `PolicyName.DECISION_HEAD` existe et n'est pas
+  implémenté. llama.cpp ≥ 2026-10-02 expose `/v1/systemone` ; `Kev-4B`
+  (3,03 Go, Apache 2.0) est le candidat local.
+- **Deux tiers en foule** et **courbe ε** : préparés, pas mesurés.
+- **Énergie** : chiffres v2, non remesurés après refonte.
+- **Godot et les assets** : chantier volontairement non ouvert (travail
+  visuel à faire à deux, avec des assets téléchargés).
+
+---
+
+## 6. Trois règles à ne pas casser
+
+1. **Le journal est la source de vérité.** Rien n'existe s'il n'est pas
+   journalisé, y compris ce qui a été décidé de ne pas faire.
+2. **Une affirmation = une commande rejouable.** Si un chiffre du rapport ne
+   se régénère pas, c'est le rapport qui a tort.
+3. **Le null doit être un run**, pas un raisonnement — et avec le même code.
