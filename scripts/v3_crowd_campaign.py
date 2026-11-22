@@ -34,7 +34,15 @@ for arg in ARGS:
 SEEDS = tuple(int(a) for a in ARGS if a.isdigit()) or (1, 2, 3, 4, 5)
 SCENARIOS = ("split", "contradiction")
 SELECTED = tuple(a for a in ARMS if ARMS_FILTER is None or a.name in ARMS_FILTER)
-OUT_NAME = "campaign_crowd_silence.json" if SILENT else "campaign_crowd.json"
+#: Nom de sortie. **On ne réécrit jamais une campagne complète avec un
+#: sous-ensemble** : un run filtré (``--arms=``) écrit son propre fichier.
+#: C'est une leçon payée le 2026-11-22 (une campagne `decision_head` a écrasé
+#: les 60 runs de la campagne 10 graines).
+if ARMS_FILTER is None:
+    OUT_NAME = "campaign_crowd_silence.json" if SILENT else "campaign_crowd.json"
+else:
+    suffix = "-".join(ARMS_FILTER)
+    OUT_NAME = f"campaign_{suffix}{'_silence' if SILENT else ''}.json"
 
 
 def main() -> int:

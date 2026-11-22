@@ -1,0 +1,383 @@
+{
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "scenarios": [
+    "split",
+    "contradiction"
+  ],
+  "runs": [
+    {
+      "arm": "decision_head",
+      "scenario": "split",
+      "seed": 1,
+      "decisions": 455,
+      "llm_attempted": 455,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.67,
+      "speak": true,
+      "messages": 455,
+      "escalations": {},
+      "replis": {
+        "no_response": 455
+      },
+      "targeted_blocked": 211,
+      "targeted_believed_blocked": 78,
+      "targeted_blocked_least_bad": 22,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.8746235294117648,
+        "I2_entropy": 0.6344941176470589,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.432,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 34.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "split",
+      "seed": 2,
+      "decisions": 467,
+      "llm_attempted": 467,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.68,
+      "speak": true,
+      "messages": 467,
+      "escalations": {},
+      "replis": {
+        "no_response": 467
+      },
+      "targeted_blocked": 192,
+      "targeted_believed_blocked": 82,
+      "targeted_blocked_least_bad": 25,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.8499538461538462,
+        "I2_entropy": 0.6042384615384615,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.751,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "split",
+      "seed": 3,
+      "decisions": 441,
+      "llm_attempted": 441,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.63,
+      "speak": true,
+      "messages": 441,
+      "escalations": {},
+      "replis": {
+        "no_response": 441
+      },
+      "targeted_blocked": 200,
+      "targeted_believed_blocked": 76,
+      "targeted_blocked_least_bad": 21,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.7788210526315789,
+        "I2_entropy": 0.6348315789473684,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.194,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 38.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "split",
+      "seed": 4,
+      "decisions": 432,
+      "llm_attempted": 432,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.61,
+      "speak": true,
+      "messages": 432,
+      "escalations": {},
+      "replis": {
+        "no_response": 432
+      },
+      "targeted_blocked": 204,
+      "targeted_believed_blocked": 83,
+      "targeted_blocked_least_bad": 19,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.8707153846153847,
+        "I2_entropy": 0.6304846153846154,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.194,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "split",
+      "seed": 5,
+      "decisions": 412,
+      "llm_attempted": 412,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.6,
+      "speak": true,
+      "messages": 412,
+      "escalations": {},
+      "replis": {
+        "no_response": 412
+      },
+      "targeted_blocked": 166,
+      "targeted_believed_blocked": 92,
+      "targeted_blocked_least_bad": 20,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.82874,
+        "I2_entropy": 0.55226,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.273,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 30.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "contradiction",
+      "seed": 1,
+      "decisions": 401,
+      "llm_attempted": 401,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.59,
+      "speak": true,
+      "messages": 401,
+      "escalations": {},
+      "replis": {
+        "no_response": 401
+      },
+      "targeted_blocked": 189,
+      "targeted_believed_blocked": 103,
+      "targeted_blocked_least_bad": 0,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.8291749999999999,
+        "I2_entropy": 0.5762166666666667,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.592,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "contradiction",
+      "seed": 2,
+      "decisions": 427,
+      "llm_attempted": 427,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.63,
+      "speak": true,
+      "messages": 427,
+      "escalations": {},
+      "replis": {
+        "no_response": 427
+      },
+      "targeted_blocked": 171,
+      "targeted_believed_blocked": 111,
+      "targeted_blocked_least_bad": 0,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.7896769230769232,
+        "I2_entropy": 0.47757692307692307,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.512,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "contradiction",
+      "seed": 3,
+      "decisions": 369,
+      "llm_attempted": 369,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.55,
+      "speak": true,
+      "messages": 369,
+      "escalations": {},
+      "replis": {
+        "no_response": 369
+      },
+      "targeted_blocked": 167,
+      "targeted_believed_blocked": 92,
+      "targeted_blocked_least_bad": 0,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.820175,
+        "I2_entropy": 0.5333166666666667,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.273,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "contradiction",
+      "seed": 4,
+      "decisions": 377,
+      "llm_attempted": 377,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.57,
+      "speak": true,
+      "messages": 377,
+      "escalations": {},
+      "replis": {
+        "no_response": 377
+      },
+      "targeted_blocked": 174,
+      "targeted_believed_blocked": 100,
+      "targeted_blocked_least_bad": 0,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.8518636363636364,
+        "I2_entropy": 0.5357181818181819,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.194,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 22.0
+      }
+    },
+    {
+      "arm": "decision_head",
+      "scenario": "contradiction",
+      "seed": 5,
+      "decisions": 368,
+      "llm_attempted": 368,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.54,
+      "speak": true,
+      "messages": 368,
+      "escalations": {},
+      "replis": {
+        "no_response": 368
+      },
+      "targeted_blocked": 154,
+      "targeted_believed_blocked": 99,
+      "targeted_blocked_least_bad": 0,
+      "target_resolved": 0,
+      "evacuations": 60,
+      "indicators": {
+        "I1_consensus": 0.819425,
+        "I2_entropy": 0.49943333333333334,
+        "I3_evacuated": 1.0,
+        "I4_seconds": 60.0,
+        "I5_max_density": 1.194,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 24.0
+      }
+    }
+  ],
+  "aggregate": {
+    "decision_head|split": {
+      "n_runs": 5,
+      "decisions_med": 441.0,
+      "llm_attempted_med": 441.0,
+      "llm_ok_med": 0.0,
+      "tokens_med": 0.0,
+      "wall_s_med": 0.63,
+      "messages_med": 441.0,
+      "part_decisions_bloquees_med": 0.454,
+      "part_believed_blocked_med": 0.176,
+      "believed_blocked_med": 82.0,
+      "target_resolved_med": 0.0,
+      "least_bad_med": 21.0,
+      "part_bloquees_least_bad_med": 0.048,
+      "evacuations_med": 60.0,
+      "I1_med": 0.85,
+      "I2_med": 0.63,
+      "I3_med": 1.0,
+      "I5_med": 1.273,
+      "I7_med": 30.0,
+      "I5_span": [
+        1.194,
+        1.751
+      ],
+      "I7_span": [
+        26.0,
+        38.0
+      ],
+      "escalations": {},
+      "replis": {
+        "no_response": 2207
+      }
+    },
+    "decision_head|contradiction": {
+      "n_runs": 5,
+      "decisions_med": 377.0,
+      "llm_attempted_med": 377.0,
+      "llm_ok_med": 0.0,
+      "tokens_med": 0.0,
+      "wall_s_med": 0.57,
+      "messages_med": 377.0,
+      "part_decisions_bloquees_med": 0.453,
+      "part_believed_blocked_med": 0.26,
+      "believed_blocked_med": 100.0,
+      "target_resolved_med": 0.0,
+      "least_bad_med": 0.0,
+      "part_bloquees_least_bad_med": 0.0,
+      "evacuations_med": 60.0,
+      "I1_med": 0.82,
+      "I2_med": 0.533,
+      "I3_med": 1.0,
+      "I5_med": 1.273,
+      "I7_med": 24.0,
+      "I5_span": [
+        1.194,
+        1.592
+      ],
+      "I7_span": [
+        22.0,
+        26.0
+      ],
+      "escalations": {},
+      "replis": {
+        "no_response": 1942
+      }
+    }
+  }
+}

@@ -21,9 +21,10 @@ Quatre résultats :
 2. **l'accord d'une foule se construit par rumeur, pas par autorité** : quatre
    agents de sécurité qui parlent ne changent presque rien, le ouï-dire de
    tout un chacun remonte le consensus — et dégrade les décisions ;
-3. **l'avantage du grand modèle ne survit pas à la rumeur** : il refusait un
-   ordre contredisant sa croyance dans un monde muet, il ne le refuse plus
-   quand les agents se parlent, pour sept fois le coût des règles ;
+3. **la nature du modèle compte plus que sa taille** : sur le même monde, un
+   générateur de texte divise par deux les décisions vers une porte crue
+   bloquée (0,41 → 0,20) pour 337 k jetons, un classifieur de décision les
+   divise par dix (0,41 → 0,03) pour 100 k ;
 4. **un démenti tardif n'est pas ignoré, il n'atteint plus personne** : toutes
    les personnes encore présentes changent d'action sans délai ; ce qui limite
    l'effet, c'est l'audience, pas l'engagement.
@@ -128,9 +129,29 @@ jetons d'entrée et zéro de sortie. À état identique, « Fumée visible » le
 laisse sur RESTER (0,42) et « Danger : fumée visible » le fait sortir (0,41) :
 un System 1 **classe** l'étiquette, il ne raisonne pas la situation.
 
-### 3.6 Campagne en foule
+### 3.6 En foule : la nature du modèle, pas sa taille
 
-<!-- TABLE-CAMPAGNE -->
+60 agents, 10 graines, scénario `split` (la moitié croit A bloquée, l'autre B,
+les deux portes ouvertes), métrique principale = part des décisions dont la
+cible était **crue bloquée au moment de décider** (test de Wilcoxon apparié
+par graine) :
+
+| bras | part | fautes / run | jetons | mural |
+|---|---|---|---|---|
+| `regles` | 0,41 | 52 | 0 | 0,3 s |
+| `hybride` (règles + escalade) | 0,26 [−0,18 ; −0,12] | 71 | 125 k | 120 s |
+| `llm_grand` (Gemma 4 E2B) | 0,20 [−0,24 ; −0,16] | 104 | 337 k | 327 s |
+| `decision_head` (Kev-4B) | **0,03 [−0,41 ; −0,35]** | **18** | 100 k | 233 s |
+
+p = 0,002 pour les trois écarts, 10 graines sur 10 dans le même sens.
+
+Trois lectures. **Le générateur aide** (deux fois moins de fautes par
+décision) **mais perd sur le run** : il reconsidère quatre fois plus souvent,
+donc s'expose quatre fois plus — 104 fautes contre 52. **Le classifieur
+gagne sur les deux compteurs** : trois fois moins de fautes que les règles,
+six fois moins que le générateur, pour 30 % de son coût. Et **la formulation
+de l'état décide** : à état identique, « Fumée visible » laisse le classifieur
+sur RESTER (0,42), « Danger : fumée visible » le fait sortir (0,41).
 
 ---
 
@@ -147,7 +168,13 @@ dans un système multi-agents :
 2. **Un modèle qui lit la rumeur doit être jugé sur la rumeur.** Toutes les
    comparaisons faites dans un monde muet surestiment le modèle : dès que les
    agents se parlent, l'écart avec les règles se referme et le coût est multiplié.
-3. **La formulation de l'état est une décision de conception, pas un détail.**
+3. **La nature du modèle domine sa taille.** Un classifieur de 4 B formé pour
+   choisir dans un ensemble fermé bat un générateur de 2 B et coûte moins :
+   ce qui compte n'est pas « plus de paramètres », c'est **la forme de la
+   tâche**. Un modèle de 30 B placé dans un contrat JSON n'est pas
+   nécessairement meilleur qu'un classifieur de 4 B placé devant les mêmes
+   options.
+4. **La formulation de l'état est une décision de conception, pas un détail.**
    La même situation, décrite comme un fait ou comme un danger, change la
    décision d'un classifieur. Toute évaluation qui ne publie pas l'état donné
    au modèle ne dit rien de reproductible.

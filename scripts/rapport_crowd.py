@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-DEFAULT = Path("runs/v3/campaign_crowd.json")
+DEFAULT = Path("runs/v3/campaign_crowd_10seeds.json")
 OUT = Path("docs/v3/resultats-c6.md")
 
 
@@ -26,12 +26,80 @@ def _f(value: Any, digits: int = 2) -> str:
     return "—"
 
 
+def _belief_cell(aggregate: dict[str, Any]) -> str:
+    """La métrique de croyance, ou « — » si elle n'a pas été journalisée."""
+    value = aggregate.get("part_believed_blocked_med")
+    if value is None:
+        return "— *(non journalisée sur ces runs)*"
+    return f"{_f(value)} ({_f(aggregate.get('part_bloquees_least_bad_med', 0.0))})"
+
+
+def _aggregate_from_runs(runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Agrège à la volée quand le JSON ne porte pas de bloc ``aggregate``."""
+    import statistics as st
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for run in runs:
+        grouped.setdefault(f"{run['arm']}|{run['scenario']}", []).append(run)
+    out: dict[str, dict[str, Any]] = {}
+    for key, rows in grouped.items():
+        def med(fn, rows: list[dict[str, Any]] = rows) -> float | None:  # type: ignore[no-untyped-def]
+            vals = [fn(r) for r in rows]
+            vals = [v for v in vals if v is not None]
+            return round(st.median(vals), 3) if vals else None
+
+        def belief(r: dict[str, Any]) -> float | None:
+            value = r.get("targeted_believed_blocked")
+            if value is None:
+                return None
+            return value / (r["decisions"] or 1)
+
+        beliefs = [belief(r) for r in rows if belief(r) is not None]
+        out[key] = {
+            "n_runs": len(rows),
+            "decisions_med": med(lambda r: r["decisions"]),
+            "llm_attempted_med": med(lambda r: r["llm_attempted"]),
+            "llm_ok_med": med(lambda r: r["llm_ok"]),
+            "tokens_med": med(lambda r: r["tokens"]),
+            "wall_s_med": med(lambda r: r["wall_s"]),
+            "part_decisions_bloquees_med": med(
+                lambda r: r.get("targeted_blocked", 0) / (r["decisions"] or 1)
+            ),
+            "part_believed_blocked_med": (
+                round(st.median(beliefs), 3) if beliefs else None
+            ),
+            "part_bloquees_least_bad_med": med(
+                lambda r: r.get("targeted_blocked_least_bad", 0)
+                / (r["decisions"] or 1)
+            ),
+            "target_resolved_med": med(lambda r: r.get("target_resolved", 0)),
+            "messages_med": med(lambda r: r.get("messages", 0)),
+            "I1_med": med(lambda r: r["indicators"].get("I1_consensus", 0.0)),
+            "I3_med": med(lambda r: r["indicators"].get("I3_evacuated", 0.0)),
+            "I5_med": med(lambda r: r["indicators"].get("I5_max_density", 0.0)),
+            "I5_span": [
+                round(min(r["indicators"].get("I5_max_density", 0.0) for r in rows), 3),
+                round(max(r["indicators"].get("I5_max_density", 0.0) for r in rows), 3),
+            ],
+            "I7_med": med(lambda r: r["indicators"].get("I7_delay_seconds", 0.0)),
+            "I7_span": [
+                round(min(r["indicators"].get("I7_delay_seconds", 0.0) for r in rows), 1),
+                round(max(r["indicators"].get("I7_delay_seconds", 0.0) for r in rows), 1),
+            ],
+            "escalations": {},
+            "replis": {},
+        }
+    return out
+
+
 def main() -> int:
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT
     data = json.loads(path.read_text(encoding="utf-8"))
     seeds = data["seeds"]
-    scenarios = data["scenarios"]
-    agg: dict[str, dict[str, Any]] = data["aggregate"]
+    scenarios = data.get("scenarios") or sorted({r["scenario"] for r in data["runs"]})
+    agg: dict[str, dict[str, Any]] = data.get("aggregate") or _aggregate_from_runs(
+        data["runs"]
+    )
 
     lines: list[str] = []
     speaks = {bool(run.get("speak", True)) for run in data["runs"]}
@@ -55,11 +123,12 @@ def main() -> int:
 
     header = (
         "| bras | scénario | décisions | appels (ok) | jetons | mural (s) | "
-        "I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée "
-        "(dont faute de mieux) | paroles | cibles résolues par le moteur |"
+        "I1 | I3 | I5 [min–max] | I7 s [min–max] | crue bloquée (désignée t1) | "
+        "crue bloquée **au moment de décider** (dont faute de mieux) | paroles | "
+        "cibles résolues par le moteur |"
     )
     lines.append(header)
-    lines.append("|" + "---|" * 14)
+    lines.append("|" + "---|" * 15)
     for key in sorted(agg):
         arm, scenario = key.split("|")
         a = agg[key]
@@ -72,8 +141,8 @@ def main() -> int:
             f"{_f(a['I1_med'])} | {_f(a['I3_med'])} | "
             f"{_f(a['I5_med'])} [{_f(span5[0])}–{_f(span5[1])}] | "
             f"{_f(a['I7_med'], 0)} [{_f(span7[0], 0)}–{_f(span7[1], 0)}] | "
-            f"{_f(a['part_decisions_bloquees_med'])} "
-            f"({_f(a.get('part_bloquees_least_bad_med', 0.0))}) | "
+            f"{_f(a['part_decisions_bloquees_med'])} | "
+            f"{_belief_cell(a)} | "
             f"{_f(a.get('messages_med', 0.0), 0) if 'messages_med' in a else '—'} | "
             f"{_f(a['target_resolved_med'], 0)} |"
         )

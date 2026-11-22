@@ -26,9 +26,13 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from maree.v3.core.ports import PolicyName
-from maree.v3.sim.bus import MemoryBus
-from maree.v3.verify import scenario_crowd as sc
+from maree.v3 import bootstrap
+
+bootstrap.assemble()
+
+from maree.v3.core.ports import PolicyName  # noqa: E402
+from maree.v3.sim.bus import MemoryBus  # noqa: E402
+from maree.v3.verify import scenario_crowd as sc  # noqa: E402
 
 SEEDS = tuple(int(a) for a in sys.argv[1:]) or (1, 2, 3)
 

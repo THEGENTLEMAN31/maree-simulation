@@ -1,122 +1,32 @@
 [
   {
-    "gauche": "llm_grand",
+    "gauche": "decision_head",
     "droite": "regles",
     "scenario": "contradiction",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
+    "n": 10,
+    "mediane_gauche": 0.041,
+    "mediane_droite": 0.395,
+    "ecart": -0.354,
     "ic95": [
-      0.0,
-      0.0
+      -0.384,
+      -0.337
     ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
+    "p_wilcoxon": 0.002,
+    "graines_dans_le_sens": "10/10"
   },
   {
-    "gauche": "hybride",
-    "droite": "regles",
-    "scenario": "contradiction",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
-    "ic95": [
-      0.0,
-      0.0
-    ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
-  },
-  {
-    "gauche": "llm_petit",
-    "droite": "regles",
-    "scenario": "contradiction",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
-    "ic95": [
-      0.0,
-      0.0
-    ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
-  },
-  {
-    "gauche": "llm_grand",
-    "droite": "hybride",
-    "scenario": "contradiction",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
-    "ic95": [
-      0.0,
-      0.0
-    ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
-  },
-  {
-    "gauche": "llm_grand",
+    "gauche": "decision_head",
     "droite": "regles",
     "scenario": "split",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
+    "n": 10,
+    "mediane_gauche": 0.031,
+    "mediane_droite": 0.406,
+    "ecart": -0.378,
     "ic95": [
-      0.0,
-      0.0
+      -0.408,
+      -0.348
     ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
-  },
-  {
-    "gauche": "hybride",
-    "droite": "regles",
-    "scenario": "split",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
-    "ic95": [
-      0.0,
-      0.0
-    ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
-  },
-  {
-    "gauche": "llm_petit",
-    "droite": "regles",
-    "scenario": "split",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
-    "ic95": [
-      0.0,
-      0.0
-    ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
-  },
-  {
-    "gauche": "llm_grand",
-    "droite": "hybride",
-    "scenario": "split",
-    "n": 5,
-    "mediane_gauche": 0.0,
-    "mediane_droite": 0.0,
-    "ecart": 0.0,
-    "ic95": [
-      0.0,
-      0.0
-    ],
-    "p_wilcoxon": 1.0,
-    "graines_dans_le_sens": "0/5"
+    "p_wilcoxon": 0.002,
+    "graines_dans_le_sens": "10/10"
   }
 ]

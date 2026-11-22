@@ -1,30 +1,30 @@
 # Résultats de la campagne macro (C6/C7)
 
-Monde : `crowd_hall` (22 × 16 m, deux issues de 1,2 m), 60 agents, tick de 2 s. Graines : 1, 2, 3, 4, 5 — scénarios : split, contradiction — **parole active (C7)**.
+Monde : `crowd_hall` (22 × 16 m, deux issues de 1,2 m), 60 agents, tick de 2 s. Graines : 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 — scénarios : contradiction, split — **parole active (C7)**.
 
 Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'intervalle observé, jamais un écart-type qui masquerait un run.
 
-| bras | scénario | décisions | appels (ok) | jetons | mural (s) | I1 | I3 | I5 [min–max] | I7 s [min–max] | décisions vers porte crue bloquée (dont faute de mieux) | paroles | cibles résolues par le moteur |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `hybride` | contradiction | 446 | 232 (232) | 148468 | 138.0 | 0.88 | 1.00 | 1.11 [0.88–1.35] | 54 [50–58] | 0.45 (0.00) | 446 | 0 |
-| `hybride` | split | 280 | 207 (207) | 127809 | 120.7 | 0.79 | 1.00 | 1.27 [1.03–1.75] | 28 [22–54] | 0.38 (0.00) | 280 | 0 |
-| `llm_grand` | contradiction | 517 | 517 (517) | 341036 | 313.3 | 0.92 | 1.00 | 1.11 [0.88–1.35] | 48 [34–50] | 0.40 (0.00) | 517 | 0 |
-| `llm_grand` | split | 525 | 525 (525) | 339694 | 315.2 | 0.78 | 1.00 | 1.19 [0.88–1.67] | 44 [44–52] | 0.31 (0.00) | 525 | 0 |
-| `llm_petit` | contradiction | 448 | 448 (448) | 52924 | 23.1 | 0.87 | 1.00 | 1.11 [0.95–1.67] | 30 [26–34] | 0.44 (0.00) | 448 | 448 |
-| `llm_petit` | split | 447 | 447 (447) | 53193 | 22.5 | 0.87 | 1.00 | 1.11 [0.80–1.67] | 28 [26–34] | 0.44 (0.00) | 447 | 447 |
-| `regles` | contradiction | 149 | 0 (0) | 0 | 0.3 | 0.69 | 1.00 | 1.27 [1.19–1.59] | 24 [22–26] | 0.29 (0.00) | 149 | 0 |
-| `regles` | split | 136 | 0 (0) | 0 | 0.3 | 0.72 | 1.00 | 1.03 [0.80–1.51] | 26 [22–26] | 0.24 (0.14) | 136 | 0 |
+| bras | scénario | décisions | appels (ok) | jetons | mural (s) | I1 | I3 | I5 [min–max] | I7 s [min–max] | crue bloquée (désignée t1) | crue bloquée **au moment de décider** (dont faute de mieux) | paroles | cibles résolues par le moteur |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `decision_head` | contradiction | 583 | 583 (583) | 111190 | 247.1 | 0.91 | 1.00 | 0.99 [0.88–1.19] | 39 [34–46] | 0.45 | 0.04 (0.00) | 579 | 0 |
+| `decision_head` | split | 563 | 563 (563) | 99681 | 232.5 | 0.83 | 1.00 | 0.80 [0.72–1.27] | 42 [30–50] | 0.43 | 0.03 (0.00) | 561 | 0 |
+| `hybride` | contradiction | 460 | 232 (232) | 147966 | 159.8 | — | — | 1.03 [0.88–1.35] | 53 [50–58] | 0.47 | — *(non journalisée sur ces runs)* | 460 | 0 |
+| `hybride` | split | 272 | 202 (202) | 125216 | 119.9 | — | — | 1.11 [1.03–1.67] | 33 [22–48] | 0.38 | — *(non journalisée sur ces runs)* | 272 | 0 |
+| `llm_grand` | contradiction | 560 | 560 (560) | 368223 | 332.6 | — | — | 1.03 [0.88–1.67] | 47 [30–58] | 0.38 | — *(non journalisée sur ces runs)* | 560 | 0 |
+| `llm_grand` | split | 520 | 520 (520) | 337258 | 326.9 | — | — | 1.23 [0.64–1.59] | 49 [46–58] | 0.33 | — *(non journalisée sur ces runs)* | 520 | 0 |
+| `regles` | contradiction | 143 | 0 (0) | 0 | 0.3 | 0.70 | 1.00 | 1.27 [1.11–1.59] | 24 [22–26] | 0.29 | 0.40 (0.00) | 143 | 0 |
+| `regles` | split | 126 | 0 (0) | 0 | 0.3 | 0.70 | 1.00 | 1.03 [0.80–1.51] | 25 [22–26] | 0.24 | 0.41 (0.14) | 126 | 0 |
 
 ## Escalades et replis, par cause et par bras
 
 | bras | scénario | escalades | replis |
 |---|---|---|---|
-| `hybride` | contradiction | {'information_contradictoire': 1002, 'situation_inedite': 152} | — |
-| `hybride` | split | {'information_contradictoire': 854, 'situation_inedite': 177} | — |
+| `decision_head` | contradiction | — | — |
+| `decision_head` | split | — | — |
+| `hybride` | contradiction | — | — |
+| `hybride` | split | — | — |
 | `llm_grand` | contradiction | — | — |
 | `llm_grand` | split | — | — |
-| `llm_petit` | contradiction | — | — |
-| `llm_petit` | split | — | — |
 | `regles` | contradiction | — | — |
 | `regles` | split | — | — |
 
@@ -34,18 +34,3 @@ Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'interv
 - Les temps absolus ne sont pas des temps de terrain : ce modèle passe ≈3,2 pers/(m·s) par mètre de porte contre ≈1,3 en littérature (ADR-015). Les comparaisons entre bras, elles, tiennent.
 - Une « cible résolue par le moteur » n'est pas une réussite du modèle : le tier petit dit « sortir » sans nommer la porte, et le moteur choisit parmi les sorties connues et non crues bloquées.
 
-
----
-
-## Le null de B3 (même code, sans émission)
-
-`scripts/v3_crowd_campaign.py --silent --arms=regles,llm_petit` →
-`runs/v3/campaign_crowd_silence.json`. Bras lourds non rejoués en silence
-(coût : ~5 min par run du grand modèle). Comparaison à code identique :
-
-| bras | scénario | I1 muet | I1 parlant | E_social | porte désignée bloquée : muet → parlant |
-|---|---|---|---|---|---|
-| `regles` | split | 0,63 | 0,72 | **+0,09** | 0,00 → 0,24 |
-| `regles` | contradiction | 0,60 | 0,69 | **+0,09** | 0,25 → 0,29 |
-| `llm_petit` | split | 0,63 | 0,87 | **+0,24** | 0,00 → 0,44 |
-| `llm_petit` | contradiction | 0,63 | 0,87 | **+0,24** | 0,00 → 0,44 |

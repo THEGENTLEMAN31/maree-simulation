@@ -1,0 +1,1157 @@
+{
+  "note": "Reconstruit depuis /tmp/opencode/p1_10seeds.log apres un ecrasement accidentel du JSON par une campagne ulterieure. Le champ targeted_believed_blocked n'etait pas journalise dans la ligne de log : ses valeurs par bras sont dans runs/v3/stats.json (test apparie).",
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "runs": [
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 1,
+      "decisions": 126,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.4,
+      "evacuations": 60,
+      "messages": 126,
+      "targeted_blocked": 30,
+      "targeted_blocked_least_bad": 21,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.19,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 2,
+      "decisions": 147,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.4,
+      "evacuations": 60,
+      "messages": 147,
+      "targeted_blocked": 40,
+      "targeted_blocked_least_bad": 21,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.51,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 3,
+      "decisions": 143,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.4,
+      "evacuations": 60,
+      "messages": 143,
+      "targeted_blocked": 34,
+      "targeted_blocked_least_bad": 20,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.95,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 4,
+      "decisions": 121,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.4,
+      "evacuations": 60,
+      "messages": 121,
+      "targeted_blocked": 25,
+      "targeted_blocked_least_bad": 17,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.8,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 5,
+      "decisions": 136,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 136,
+      "targeted_blocked": 33,
+      "targeted_blocked_least_bad": 20,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 22.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 6,
+      "decisions": 124,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 124,
+      "targeted_blocked": 29,
+      "targeted_blocked_least_bad": 19,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.88,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 7,
+      "decisions": 122,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 122,
+      "targeted_blocked": 24,
+      "targeted_blocked_least_bad": 20,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 8,
+      "decisions": 122,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 122,
+      "targeted_blocked": 30,
+      "targeted_blocked_least_bad": 22,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 9,
+      "decisions": 138,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 138,
+      "targeted_blocked": 33,
+      "targeted_blocked_least_bad": 17,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "split",
+      "seed": 10,
+      "decisions": 126,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 126,
+      "targeted_blocked": 24,
+      "targeted_blocked_least_bad": 13,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 22.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 1,
+      "decisions": 149,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 149,
+      "targeted_blocked": 43,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.59,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 2,
+      "decisions": 167,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.4,
+      "evacuations": 60,
+      "messages": 167,
+      "targeted_blocked": 50,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.51,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 3,
+      "decisions": 153,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 153,
+      "targeted_blocked": 47,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 4,
+      "decisions": 143,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 143,
+      "targeted_blocked": 41,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.19,
+        "I7_delay_seconds": 22.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 5,
+      "decisions": 143,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 143,
+      "targeted_blocked": 41,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.19,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 6,
+      "decisions": 140,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 140,
+      "targeted_blocked": 41,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 7,
+      "decisions": 133,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 133,
+      "targeted_blocked": 40,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.35,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 8,
+      "decisions": 138,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.4,
+      "evacuations": 60,
+      "messages": 138,
+      "targeted_blocked": 40,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.35,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 9,
+      "decisions": 151,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 151,
+      "targeted_blocked": 45,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 24.0
+      }
+    },
+    {
+      "arm": "regles",
+      "scenario": "contradiction",
+      "seed": 10,
+      "decisions": 130,
+      "llm_attempted": 0,
+      "llm_ok": 0,
+      "tokens": 0,
+      "wall_s": 0.3,
+      "evacuations": 60,
+      "messages": 130,
+      "targeted_blocked": 35,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 22.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 1,
+      "decisions": 248,
+      "llm_attempted": 197,
+      "llm_ok": 197,
+      "tokens": 121293,
+      "wall_s": 118.8,
+      "evacuations": 60,
+      "messages": 248,
+      "targeted_blocked": 94,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 28.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 2,
+      "decisions": 293,
+      "llm_attempted": 213,
+      "llm_ok": 213,
+      "tokens": 134142,
+      "wall_s": 126.1,
+      "evacuations": 60,
+      "messages": 293,
+      "targeted_blocked": 105,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.67,
+        "I7_delay_seconds": 32.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 3,
+      "decisions": 280,
+      "llm_attempted": 207,
+      "llm_ok": 207,
+      "tokens": 127822,
+      "wall_s": 121.7,
+      "evacuations": 60,
+      "messages": 280,
+      "targeted_blocked": 106,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 28.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 4,
+      "decisions": 260,
+      "llm_attempted": 197,
+      "llm_ok": 197,
+      "tokens": 122468,
+      "wall_s": 116.5,
+      "evacuations": 60,
+      "messages": 260,
+      "targeted_blocked": 88,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.19,
+        "I7_delay_seconds": 22.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 5,
+      "decisions": 334,
+      "llm_attempted": 215,
+      "llm_ok": 215,
+      "tokens": 136169,
+      "wall_s": 127.8,
+      "evacuations": 60,
+      "messages": 334,
+      "targeted_blocked": 127,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 42.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 6,
+      "decisions": 254,
+      "llm_attempted": 196,
+      "llm_ok": 196,
+      "tokens": 121302,
+      "wall_s": 115.6,
+      "evacuations": 60,
+      "messages": 254,
+      "targeted_blocked": 104,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 26.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 7,
+      "decisions": 291,
+      "llm_attempted": 205,
+      "llm_ok": 205,
+      "tokens": 127609,
+      "wall_s": 121.0,
+      "evacuations": 60,
+      "messages": 291,
+      "targeted_blocked": 111,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 48.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 8,
+      "decisions": 250,
+      "llm_attempted": 181,
+      "llm_ok": 181,
+      "tokens": 110551,
+      "wall_s": 106.3,
+      "evacuations": 60,
+      "messages": 250,
+      "targeted_blocked": 102,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 34.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 9,
+      "decisions": 263,
+      "llm_attempted": 198,
+      "llm_ok": 198,
+      "tokens": 122823,
+      "wall_s": 116.5,
+      "evacuations": 60,
+      "messages": 263,
+      "targeted_blocked": 84,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 34.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "split",
+      "seed": 10,
+      "decisions": 312,
+      "llm_attempted": 207,
+      "llm_ok": 207,
+      "tokens": 130374,
+      "wall_s": 122.3,
+      "evacuations": 60,
+      "messages": 312,
+      "targeted_blocked": 125,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 36.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 1,
+      "decisions": 432,
+      "llm_attempted": 232,
+      "llm_ok": 232,
+      "tokens": 150134,
+      "wall_s": 140.9,
+      "evacuations": 60,
+      "messages": 432,
+      "targeted_blocked": 194,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.95,
+        "I7_delay_seconds": 50.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 2,
+      "decisions": 446,
+      "llm_attempted": 232,
+      "llm_ok": 232,
+      "tokens": 148468,
+      "wall_s": 138.8,
+      "evacuations": 60,
+      "messages": 446,
+      "targeted_blocked": 219,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.35,
+        "I7_delay_seconds": 50.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 3,
+      "decisions": 480,
+      "llm_attempted": 228,
+      "llm_ok": 228,
+      "tokens": 146255,
+      "wall_s": 140.4,
+      "evacuations": 59,
+      "messages": 480,
+      "targeted_blocked": 230,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 58.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 4,
+      "decisions": 477,
+      "llm_attempted": 239,
+      "llm_ok": 239,
+      "tokens": 153581,
+      "wall_s": 154.2,
+      "evacuations": 60,
+      "messages": 477,
+      "targeted_blocked": 215,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.88,
+        "I7_delay_seconds": 56.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 5,
+      "decisions": 436,
+      "llm_attempted": 229,
+      "llm_ok": 229,
+      "tokens": 146850,
+      "wall_s": 172.3,
+      "evacuations": 60,
+      "messages": 436,
+      "targeted_blocked": 227,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.95,
+        "I7_delay_seconds": 56.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 6,
+      "decisions": 380,
+      "llm_attempted": 217,
+      "llm_ok": 217,
+      "tokens": 136922,
+      "wall_s": 165.3,
+      "evacuations": 60,
+      "messages": 380,
+      "targeted_blocked": 171,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 50.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 7,
+      "decisions": 474,
+      "llm_attempted": 232,
+      "llm_ok": 232,
+      "tokens": 148321,
+      "wall_s": 176.5,
+      "evacuations": 60,
+      "messages": 474,
+      "targeted_blocked": 213,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 54.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 8,
+      "decisions": 385,
+      "llm_attempted": 202,
+      "llm_ok": 202,
+      "tokens": 128727,
+      "wall_s": 152.3,
+      "evacuations": 60,
+      "messages": 385,
+      "targeted_blocked": 192,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 50.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 9,
+      "decisions": 496,
+      "llm_attempted": 238,
+      "llm_ok": 238,
+      "tokens": 154104,
+      "wall_s": 183.3,
+      "evacuations": 60,
+      "messages": 496,
+      "targeted_blocked": 233,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 52.0
+      }
+    },
+    {
+      "arm": "hybride",
+      "scenario": "contradiction",
+      "seed": 10,
+      "decisions": 473,
+      "llm_attempted": 232,
+      "llm_ok": 232,
+      "tokens": 147611,
+      "wall_s": 178.0,
+      "evacuations": 60,
+      "messages": 473,
+      "targeted_blocked": 232,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 58.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 1,
+      "decisions": 507,
+      "llm_attempted": 507,
+      "llm_ok": 507,
+      "tokens": 327649,
+      "wall_s": 387.9,
+      "evacuations": 60,
+      "messages": 507,
+      "targeted_blocked": 183,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 48.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 2,
+      "decisions": 565,
+      "llm_attempted": 565,
+      "llm_ok": 565,
+      "tokens": 366750,
+      "wall_s": 342.9,
+      "evacuations": 59,
+      "messages": 565,
+      "targeted_blocked": 181,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.19,
+        "I7_delay_seconds": 48.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 3,
+      "decisions": 589,
+      "llm_attempted": 589,
+      "llm_ok": 589,
+      "tokens": 382632,
+      "wall_s": 349.2,
+      "evacuations": 60,
+      "messages": 589,
+      "targeted_blocked": 183,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.43,
+        "I7_delay_seconds": 52.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 4,
+      "decisions": 528,
+      "llm_attempted": 528,
+      "llm_ok": 528,
+      "tokens": 342121,
+      "wall_s": 313.0,
+      "evacuations": 59,
+      "messages": 528,
+      "targeted_blocked": 174,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.72,
+        "I7_delay_seconds": 56.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 5,
+      "decisions": 600,
+      "llm_attempted": 600,
+      "llm_ok": 600,
+      "tokens": 390222,
+      "wall_s": 356.3,
+      "evacuations": 59,
+      "messages": 600,
+      "targeted_blocked": 198,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.59,
+        "I7_delay_seconds": 46.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 6,
+      "decisions": 455,
+      "llm_attempted": 455,
+      "llm_ok": 455,
+      "tokens": 290079,
+      "wall_s": 268.5,
+      "evacuations": 60,
+      "messages": 455,
+      "targeted_blocked": 155,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 58.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 7,
+      "decisions": 576,
+      "llm_attempted": 576,
+      "llm_ok": 576,
+      "tokens": 372702,
+      "wall_s": 340.7,
+      "evacuations": 58,
+      "messages": 576,
+      "targeted_blocked": 207,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.27,
+        "I7_delay_seconds": 50.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 8,
+      "decisions": 429,
+      "llm_attempted": 429,
+      "llm_ok": 429,
+      "tokens": 270003,
+      "wall_s": 252.1,
+      "evacuations": 60,
+      "messages": 429,
+      "targeted_blocked": 193,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.59,
+        "I7_delay_seconds": 48.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 9,
+      "decisions": 434,
+      "llm_attempted": 434,
+      "llm_ok": 434,
+      "tokens": 276573,
+      "wall_s": 256.4,
+      "evacuations": 60,
+      "messages": 434,
+      "targeted_blocked": 122,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.64,
+        "I7_delay_seconds": 52.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "split",
+      "seed": 10,
+      "decisions": 512,
+      "llm_attempted": 512,
+      "llm_ok": 512,
+      "tokens": 332395,
+      "wall_s": 304.8,
+      "evacuations": 60,
+      "messages": 512,
+      "targeted_blocked": 154,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.11,
+        "I7_delay_seconds": 46.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 1,
+      "decisions": 582,
+      "llm_attempted": 582,
+      "llm_ok": 582,
+      "tokens": 382688,
+      "wall_s": 345.9,
+      "evacuations": 60,
+      "messages": 582,
+      "targeted_blocked": 210,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 56.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 2,
+      "decisions": 738,
+      "llm_attempted": 738,
+      "llm_ok": 738,
+      "tokens": 487582,
+      "wall_s": 438.4,
+      "evacuations": 60,
+      "messages": 738,
+      "targeted_blocked": 244,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.67,
+        "I7_delay_seconds": 56.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 3,
+      "decisions": 455,
+      "llm_attempted": 455,
+      "llm_ok": 455,
+      "tokens": 292820,
+      "wall_s": 269.0,
+      "evacuations": 60,
+      "messages": 455,
+      "targeted_blocked": 205,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 46.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 4,
+      "decisions": 515,
+      "llm_attempted": 515,
+      "llm_ok": 515,
+      "tokens": 337710,
+      "wall_s": 306.5,
+      "evacuations": 60,
+      "messages": 515,
+      "targeted_blocked": 185,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.03,
+        "I7_delay_seconds": 58.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 5,
+      "decisions": 498,
+      "llm_attempted": 498,
+      "llm_ok": 498,
+      "tokens": 324756,
+      "wall_s": 297.2,
+      "evacuations": 58,
+      "messages": 498,
+      "targeted_blocked": 199,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.88,
+        "I7_delay_seconds": 30.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 6,
+      "decisions": 582,
+      "llm_attempted": 582,
+      "llm_ok": 582,
+      "tokens": 382932,
+      "wall_s": 347.2,
+      "evacuations": 59,
+      "messages": 582,
+      "targeted_blocked": 250,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.35,
+        "I7_delay_seconds": 48.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 7,
+      "decisions": 595,
+      "llm_attempted": 595,
+      "llm_ok": 595,
+      "tokens": 393861,
+      "wall_s": 353.7,
+      "evacuations": 58,
+      "messages": 595,
+      "targeted_blocked": 244,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.88,
+        "I7_delay_seconds": 52.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 8,
+      "decisions": 428,
+      "llm_attempted": 428,
+      "llm_ok": 428,
+      "tokens": 277250,
+      "wall_s": 252.3,
+      "evacuations": 60,
+      "messages": 428,
+      "targeted_blocked": 150,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.88,
+        "I7_delay_seconds": 30.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 9,
+      "decisions": 537,
+      "llm_attempted": 537,
+      "llm_ok": 537,
+      "tokens": 353758,
+      "wall_s": 319.4,
+      "evacuations": 60,
+      "messages": 537,
+      "targeted_blocked": 172,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 0.88,
+        "I7_delay_seconds": 42.0
+      }
+    },
+    {
+      "arm": "llm_grand",
+      "scenario": "contradiction",
+      "seed": 10,
+      "decisions": 624,
+      "llm_attempted": 624,
+      "llm_ok": 624,
+      "tokens": 412241,
+      "wall_s": 371.8,
+      "evacuations": 59,
+      "messages": 624,
+      "targeted_blocked": 243,
+      "targeted_blocked_least_bad": 0,
+      "targeted_believed_blocked": null,
+      "indicators": {
+        "I5_max_density": 1.51,
+        "I7_delay_seconds": 46.0
+      }
+    }
+  ]
+}
