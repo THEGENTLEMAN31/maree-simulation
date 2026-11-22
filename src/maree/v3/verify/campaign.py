@@ -1,4 +1,12 @@
-"""verify.campaign — le runner de campagne (E2/E1/E4/E5).
+"""verify.campaign — le runner de campagne **historique** (E2/E1/E4/E5).
+
+> **Dette assumée (2026-11-22).** Ce runner est celui de la première vague :
+> il mesure des décisions sur une chronologie générique, sans monde calibré.
+> Les campagnes qui portent les conclusions du rapport passent par
+> `verify/campaign_crowd.py` (monde `crowd_hall`, physique, scénarios avec
+> ambiguïté). Ne pas comparer un chiffre de `campaign.py` à un chiffre de
+> `campaign_crowd.py` : ni le monde ni la durée du tick ne sont les mêmes.
+> La fusion des deux runners est un chantier, pas un oubli.
 
 Déroule N graines × M configurations sur un même monde, collecte par run
 (décisions, coût, indicateurs de foule et d'émergence) puis **agrège** —
