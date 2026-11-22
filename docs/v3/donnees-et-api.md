@@ -248,13 +248,16 @@ Chaque trame porte :
 | `hello` | run, monde, hash, protocole, capacités |
 | `snapshot` | tick, agents, sorties, dangers, densité |
 | `delta` | changements depuis le dernier snapshot |
-| `decision` | agent, intention, raison, politique |
+| `decision` | agent, intention, raison, politique, **drapeaux de mesure** : `target_resolved`, `target_least_bad`, `target_believed_blocked`, `arm`, `escalation_cause` |
 | `belief` | croyances mises à jour |
-| `message` | émetteur, destinataires, contenu |
+| `message` | émetteur (`autorite` ou `Axx`), contenu, destinataires, confiance, nature (`praticable` / `bloquee`) |
 | `heard` | réception |
 | `evacuated` | agent, sortie, étage |
-| `hazard` | source, niveau, visibilité |
-| `indicators` | I1–I7 + par sortie + par étage |
+| `hazard` | source (`smoke` / `exit_closed`), niveau, visibilité, sortie concernée |
+| `indicators` | accord de la foule : consensus, couplage, null, excès social |
+| `crowd` | **I1–I7 de la foule** : consensus, entropie, évacués, horloge, densité (noyau 2 m), écart de croyance, délai — plus `closed_exits` |
+| `escalation` | bras hybride : agent, cause (`information_contradictoire`, `annonce_ambigue`, …), valeurs |
+| `reconsider` | pourquoi l'agent a reconsidéré (front, plan invalidé, contexte, revue) |
 | `narrative` | texte + validité |
 | `incident` | cause |
 | `end` | bilan |
@@ -343,7 +346,7 @@ Codes : `world_invalid`, `run_not_found`, `agent_not_found`, `injection_invalid`
 Ce qui est **déjà** tenu par le code, et vérifié par les tests de `tests/v3` :
 
 - **F4 — schéma versionné.** Chaque enveloppe du bus porte
-  `schema: "maree.event/1.0"`. `sim/schemas.py` déclare les champs
+  `schema: "maree.event/1.1"` (additif ; `1.0` reste accepté). `sim/schemas.py` déclare les champs
   obligatoires de `data` par type ; `validate(type, data)` renvoie la liste
   des champs manquants. La validation est un **diagnostic**, pas un filtre :
   un type non schématisé est signalé, jamais supprimé du journal.

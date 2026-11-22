@@ -110,6 +110,11 @@ def frame_for(env: EventEnvelope) -> dict[str, Any]:
             reason=d.get("explanation"),
             fallback=d.get("fallback"),
             fallback_cause=d.get("fallback_cause"),
+            arm=d.get("arm"),
+            escalation_cause=d.get("escalation_cause"),
+            target_resolved=d.get("target_resolved", False),
+            target_least_bad=d.get("target_least_bad", False),
+            target_believed_blocked=d.get("target_believed_blocked", False),
         )
     elif t == "world.snapshot":
         frame.update(type="snapshot", tick=env.t_trait, agents=d.get("agents", {}))
@@ -127,7 +132,44 @@ def frame_for(env: EventEnvelope) -> dict[str, Any]:
             consensus=d.get("consensus"),
             couplage=d.get("couplage"),
             emergence=d.get("emergence"),
+            null_consensus=d.get("null_consensus"),
+            social_excess=d.get("social_excess"),
         )
+    elif t == "indicator.crowd":
+        # les I1–I7 de la foule, tels que le moteur les calcule (C4)
+        frame.update(
+            type="crowd",
+            I1=d.get("I1_consensus"),
+            I2=d.get("I2_entropy"),
+            I3=d.get("I3_evacuated"),
+            I4=d.get("I4_seconds"),
+            I5=d.get("I5_max_density"),
+            I6=d.get("I6_belief_gap"),
+            I7=d.get("I7_delay_seconds"),
+            closed_exits=d.get("closed_exits", []),
+        )
+    elif t == "agent.message":
+        # la parole des agents (C7) et l'annonce officielle partagent le type
+        # `message` : le client les distingue par `emitter`.
+        frame.update(
+            type="message",
+            emitter=d.get("from"),
+            content=d.get("fact"),
+            to=d.get("to", []),
+            confidence=d.get("confidence"),
+            kind=d.get("kind"),
+        )
+    elif t == "agent.escalation":
+        frame.update(
+            type="escalation",
+            agent=d.get("agent"),
+            cause=d.get("cause"),
+            detail=d.get("detail", {}),
+        )
+    elif t == "agent.reconsider":
+        frame.update(type="reconsider", agent=d.get("agent"), reason=d.get("reason"))
+    elif t == "world.exit_closed":
+        frame.update(type="hazard", source="exit_closed", exit=d.get("exit"), visible=True)
     elif t == "indicator.incidents":
         frame.update(type="incident", total=d.get("total"), par_cause=d.get("par_cause"))
     else:
