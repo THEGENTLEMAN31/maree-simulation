@@ -1,0 +1,242 @@
+{
+  "deux_tiers": [
+    {
+      "bras": "regles",
+      "decisions": 126,
+      "appels": 0,
+      "jetons": 0,
+      "par_modele": {},
+      "I1": 0.813,
+      "I3": 1.0,
+      "I5": 1.194,
+      "I7": 24.0,
+      "crue_bloquee": 0.413,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": null
+    },
+    {
+      "bras": "grand_seul",
+      "decisions": 468,
+      "appels": 468,
+      "jetons": 299601,
+      "par_modele": {
+        "gemma4-e2b": 468
+      },
+      "I1": 0.867,
+      "I3": 1.0,
+      "I5": 1.114,
+      "I7": 58.0,
+      "crue_bloquee": 0.22,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": null
+    },
+    {
+      "bras": "petit_seul",
+      "decisions": 436,
+      "appels": 436,
+      "jetons": 51884,
+      "par_modele": {
+        "qwen3-0-6b": 436
+      },
+      "I1": 0.874,
+      "I3": 1.0,
+      "I5": 1.114,
+      "I7": 30.0,
+      "crue_bloquee": 0.126,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": null
+    },
+    {
+      "bras": "deux_tiers",
+      "decisions": 481,
+      "appels": 481,
+      "jetons": 142779,
+      "par_modele": {
+        "qwen3-0-6b": 319,
+        "gemma4-e2b": 162
+      },
+      "I1": 0.802,
+      "I3": 1.0,
+      "I5": 0.875,
+      "I7": 36.0,
+      "crue_bloquee": 0.102,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": null
+    },
+    {
+      "bras": "regles",
+      "decisions": 147,
+      "appels": 0,
+      "jetons": 0,
+      "par_modele": {},
+      "I1": 0.682,
+      "I3": 1.0,
+      "I5": 1.512,
+      "I7": 26.0,
+      "crue_bloquee": 0.354,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": null
+    },
+    {
+      "bras": "grand_seul",
+      "decisions": 550,
+      "appels": 550,
+      "jetons": 356303,
+      "par_modele": {
+        "gemma4-e2b": 550
+      },
+      "I1": 0.755,
+      "I3": 1.0,
+      "I5": 1.035,
+      "I7": 44.0,
+      "crue_bloquee": 0.193,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": null
+    },
+    {
+      "bras": "petit_seul",
+      "decisions": 459,
+      "appels": 459,
+      "jetons": 54621,
+      "par_modele": {
+        "qwen3-0-6b": 459
+      },
+      "I1": 0.877,
+      "I3": 1.0,
+      "I5": 1.671,
+      "I7": 26.0,
+      "crue_bloquee": 0.12,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": null
+    },
+    {
+      "bras": "deux_tiers",
+      "decisions": 563,
+      "appels": 563,
+      "jetons": 168901,
+      "par_modele": {
+        "qwen3-0-6b": 375,
+        "gemma4-e2b": 188
+      },
+      "I1": 0.775,
+      "I3": 1.0,
+      "I5": 1.194,
+      "I7": 42.0,
+      "crue_bloquee": 0.055,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": null
+    }
+  ],
+  "epsilon": [
+    {
+      "bras": "eps=0.0",
+      "decisions": 259,
+      "appels": 196,
+      "jetons": 120768,
+      "par_modele": {
+        "gemma4-e2b": 196
+      },
+      "I1": 0.788,
+      "I3": 1.0,
+      "I5": 1.273,
+      "I7": 28.0,
+      "crue_bloquee": 0.278,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": 0.0
+    },
+    {
+      "bras": "eps=0.0",
+      "decisions": 309,
+      "appels": 215,
+      "jetons": 135079,
+      "par_modele": {
+        "gemma4-e2b": 215
+      },
+      "I1": 0.875,
+      "I3": 1.0,
+      "I5": 1.751,
+      "I7": 48.0,
+      "crue_bloquee": 0.239,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": 0.0
+    },
+    {
+      "bras": "eps=0.25",
+      "decisions": 262,
+      "appels": 198,
+      "jetons": 121657,
+      "par_modele": {
+        "gemma4-e2b": 198
+      },
+      "I1": 0.845,
+      "I3": 1.0,
+      "I5": 1.353,
+      "I7": 26.0,
+      "crue_bloquee": 0.286,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": 0.25
+    },
+    {
+      "bras": "eps=0.25",
+      "decisions": 278,
+      "appels": 208,
+      "jetons": 130342,
+      "par_modele": {
+        "gemma4-e2b": 208
+      },
+      "I1": 0.843,
+      "I3": 1.0,
+      "I5": 1.592,
+      "I7": 32.0,
+      "crue_bloquee": 0.27,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": 0.25
+    },
+    {
+      "bras": "eps=0.5",
+      "decisions": 259,
+      "appels": 196,
+      "jetons": 120755,
+      "par_modele": {
+        "gemma4-e2b": 196
+      },
+      "I1": 0.788,
+      "I3": 1.0,
+      "I5": 1.273,
+      "I7": 28.0,
+      "crue_bloquee": 0.278,
+      "sortis": 60,
+      "seed": 1,
+      "epsilon": 0.5
+    },
+    {
+      "bras": "eps=0.5",
+      "decisions": 293,
+      "appels": 213,
+      "jetons": 134103,
+      "par_modele": {
+        "gemma4-e2b": 213
+      },
+      "I1": 0.82,
+      "I3": 1.0,
+      "I5": 1.671,
+      "I7": 32.0,
+      "crue_bloquee": 0.263,
+      "sortis": 60,
+      "seed": 2,
+      "epsilon": 0.5
+    }
+  ]
+}

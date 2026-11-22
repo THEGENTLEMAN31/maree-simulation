@@ -145,6 +145,11 @@ par graine) :
 
 p = 0,002 pour les trois écarts, 10 graines sur 10 dans le même sens.
 
+Le **tiering** (40 visiteurs sur le petit, 20 habitués sur le grand) est encore
+meilleur et moins cher que le grand seul : 0,10 et 0,06 sur deux graines, pour
+143–169 k jetons contre 300–356 k. Le petit seul bat le grand seul (0,13 contre
+0,22) : la taille du générateur ne paie pas sur cette tâche.
+
 Trois lectures. **Le générateur aide** (deux fois moins de fautes par
 décision) **mais perd sur le run** : il reconsidère quatre fois plus souvent,
 donc s'expose quatre fois plus — 104 fautes contre 52. **Le classifieur
@@ -168,7 +173,8 @@ dans un système multi-agents :
 2. **Un modèle qui lit la rumeur doit être jugé sur la rumeur.** Toutes les
    comparaisons faites dans un monde muet surestiment le modèle : dès que les
    agents se parlent, l'écart avec les règles se referme et le coût est multiplié.
-3. **La nature du modèle domine sa taille.** Un classifieur de 4 B formé pour
+3. **La nature du modèle domine sa taille.** Le petit modèle seul fait mieux
+   que le grand seul (0,13 contre 0,22) pour six fois moins de jetons ; Un classifieur de 4 B formé pour
    choisir dans un ensemble fermé bat un générateur de 2 B et coûte moins :
    ce qui compte n'est pas « plus de paramètres », c'est **la forme de la
    tâche**. Un modèle de 30 B placé dans un contrat JSON n'est pas

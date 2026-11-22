@@ -143,7 +143,39 @@ différentes (fidélité au scénario vs qualité de la décision informée). C'
 pourquoi le rapport publie les deux, et pourquoi le second est la métrique
 principale.
 
-### 5.5 Un classifieur System 1 (Kev-4B) domine les deux autres natures
+### 5.5 Deux tiers en foule : moins cher **et** meilleur
+
+40 visiteurs sur le petit modèle + 20 habitués sur le grand, même monde,
+2 graines (`scripts/v3_bands.py`) :
+
+| configuration | appels | jetons | décisions vers une porte crue bloquée |
+|---|---|---|---|
+| `regles` | 0 | 0 | 0,41 / 0,35 |
+| grand seul | 468 / 550 | 300 k / 356 k | 0,22 / 0,19 |
+| petit seul | 436 / 459 | 52 k / 55 k | 0,13 / 0,12 |
+| **deux tiers** | 481 / 563 | **143 k / 169 k** | **0,10 / 0,06** |
+
+Le tiering ne coûte pas en qualité : il **en gagne**. Et le petit modèle seul
+bat le grand seul (0,13 contre 0,22) pour six fois moins de jetons. Sur cette
+tâche — choisir parmi des sorties connues, avec un état court — la taille du
+générateur ne paie pas ; ce qui paie, c'est ce qu'on demande au modèle.
+
+### 5.6 Le quota ε n'ajoute rien
+
+Escalade **aléatoire** sur la routine (tirage SHA-256), bras hybride, même
+monde, 2 graines :
+
+| ε | appels | jetons | I1 | crue bloquée |
+|---|---|---|---|---|
+| 0 | 196 / 215 | 121 k / 135 k | 0,79 / 0,88 | 0,28 / 0,24 |
+| 0,25 | 198 / 208 | 122 k / 130 k | 0,84 / 0,84 | 0,29 / 0,27 |
+| 0,5 | 196 / 213 | 121 k / 134 k | 0,79 / 0,82 | 0,28 / 0,26 |
+
+Aucun effet mesurable : l'escalade **ciblée** suffit, le quota est un
+instrument sans bénéfice sur ce monde — il reste un outil de diagnostic, pas
+un levier.
+
+### 5.7 Un classifieur System 1 (Kev-4B) domine les deux autres natures
 
 Même monde, mêmes graines, options fermées (`RESTER`, `SORTIR A`, `SORTIR B`),
 état en français qui nomme le danger, la distribution journalisée :
