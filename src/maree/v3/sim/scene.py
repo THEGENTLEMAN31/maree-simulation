@@ -41,6 +41,12 @@ SEEN_LIMIT = 8
 BASE_VISIBILITY = 50.0
 #: distance (m) au-delà de laquelle un danger n'est plus « proche ».
 DANGER_RANGE = 40.0
+#: distance (m) à laquelle on **constate** qu'une issue est fermée.
+#: Une porte bloquée ne s'annonce pas : on la voit en s'en approchant (ou une
+#: annonce le dit). Sans cette limite, tous les agents apprenaient la fermeture
+#: au même tick, même à l'autre bout de la salle — et I6 valait 0 par
+#: construction, ce qui ne mesure rien.
+CLOSURE_RANGE = 8.0
 #: montée/descente maximale du stress par tick.
 _STRESS_RATE = 0.25
 #: décroissance du stress quand la menace baisse.
@@ -148,7 +154,7 @@ class Scene:
             exits_visible=self._visible_exits(position, level, state.visibility),
             crowding=state.crowding,
             position=position if self.physics_active else None,
-            closed_exits=frozenset(sorted(self.closed_exits)),
+            closed_exits=self._closed_perceived(position, level),
             seen_leaving_elsewhere=self._leaving_elsewhere(agent_id, seen),
         )
 
@@ -262,6 +268,36 @@ class Scene:
             if self.navgraph.line_of_sight(position, midpoint, level):
                 visible.add(exit_spec.id)
         return frozenset(sorted(visible))
+
+    def _closed_perceived(
+        self, position: Point, level: str
+    ) -> frozenset[str]:
+        """Les fermetures que l'agent **constate** : à portée et sans mur.
+
+        La vérité du monde (`self.closed_exits`) reste globale et journalisée ;
+        la perception, elle, est bornée — c'est la règle de C2 appliquée aux
+        fermetures. Un agent à l'autre bout de la salle continue donc de viser
+        une porte fermée jusqu'à s'en approcher : c'est ce que I6 mesure.
+        """
+        if not self.closed_exits:
+            return frozenset()
+        if self.navgraph is None:
+            return frozenset(sorted(self.closed_exits))
+        try:
+            spec = self.navgraph.world.level(level)
+        except KeyError:
+            return frozenset(sorted(self.closed_exits))
+        seen: set[str] = set()
+        for exit_spec in spec.exits:
+            if exit_spec.id not in self.closed_exits:
+                continue
+            (x1, y1), (x2, y2) = exit_spec.segment
+            midpoint = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+            if math.dist(position, midpoint) > CLOSURE_RANGE:
+                continue
+            if self.navgraph.line_of_sight(position, midpoint, level):
+                seen.add(exit_spec.id)
+        return frozenset(sorted(seen))
 
     # --- évolution de l'état ---
     def _advance_state(self, agent_id: AgentId, position: Point) -> State:

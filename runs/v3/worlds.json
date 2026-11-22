@@ -1,0 +1,148 @@
+{
+  "bande": [
+    0.8,
+    1.6
+  ],
+  "run_seeds": [
+    1,
+    2,
+    3
+  ],
+  "mondes": [
+    {
+      "seed": 1,
+      "width": 22.05,
+      "height": 17.8,
+      "area": 392.5,
+      "exit_width": 1.13,
+      "center_a": 7.36,
+      "center_b": 15.38,
+      "I5_pic": 1.432,
+      "I5_pic_span": [
+        1.273,
+        1.512
+      ],
+      "I7_s": 24.0,
+      "evacuated": [
+        60,
+        60,
+        60
+      ],
+      "peak_tick": [
+        8,
+        7,
+        7
+      ],
+      "dans_la_bande": true,
+      "pic_apres_spawn": true
+    },
+    {
+      "seed": 2,
+      "width": 21.05,
+      "height": 15.19,
+      "area": 319.8,
+      "exit_width": 1.26,
+      "center_a": 4.86,
+      "center_b": 15.41,
+      "I5_pic": 1.432,
+      "I5_pic_span": [
+        1.353,
+        1.512
+      ],
+      "I7_s": 24.0,
+      "evacuated": [
+        60,
+        60,
+        60
+      ],
+      "peak_tick": [
+        7,
+        7,
+        6
+      ],
+      "dans_la_bande": true,
+      "pic_apres_spawn": true
+    },
+    {
+      "seed": 3,
+      "width": 20.34,
+      "height": 14.95,
+      "area": 304.1,
+      "exit_width": 1.26,
+      "center_a": 5.9,
+      "center_b": 13.66,
+      "I5_pic": 1.512,
+      "I5_pic_span": [
+        1.432,
+        1.671
+      ],
+      "I7_s": 24.0,
+      "evacuated": [
+        60,
+        60,
+        60
+      ],
+      "peak_tick": [
+        6,
+        7,
+        6
+      ],
+      "dans_la_bande": true,
+      "pic_apres_spawn": true
+    },
+    {
+      "seed": 4,
+      "width": 23.77,
+      "height": 16.05,
+      "area": 381.4,
+      "exit_width": 1.3,
+      "center_a": 5.46,
+      "center_b": 17.42,
+      "I5_pic": 1.273,
+      "I5_pic_span": [
+        1.114,
+        1.432
+      ],
+      "I7_s": 24.0,
+      "evacuated": [
+        60,
+        60,
+        60
+      ],
+      "peak_tick": [
+        7,
+        8,
+        7
+      ],
+      "dans_la_bande": true,
+      "pic_apres_spawn": true
+    },
+    {
+      "seed": 5,
+      "width": 23.22,
+      "height": 17.23,
+      "area": 400.1,
+      "exit_width": 1.2,
+      "center_a": 5.9,
+      "center_b": 15.48,
+      "I5_pic": 1.353,
+      "I5_pic_span": [
+        1.273,
+        1.353
+      ],
+      "I7_s": 26.0,
+      "evacuated": [
+        60,
+        60,
+        60
+      ],
+      "peak_tick": [
+        7,
+        7,
+        7
+      ],
+      "dans_la_bande": true,
+      "pic_apres_spawn": true
+    }
+  ]
+}

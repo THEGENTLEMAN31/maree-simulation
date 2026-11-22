@@ -62,6 +62,10 @@ EXITS = ("A", "B")
 #: I4 se figeait au plafond — un zéro qui ne mesurait que la durée du run).
 T_SMOKE = 1
 MAX_TICKS = 30
+#: instant de la fermeture d'issue (scénario `closure`).
+T_CLOSE = 4
+#: issue qui ferme dans ce scénario.
+CLOSED_EXIT = "A"
 
 
 def world() -> WorldSpec:
@@ -137,6 +141,23 @@ def contradiction_timeline(seed: int = 0) -> list[Timestep]:
     ]
 
 
+def close_timeline() -> list[Timestep]:
+    """Fumée à t1, fermeture de **A** à t4, puis des ticks vides.
+
+    La fermeture est une vérité du **monde** (journalisée `world.exit_closed`) ;
+    la perception, elle, est bornée à 8 m : les agents qui ne la voient pas
+    continuent de viser A quelques ticks. C'est ce que I6 mesure, et ce qui
+    force le réacheminement.
+    """
+    return [
+        Timestep(T_SMOKE, smoke=True, hazard_origin=(11.0, 8.0)),
+        *[
+            Timestep(t, closed_exits=(CLOSED_EXIT,) if t == T_CLOSE else ())
+            for t in range(T_SMOKE + 1, MAX_TICKS + 1)
+        ],
+    ]
+
+
 def build_sim(
     policy: PolicyName = PolicyName.RULES,
     *,
@@ -146,9 +167,10 @@ def build_sim(
     agents: int = N_AGENTS,
     physics: bool = True,
     speak: bool = True,
+    world: WorldSpec | None = None,
 ) -> Simulation:
     """Monte la salle calibrée, la foule et (éventuellement) JuPedSim."""
-    w = world()
+    w = world if world is not None else globals()["world"]()
     crowd = _physics(w, seed) if physics else None
     sim = Simulation(
         seed=seed,
@@ -174,6 +196,7 @@ def measure(
     agents: int = N_AGENTS,
     physics: bool = True,
     speak: bool = True,
+    world: WorldSpec | None = None,
 ) -> dict[str, object]:
     """Joue le scénario et résume ce qu'il faut pour la porte G2.
 
@@ -183,11 +206,13 @@ def measure(
     """
     bus = MemoryBus()
     sim = build_sim(policy, seed=seed, bus=bus, alias=alias, agents=agents,
-                    physics=physics, speak=speak)
+                    physics=physics, speak=speak, world=world)
     if scenario == "split" or (split and scenario == "plain"):
         steps = split_timeline(seed)
     elif scenario == "contradiction":
         steps = contradiction_timeline(seed)
+    elif scenario == "closure":
+        steps = close_timeline()
     else:
         steps = timeline()
     sim.run(steps)
@@ -215,8 +240,10 @@ def measure(
         "series": [
             {
                 "tick": d.get("tick"),
+                "I1": d.get("I1_consensus"),
                 "I3": d.get("I3_evacuated"),
                 "I5": d.get("I5_max_density"),
+                "I6": d.get("I6_belief_gap"),
                 "I7": d.get("I7_delay_seconds"),
             }
             for d in series
@@ -230,6 +257,7 @@ def summarise_series(series: list[dict[str, object]]) -> dict[str, float]:
 
 
 __all__ = [
+    "CLOSED_EXIT",
     "EXITS",
     "MAX_TICKS",
     "N_AGENTS",
@@ -237,6 +265,7 @@ __all__ = [
     "TICK_SECONDS",
     "T_SMOKE",
     "build_sim",
+    "close_timeline",
     "contradiction_timeline",
     "measure",
     "split_timeline",
