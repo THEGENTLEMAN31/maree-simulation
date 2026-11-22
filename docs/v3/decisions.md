@@ -635,3 +635,59 @@ Le banc `scenario_blocked` tourne en `speaking=False` : c'est un stimulus
 contrôlé (une phrase à t2, par agent). Laisser la parole y ajoutait des
 croyances non prévues et faisait passer les règles de 1,00 à 0,50 — une
 variable à la fois.
+
+---
+
+## ADR-019 — Un modèle de décision « System 1 » comme bras, et l'état qu'on lui donne
+
+_2026-11-22. Statut : accepté (chantier P3.1)._
+
+### Contexte
+
+Les bras `llm` mesurent un modèle qui **écrit** une décision : il faut lui
+donner un contrat JSON, parser sa réponse, valider sa cible, et accepter qu'il
+bavarde (Gemma 4 émet son raisonnement avant la réponse). Ce n'est pas la même
+tâche que **décider**. Les modèles de décision (famille Jev / OpenJev, dits
+« System 1 ») rendent une **probabilité par option** sur un ensemble fermé, en
+un passage, sans générer de texte. `PolicyName.DECISION_HEAD` existait dans
+l'architecture depuis le début et n'était pas implémenté.
+
+### Décision
+
+1. **Le bras `decision_head` existe** : options fermées = `RESTER` +
+   `SORTIR <sortie connue>`. On ne retire **pas** les sorties crues bloquées de
+   l'ensemble : c'est au modèle de ne pas les choisir, sinon on ne mesure rien.
+2. **Le service est llama.cpp `/v1/systemone`** (`state`, `questions{action{
+   type=choice, instructions, criteria}}` → `answers.action.probabilities`),
+   sur un port dédié (`MAREE_HEAD_URL`, défaut 8083) — jamais 8081/8082.
+3. **Le modèle retenu est Kev-4B Q4_K_M** (3,03 Go, Apache 2.0) : il tient seul
+   sur la carte de 4 Go, et il tourne **sur CPU à ~1,3 s/décision** — donc
+   utilisable sans GPU. OpenJev 27B (19 Go) est hors de portée.
+4. **La distribution est journalisée** (choix, probabilités, confiance,
+   marge) : c'est la trace d'audit du bras, et ce qui le rend comparable d'un
+   modèle à l'autre.
+
+### Ce que le protocole doit dire, et qui a été mesuré
+
+Un System 1 **classe**, il ne raisonne pas. À état identique :
+
+| formulation de l'état | calme | fumée visible |
+|---|---|---|
+| « Fumée visible (distance inconnue). » | RESTER 0,79 | **RESTER 0,42** |
+| « Danger : fumée visible. » | RESTER 0,79 | **SORTIR 0,41** |
+
+C'est la **formulation** qui décide si la fumée est un danger, pas le modèle.
+Le protocole retient la seconde, et le rapport doit le dire : un modèle de
+décision embarqué est un classifieur sur une étiquette, pas un raisonneur sur
+une situation. Toute conclusion « le modèle a compris le danger » doit donc
+préciser ce que l'état disait.
+
+### Conséquences
+
+- Le banc bloqué (4 agents) est réussi **1,00 sur 3 graines** avec 0 décision
+  vers une porte crue bloquée — la même performance que le grand modèle, sans
+  génération de texte et sans cible inventée.
+- Le bras est **mesurable à coût quasi nul** (179 jetons d'entrée, 0 de
+  sortie) : c'est le candidat naturel pour un agent embarqué, et il rend la
+  question « le LLM vaut-il son coût ? » plus honnête (on peut comparer trois
+  natures : règles, classifieur, générateur).

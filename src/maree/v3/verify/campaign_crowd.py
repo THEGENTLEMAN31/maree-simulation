@@ -48,6 +48,8 @@ ARMS: tuple[Arm, ...] = (
     Arm("hybride", PolicyName.HYBRID, "decision"),
     Arm("llm_grand", PolicyName.LLM, "decision"),
     Arm("llm_petit", PolicyName.LLM, "petit"),
+    #: modèle de décision System 1 (P3.1) : distribution sur options fermées.
+    Arm("decision_head", PolicyName.DECISION_HEAD),
 )
 
 

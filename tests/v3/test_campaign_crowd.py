@@ -83,7 +83,9 @@ def test_l_agregat_publie_medianes_et_intervalles() -> None:
 
 
 def test_les_quatre_bras_sont_declares() -> None:
-    assert [a.name for a in ARMS] == ["regles", "hybride", "llm_grand", "llm_petit"]
+    assert [a.name for a in ARMS] == [
+        "regles", "hybride", "llm_grand", "llm_petit", "decision_head",
+    ]
     # deux tailles pour le même bras : c'est l'axe « la taille compte-t-elle ? »
     assert ARMS[2].policy is ARMS[3].policy
     assert ARMS[2].alias != ARMS[3].alias
