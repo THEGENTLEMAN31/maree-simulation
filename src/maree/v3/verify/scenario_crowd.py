@@ -158,6 +158,26 @@ def close_timeline() -> list[Timestep]:
     ]
 
 
+#: texte du démenti tardif (scénario `denial`).
+DENIAL_TEXT = "La sortie A est bloquée"
+#: tick du démenti « tardif » par défaut.
+T_DENIAL_LATE = 8
+
+
+def denial_timeline(t_denial: int | None = T_DENIAL_LATE) -> list[Timestep]:
+    """Fumée à t1, puis un **démenti** (« la sortie A est bloquée ») à t.
+
+    ``t_denial=None`` = aucun démenti (témoin). La fumée seule ne nomme
+    aucune porte : la foule part donc vers la sortie la plus confiante (A),
+    et le démenti arrive soit avant qu'elle bouge, soit après.
+    """
+    steps = [Timestep(T_SMOKE, smoke=True, hazard_origin=(11.0, 8.0))]
+    for t in range(T_SMOKE + 1, MAX_TICKS + 1):
+        announcement = DENIAL_TEXT if t_denial is not None and t == t_denial else None
+        steps.append(Timestep(t, announcement=announcement))
+    return steps
+
+
 def build_sim(
     policy: PolicyName = PolicyName.RULES,
     *,
@@ -213,6 +233,8 @@ def measure(
         steps = contradiction_timeline(seed)
     elif scenario == "closure":
         steps = close_timeline()
+    elif scenario == "denial":
+        steps = denial_timeline()
     else:
         steps = timeline()
     sim.run(steps)
@@ -258,15 +280,18 @@ def summarise_series(series: list[dict[str, object]]) -> dict[str, float]:
 
 __all__ = [
     "CLOSED_EXIT",
+    "DENIAL_TEXT",
     "EXITS",
     "MAX_TICKS",
     "N_AGENTS",
     "STEPS_PER_TICK",
     "TICK_SECONDS",
+    "T_DENIAL_LATE",
     "T_SMOKE",
     "build_sim",
     "close_timeline",
     "contradiction_timeline",
+    "denial_timeline",
     "measure",
     "split_timeline",
     "summarise_series",

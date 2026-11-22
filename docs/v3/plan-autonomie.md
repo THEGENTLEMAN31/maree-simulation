@@ -162,6 +162,8 @@ condition n'est pas tenue.
 | 2026-11-22 | La préhistoire écrit des **croyances**, pas seulement des reçus | sinon elle n'influence que le prompt du grand modèle et reste décorative pour les règles | mission n°1 mesurable |
 | 2026-11-22 | Jumeaux mesurés **sans annonce nommant une porte** | l'ordre officiel écrasait la mémoire personnelle : les deux cohortes prenaient A (accord 1,0), la mémoire ne se voyait pas | divergence 0,00 / ablation 1,00 |
 | 2026-11-22 | Le compteur de croyance est journalisé **au moment de décider** (`target_believed_blocked`) | le compteur « désignée à t1 » confondait « se trompe » et « ne croit plus fermé » | à 60 agents : 52 crue-au-moment contre 30 désignée, dont 21 faute de mieux |
+| 2026-11-22 | La fermeture d'issue se **perçoit à 8 m** (ligne de vue exigée) | une fermeture lue par tous au même tick rendait I6 nul par construction | I6 monte à 0,43 puis retombe à 0,04 ; réacheminement complet |
+| 2026-11-22 | **H5 reformulée** : on mesure séparément « qui le démenti atteint » et « qui change d'action » | l'hypothèse « le démenti corrige la croyance, pas l'action » se teste mal en un seul chiffre | H5 **falsifiée** : toutes les personnes atteintes changent, sans délai. Ce qui limite un démenti tardif, c'est le nombre de gens déjà dehors |
 
 ---
 
@@ -170,8 +172,8 @@ condition n'est pas tenue.
 | phase | état | preuve |
 |---|---|---|
 | 0 — instrumentation | **fait** | 7 tests (`test_prehistoire.py`, `test_mesure.py`) ; mission n°1 : accord **0,00** avec mémoire / **1,00** sans (200 paires), et en foule 60 agents **1,00 / 0,00** (5 graines) ; préhistoire → croyances sourcées datées ; proches à 1,1–1,9 m, lien symétrique, `CHERCHER_PROCHE` en run |
-| 1 — statistique | à faire | — |
-| 2 — comportements | à faire | — |
+| 1 — statistique | en cours | P1.2 fait : 5 mondes, 5/5 dans la bande (1,27–1,51), pic à t6–t8, 60/60 sortis ; P1.1 : campagne 10 graines × 3 bras lancée |
+| 2 — comportements | en cours | P2.1 fermeture : I6 0,43 → 0,04, 60/60, I7 38 s ; P2.2 démenti : part atteinte 1,00 à tout instant, sortie par A 0 → 31 selon le retard, I7 26 → 38 s ; H5 falsifiée |
 | 3 — modèles | à faire | — |
 | 4 — contrat | à faire | — |
 | 5 — mémoire/livraison | à faire | — |
