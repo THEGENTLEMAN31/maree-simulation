@@ -599,3 +599,88 @@ moteur.
   comportement, monde et rendu, agents et LLM, feu, données/API,
   feuille de route, ADR. Toute décision structurante doit y être
   consignée avant d'être implémentée.
+
+# ------------------------------------------------------------
+# v3 — leçons du redressement (2026-11-22)
+# ------------------------------------------------------------
+Le moteur v3 a été repris de fond en comble (chantiers C1–C7). Ce qui suit
+est ce qui a **coûté du temps**, pas ce qui est joli. Détails :
+`docs/v3/plan-redressement.md`, rapport : `docs/v3/rapport-v3.md`, ADR 014–018
+dans `docs/v3/decisions.md`.
+
+### Instrumentation : ce qui mesurait faux
+
+- **Une perception vide rend une politique infalsifiable.** `seen_agents=()`,
+  `exits_visible=frozenset()` et un `State()` neuf à chaque tick faisaient de
+  `SUIVRE` une action *structurellement inatteignable*. Avant de régler un
+  seuil, vérifier que la perception porte quelque chose.
+- **Le calendrier est un fait du monde, pas une horloge** (ADR-014). Un
+  déclencheur de **niveau** (la fumée reste visible) fait redécider à chaque
+  tick : c'est le coût de la v1. On décide sur des *fronts*, un plan invalidé,
+  ou un palier de contexte — jamais parce que le temps passe.
+- **La croyance se consomme avant de décider** (ADR-016). La v3 écrivait les
+  croyances après la décision : 0,50 des évacuations partaient vers la porte
+  qu'on venait d'apprendre fermée. Après : 0,00. Le calendrier ne change pas
+  (les fronts restent), seul l'ordre change.
+- **Le compteur de croyance doit être daté du moment de décider.**
+  « Revient vers la porte *désignée* bloquée à t1 » n'est pas « vise une porte
+  qu'il *croit* bloquée » (la croyance s'oublie à 0,98/décision). Les deux
+  chiffres diffèrent du simple au double (30 contre 52 sur 60 agents).
+- **Un null par permutation est invariant.** Permuter les mémoires entre
+  agents ne change pas la distribution des préférences : `E_social` valait 0
+  par construction. Le null doit **retirer l'information** (couper la parole,
+  ou retirer les croyances `ENTENDU`), et être exécuté avec le **même code**.
+- **Le dernier tick est dégénéré** (plus personne : I1/I2/I5/I6 = 0). Le résumé
+  exclut la partie inactive, prend le pic pour I5/I6, la moyenne pour I1/I2.
+- **I6 ne bouge que si la fermeture se perçoit localement.** Une fermeture lue
+  par tous au même tick donne I6 = 0 par construction. `Scene` la borne à 8 m
+  avec ligne de vue.
+
+### Monde et physique : ce qui n'était pas crédible
+
+- **Un monde qui ne contraint pas ne mesure pas l'évacuation.** `hall_3`
+  (120 × 80 m) à 60 agents : **0,000 pers/m²**. Le monde de mesure est
+  `crowd_hall` (22 × 16 m, deux issues de 1,2 m) — calibré, gelé (ADR-015).
+- **La profondeur du polygone d'issue change le débit ×2.** À 1,5 m, la porte
+  laisse passer 6,8 pers/s sur 1,2 m ; à 0,5 m, 3,8. `exit_depth` est un
+  paramètre nommé, pas une constante cachée.
+- **Ce modèle passe ≈3,2 pers/(m·s)** contre ≈1,3 en littérature
+  (`collision_free` ne compresse pas les corps). **Ne jamais publier des temps
+  absolus comme des temps de terrain** ; l'écart est le même sur tous les bras,
+  donc les comparaisons tiennent.
+- **La durée du tick est un paramètre du run** (`Simulation.tick_seconds`).
+  Une salle vidée en 25 s ne donne que deux points de mesure à 10 s/tick : le
+  scénario de foule déclare 2 s. `MAX_TICKS` trop bas **censure** (55/60 à
+  20 ticks).
+- **Si toutes les portes sont crues bloquées, prendre la moins mauvaise.**
+  Sinon la transmission des fermetures fige la foule (22 sortis sur 60). Ce
+  choix est marqué `target_least_bad` et compté à part : une spirale de rumeur
+  n'est pas une faute de politique.
+
+### Modèles : ce qui ne marche pas comme on croit
+
+- **Le petit modèle applique une politique, le grand la juge.** qwen3-0.6B ne
+  raisonne pas : JSON ouvert → il recopie le gabarit ; liste de mots-clés → il
+  prend la première option. Ce qui marche : règle écrite + deux drapeaux, la
+  **fumée en dernier** (sinon « annonce : non » la neutralise), et le gabarit
+  `SORTIR <lettre>` conservé dans le prompt système.
+- **Il n'écrit pas la lettre de la sortie.** La cible est donc résolue par le
+  moteur parmi les sorties connues et non crues bloquées, et la décision porte
+  `target_resolved`. Sans ce drapeau, « le petit fait aussi bien que le grand »
+  mesure le moteur.
+- **Les traits sont partagés entre agents du même archétype** (objet gelé).
+  `agent.traits.x = …` (ou `object.__setattr__`) **pollue tous les tests
+  suivants** : utiliser `dataclasses.replace` sur la référence de l'agent.
+
+### Environnement (compléments v3)
+
+- **GPU partagé.** Lire `nvidia-smi` avant tout job lourd ; ne jamais tuer un
+  process (le `llama-stack` du port 8080 n'est pas à nous).
+- **Disques** : `/` ~24 Go libres, `/mnt/data` ~121 Go → les modèles et les
+  gros fichiers vont dans `/mnt/data/maree-models`.
+- **Clé Gemini** : `GOOGLE_API_KEY` dans l'environnement. **Ne jamais lire ni
+  afficher sa valeur** (en-tête `x-goog-api-key` uniquement). Modèles utiles :
+  `gemma-4-26b-a4b-it` (vision, ~11 s), `gemini-3.5-flash-lite` (0,6 s, quota
+  500/jour), `gemma-4-31b-it` (souvent 503).
+- **Commit avec des backticks** : bash les interprète. Écrire le message dans
+  un fichier (`git commit -F`) ou l'échapper.
