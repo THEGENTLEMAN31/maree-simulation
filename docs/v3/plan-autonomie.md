@@ -167,16 +167,40 @@ condition n'est pas tenue.
 | 2026-11-22 | Bras `decision_head` implémenté avec **Kev-4B** (3,03 Go, Apache 2.0) sur `/v1/systemone` | llama.cpp ≥ 2026-10-02 expose l'endpoint ; OpenJev 27B (19 Go) dépasse la carte ; Kev tourne seul sur 4 Go et même sur CPU à 1,3 s/décision | banc bloqué 1,00 sur 3 graines, 0 décision vers une porte crue bloquée (ADR-019) |
 | 2026-11-22 | L'état donné au head nomme la fumée comme **danger** | à état identique, « Fumée visible » le laisse sur RESTER (0,42) et « Danger : » le fait sortir (0,41) | consigné : un System 1 classe, il ne raisonne pas |
 | 2026-11-22 | Trois modes de parole (`all` / `guards` / `none`) plutôt qu'un booléen | séparer « l'autorité informe » de « tout le monde raconte » | c'est la rumeur : I1 0,63 / 0,62 / 0,70 et décisions bloquées 0,00 / 0,07 / 0,38 |
+| 2026-11-22 | La métrique principale devient **la croyance au moment de décider**, pas la porte désignée à t1 | l'ancienne métrique inversait la conclusion : le générateur paraissait pire que les règles alors qu'il est deux fois meilleur par décision | 0,41 / 0,26 / 0,20 / 0,03 pour règles / hybride / générateur / classifieur (p = 0,002, 10/10) |
+| 2026-11-22 | Un cinquième bras, `decision_head` (classifieur), est ajouté au protocole | la question « LLM ou règles » était mal posée : la nature de la tâche compte plus que la taille | il gagne sur les deux compteurs pour 30 % du coût du générateur |
+| 2026-11-22 | Le tiering est mesuré en foule, pas décrit | c'était l'argument de sobriété du projet, jamais vérifié | il est **meilleur** (0,10/0,06) et moins cher que le grand seul |
 
 ---
 
-## 6. Progression
+## 6. Les onze points de « fini », au 2026-11-22
+
+| # | point | état |
+|---|---|---|
+| 1 | mission n°1 mesurée après correctifs | **fait** — accord 0,00 / ablation 1,00 (200 paires), foule 1,00 / 0,00 |
+| 2 | mémoire J−3 amorcée en run | **fait** — `prehistory=True`, croyances sourcées datées |
+| 3 | proches assignés | **fait** — paires à 1,1–1,9 m, `CHERCHER_PROCHE` en run |
+| 4 | compteur de croyance non ambigu | **fait** — `target_believed_blocked` au moment de décider |
+| 5 | résultat refait sur ≥ 10 graines + test apparié | **fait** — Wilcoxon + bootstrap, 10/10 |
+| 6 | échantillon multi-mondes | **fait** — 5 salles, 5/5 dans la bande |
+| 7 | fermeture d'issue en foule | **fait** — I6 0,43 → 0,04, 60/60, I7 38 s |
+| 8 | démenti tardif (H5) | **fait** — falsifiée, avec le mécanisme (audience) |
+| 9 | deux tiers + courbe ε | **fait** — tiering meilleur et moins cher ; ε sans effet |
+| 10 | contrat client + test WS de bout en bout | **fait** — trames à jour, `test_ws_e2e.py` |
+| 11 | AGENTS.md v3, rapport, HANDOFF, make | **fait** — et article en brouillon |
+
+**Reste explicitement non fait** (et consigné comme tel) : l'énergie
+remesurée (P2.5), l'ablation des critères d'escalade un par un (P2.6), un
+modèle de frontière, et le chantier Godot/assets (hors périmètre par
+décision).
+
+## 7. Progression
 
 | phase | état | preuve |
 |---|---|---|
 | 0 — instrumentation | **fait** | 7 tests (`test_prehistoire.py`, `test_mesure.py`) ; mission n°1 : accord **0,00** avec mémoire / **1,00** sans (200 paires), et en foule 60 agents **1,00 / 0,00** (5 graines) ; préhistoire → croyances sourcées datées ; proches à 1,1–1,9 m, lien symétrique, `CHERCHER_PROCHE` en run |
 | 1 — statistique | **fait** | P1.2 : 5 mondes, 5/5 dans la bande ; P1.1 : 10 graines × 3 bras, Wilcoxon apparié — grand −0,20 et hybride −0,15/−0,20 vs règles, p = 0,002, 10/10 ; **le compteur ambigu a été remplacé** (`target_believed_blocked`) et il change la conclusion |
-| 2 — comportements | en cours | P2.1 fermeture : I6 0,43 → 0,04 ; P2.2 démenti : H5 falsifiée (part atteinte 1,00, sortie par A 0 → 31, I7 26 → 38 s) ; P2.3/P2.4 (deux tiers, ε) en campagne |
-| 3 — modèles | **fait** (P3.2 restant) | `decision_head` : **0,03 vs 0,41** en foule (10 graines, p = 0,002) pour 100 k jetons ; banc bloqué 1,00 ; P3.3 rumeur vs autorité fait ; reste le gros modèle en RAM |
+| 2 — comportements | **fait** | P2.1 fermeture I6 0,43 → 0,04 ; P2.2 H5 falsifiée ; P2.3 deux tiers : 0,10/0,06 pour 143–169 k jetons (le petit seul bat le grand seul : 0,13 contre 0,22) ; P2.4 ε sans effet (0,24–0,29) ; P2.5 énergie non refaite (reste ouvert) ; P2.6 ablation des critères non faite |
+| 3 — modèles | **fait** | `decision_head` **0,03 vs 0,41** (10 graines, p = 0,002) pour 100 k jetons ; P3.3 c'est la rumeur ; P3.2 sonde E4B : évacue sans danger → la taille n'achète pas le jugement |
 | 4 — contrat | **fait** | frames.py mappe parole/escalade/reconsidération/fermeture/crowd ; `test_ws_e2e.py` : serveur réel, client réel, séquence world → hello → snapshot → crowd → end, injection + dossier étiqueté |
-| 5 — mémoire/livraison | en cours | AGENTS.md v3 écrit ; HANDOFF + cibles make ; pré-enregistrement des campagnes A–F ; rapport à réécrire après P1 |
+| 5 — mémoire/livraison | **fait** | AGENTS.md v3 (+ deux pièges du jour) ; HANDOFF ; cibles `make v3-*` ; pré-enregistrement A–F ; rapport réécrit (2ᵉ édition) ; article (brouillon) |
