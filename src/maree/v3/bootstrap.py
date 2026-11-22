@@ -105,5 +105,14 @@ def _wire_providers() -> None:
     )
     catalog.register_provider("llamacpp-small", OpenAICompatibleChat(base_url=_small_url))
 
+    #: modèle de décision « System 1 » (bras decision_head), endpoint
+    #: /v1/systemone de llama.cpp — un serveur distinct, jamais 8081/8082.
+    from maree.v3.adapters.decision_head import SystemOneHead
+    from maree.v3.agents.policy_head import set_default_head
+
+    _head_url = os.environ.get("MAREE_HEAD_URL", "http://127.0.0.1:8083")
+    _head_model = os.environ.get("MAREE_HEAD_MODEL", "kev")
+    set_default_head(SystemOneHead(url=_head_url, model=_head_model))
+
 
 __all__ = ["Runtime", "assemble"]

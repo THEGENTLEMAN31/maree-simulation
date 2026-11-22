@@ -150,6 +150,23 @@ class Agent:
                 memory=self.memory,
                 rag=rag,
             )
+        if self.policy is PolicyName.DECISION_HEAD:
+            from maree.v3.agents.policy_head import (
+                DecisionHeadPolicy,
+                default_head,
+            )
+
+            return DecisionHeadPolicy(head=default_head()).decide(
+                perception=perception,
+                knowledge=self.knowledge,
+                social=self.social,
+                traits=self.traits,
+                appraisal=ap,
+                known_exits=self.known_exits,
+                name=self.name,
+                memory=self.memory,
+                rag=rag,
+            )
         if self.policy is PolicyName.HYBRID:
             return hybrid_decide(
                 perception=perception,
