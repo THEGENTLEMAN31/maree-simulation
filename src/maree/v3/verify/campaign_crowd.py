@@ -66,6 +66,10 @@ class CrowdRun:
     escalations: dict[str, int] = field(default_factory=dict)
     replis: dict[str, int] = field(default_factory=dict)
     targeted_blocked: int = 0
+    #: décisions dont la cible était **crue bloquée au moment de décider**.
+    #: C'est la mesure propre : le compteur `targeted_blocked` ci-dessus suit la
+    #: porte **désignée** à t1, que la croyance peut avoir oubliée depuis.
+    targeted_believed_blocked: int = 0
     #: décisions vers la porte **désignée bloquée à t1** (celle qu'on lui a
     #: annoncée), quand aucune autre n'était crue praticable : ce n'est pas une
     #: erreur, c'est un monde sans option.
@@ -89,6 +93,7 @@ class CrowdRun:
             "escalations": self.escalations,
             "replis": self.replis,
             "targeted_blocked": self.targeted_blocked,
+            "targeted_believed_blocked": self.targeted_believed_blocked,
             "targeted_blocked_least_bad": self.targeted_blocked_least_bad,
             "target_resolved": self.target_resolved,
             "evacuations": self.evacuations,
@@ -163,6 +168,9 @@ def run_arm(
         escalations=dict(sorted(escalations.items())),
         replis=dict(sorted(replis.items())),
         targeted_blocked=targeted,
+        targeted_believed_blocked=sum(
+            1 for row in rows if row.target_believed_blocked
+        ),
         targeted_blocked_least_bad=least_bad,
         target_resolved=sum(1 for r in rows if r.target_resolved),
         evacuations=sum(1 for _ in sim._evacuated),
@@ -214,6 +222,15 @@ def aggregate(runs: list[CrowdRun]) -> dict[str, Any]:
             "messages_med": _med([float(r.messages) for r in rows]),
             "part_decisions_bloquees_med": _med(
                 [r.part_decisions_bloquees for r in rows]
+            ),
+            "part_believed_blocked_med": _med(
+                [
+                    (r.targeted_believed_blocked / r.decisions if r.decisions else 0.0)
+                    for r in rows
+                ]
+            ),
+            "believed_blocked_med": _med(
+                [float(r.targeted_believed_blocked) for r in rows]
             ),
             "target_resolved_med": _med([float(r.target_resolved) for r in rows]),
             "least_bad_med": _med([float(r.targeted_blocked_least_bad) for r in rows]),

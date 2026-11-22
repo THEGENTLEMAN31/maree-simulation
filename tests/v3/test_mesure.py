@@ -246,3 +246,38 @@ def test_le_null_d_emergence_n_est_pas_une_permutation() -> None:
     from maree.v3.verify.emergence import consensus_without_hearsay
 
     assert consensus_without_hearsay([agent]) == 1.0
+
+
+def test_la_croyance_est_journalisee_au_moment_de_decider() -> None:
+    """P0.1 : « se trompe » et « ne croit plus que c'est fermé » ne se confondent plus."""
+    from maree.v3.agents.agent import make_agent
+    from maree.v3.agents.knowledge import Belief, Source
+    from maree.v3.agents.perception import Message, Perception
+    from maree.v3.agents.state import State
+    from maree.v3.core.ids import AgentId, ZoneId
+
+    agent = make_agent(1, "visiteur", known_exits=frozenset({"A", "B"}))
+    per = Perception(
+        tick=10,
+        zone=ZoneId("z"),
+        state=State(),
+        smoke_visible=True,
+        heard=(Message("La sortie A est bloquée", AgentId(2), 10, 0.9),),
+    )
+    decision = agent.react(per)
+    # la croyance est écrite avant la décision : l'agent évite A…
+    assert decision.target == "B"
+    assert decision.target_believed_blocked is False
+    # …et le drapeau suit la croyance réelle, pas la porte qui a été choisie
+    agent.knowledge.beliefs["hazard:B"] = Belief("bloquée", 0.95, Source.ENTENDU, 10)
+    per2 = Perception(
+        tick=11,
+        zone=ZoneId("z"),
+        state=State(),
+        smoke_visible=True,
+        heard=(Message("La sortie A est de nouveau praticable", AgentId(3), 11, 0.9),),
+    )
+    decision2 = agent.react(per2)
+    assert decision2.target in {"A", "B"}
+    if decision2.target == "B":
+        assert decision2.target_believed_blocked is True

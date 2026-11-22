@@ -159,6 +159,9 @@ condition n'est pas tenue.
 | 2026-11-22 | Plan d'autonomie ouvert ; priorité aux blocants P0 avant toute nouvelle mesure | deux des trois résultats publiés reposent sur une mission non remesurée et un compteur ambigu | rien n'est publié avant la porte A |
 | 2026-11-22 | Modèles cloud classés par usage, pas par préférence : flash-lite pour l'analyse (500/j), gemma-26b pour la vision, `gemini-decision-1` candidat `decision_head` | quotas réels mesurés ; `gemma-4-31b-it` renvoie 503 | aucune campagne ne dépend d'un quota cloud |
 | 2026-11-22 | Téléchargements sur `/mnt/data/maree-models`, code sur `/` | `/` à 89 %, `/mnt/data` à 88 % avec 121 Go libres | les gros fichiers ne saturent pas le disque système |
+| 2026-11-22 | La préhistoire écrit des **croyances**, pas seulement des reçus | sinon elle n'influence que le prompt du grand modèle et reste décorative pour les règles | mission n°1 mesurable |
+| 2026-11-22 | Jumeaux mesurés **sans annonce nommant une porte** | l'ordre officiel écrasait la mémoire personnelle : les deux cohortes prenaient A (accord 1,0), la mémoire ne se voyait pas | divergence 0,00 / ablation 1,00 |
+| 2026-11-22 | Le compteur de croyance est journalisé **au moment de décider** (`target_believed_blocked`) | le compteur « désignée à t1 » confondait « se trompe » et « ne croit plus fermé » | à 60 agents : 52 crue-au-moment contre 30 désignée, dont 21 faute de mieux |
 
 ---
 
@@ -166,7 +169,7 @@ condition n'est pas tenue.
 
 | phase | état | preuve |
 |---|---|---|
-| 0 — instrumentation | en cours | — |
+| 0 — instrumentation | **fait** | 7 tests (`test_prehistoire.py`, `test_mesure.py`) ; mission n°1 : accord **0,00** avec mémoire / **1,00** sans (200 paires), et en foule 60 agents **1,00 / 0,00** (5 graines) ; préhistoire → croyances sourcées datées ; proches à 1,1–1,9 m, lien symétrique, `CHERCHER_PROCHE` en run |
 | 1 — statistique | à faire | — |
 | 2 — comportements | à faire | — |
 | 3 — modèles | à faire | — |

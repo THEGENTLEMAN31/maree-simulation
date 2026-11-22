@@ -60,6 +60,11 @@ class Decision:
     #: vrai si la cible a été prise **faute de mieux** : toutes les sorties
     #: connues étaient crues bloquées. Ce n'est pas une erreur de politique.
     target_least_bad: bool = False
+    #: vrai si, **au moment de décider**, l'agent croyait la cible bloquée.
+    #: C'est le seul compteur qui distingue « se trompe » de « ne croit plus
+    #: que c'est fermé » : la croyance s'oublie (0,98/décision) et un ouï-dire
+    #: peut la repasser sous le seuil 0,5.
+    target_believed_blocked: bool = False
 
 
 def _is_evacuation_order(announcement: str) -> bool:

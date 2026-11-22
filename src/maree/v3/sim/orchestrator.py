@@ -25,6 +25,7 @@ from maree.v3.agents.agent import Agent, make_agent
 from maree.v3.agents.appraisal import Action
 from maree.v3.agents.perception import Message, Perception
 from maree.v3.agents.policy import Decision
+from maree.v3.agents.prehistory import prehistory_for, seed_knowledge, seed_prehistory
 from maree.v3.agents.speech import as_message, utterance
 from maree.v3.core.ids import AgentId
 from maree.v3.core.ports import ExecutionMode, PolicyName
@@ -91,6 +92,8 @@ class LogRow:
     target_resolved: bool = False
     #: cible prise faute de mieux (toutes les sorties crues bloquées).
     target_least_bad: bool = False
+    #: cible que l'agent croyait bloquée **au moment de décider**.
+    target_believed_blocked: bool = False
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_s: float = 0.0
@@ -141,6 +144,7 @@ class Simulation:
         epsilon: float = 0.0,
         tick_seconds: float = TICK_SECONDS,
         speaking: bool = True,
+        prehistory: bool = False,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
@@ -152,6 +156,9 @@ class Simulation:
         self.physics_steps_per_tick = physics_steps_per_tick
         #: quota ε (instrument de sensibilité) — 0 par défaut.
         self.epsilon = epsilon
+        #: amorce-t-on la mémoire J−3 (A1) ? Sans cela, la « mémoire
+        #: personnelle » qui doit produire la divergence est vide au départ.
+        self.prehistory = prehistory
         #: les agents émettent-ils des messages ? (C7). ``False`` = le null
         #: « la rumeur n'a pas circulé », exécuté pour de vrai (B3).
         self.speaking = speaking
@@ -210,9 +217,17 @@ class Simulation:
         space_ids = sorted(level.spawn_points)
         #: positions déjà occupées, pour l'espacement minimal au placement.
         placed = [(i.point[0], i.point[1]) for i in self.scene.instances.values()]
+        pending_kin: Agent | None = None
+        pending_point: Point | None = None
         for i in range(count):
             space_id = space_ids[i % len(space_ids)]
-            pt = self._free_point(level.walkable, placed)
+            if archetype == "famille" and pending_point is not None:
+                # les proches sont placés **ensemble** (≤ 2 m) : sans cela, deux
+                # tirages indépendants dans une zone les séparent de 10 m et
+                # `CHERCHER_PROCHE` ne se déclenche jamais (leçon v2, réparée).
+                pt = self._free_point_near(level.walkable, placed, pending_point)
+            else:
+                pt = self._free_point(level.walkable, placed)
             placed.append(pt)
             agent = make_agent(
                 uid=len(self.scene.instances) + 1,
@@ -223,6 +238,18 @@ class Simulation:
             agent.llm_alias = llm_alias or _TIER_BY_ARCHETYPE.get(archetype)
             agent.run_id = self.run_id
             agent.epsilon = self.epsilon
+            if self.prehistory:
+                exchanges = prehistory_for(archetype)
+                seed_prehistory(agent.memory, exchanges)
+                seed_knowledge(agent, exchanges)
+            if archetype == "famille":
+                if pending_kin is not None:
+                    agent.social.kin.add(pending_kin.uid)
+                    pending_kin.social.kin.add(agent.uid)
+                    pending_kin = None
+                    pending_point = None
+                else:
+                    pending_kin, pending_point = agent, pt
             self.scene.add(agent, space_id, pt)
             if self.physics is not None:
                 self.physics.spawn(agent.uid.uid, pt, desired_speed=agent.speed_max)
@@ -252,6 +279,29 @@ class Simulation:
                 return (x, y)
         # repli : le centroïde de la zone sûre (jamais l'origine du repère).
         return (float(inner.centroid.x), float(inner.centroid.y))
+
+    def _free_point_near(
+        self, walkable: Polygon, placed: list[Point], base: Point
+    ) -> Point:
+        """Un point libre à moins de 2 m de ``base`` (paire de proches).
+
+        Repli : le point libre ordinaire. On ne force jamais un point invalide :
+        JuPedSim refuse deux agents à moins de 0,4 m.
+        """
+        inner = walkable.buffer(-_SPAWN_MARGIN)
+        for _ in range(_SPAWN_TRIES):
+            angle = float(self._rng.uniform(0.0, 6.283185307179586))
+            radius = float(self._rng.uniform(0.8, 1.9))
+            x = base[0] + radius * math.cos(angle)
+            y = base[1] + radius * math.sin(angle)
+            if not inner.contains(ShapelyPoint(x, y)):
+                continue
+            if all(
+                (x - px) ** 2 + (y - py) ** 2 >= _MIN_SPACING**2
+                for px, py in placed
+            ):
+                return (x, y)
+        return self._free_point(walkable, placed)
 
     def run(self, timesteps: list[Timestep]) -> RunLog:
         """Anime le monde tick par tick (barrière en sync, cadence en async)."""
@@ -584,6 +634,7 @@ class Simulation:
             "escalation_cause": decision.escalation_cause,
             "target_resolved": decision.target_resolved,
             "target_least_bad": decision.target_least_bad,
+            "target_believed_blocked": decision.target_believed_blocked,
         })
         # A4 : un repli n'est pas un silence — il est tracé et dénombré par cause.
         if decision.fallback:
@@ -641,6 +692,7 @@ class Simulation:
             llm_attempted=trace is not None,
             target_resolved=decision.target_resolved,
             target_least_bad=decision.target_least_bad,
+            target_believed_blocked=decision.target_believed_blocked,
             prompt_tokens=0 if trace is None else trace.response.prompt_tokens,
             completion_tokens=(
                 0 if trace is None else trace.response.completion_tokens

@@ -8,7 +8,7 @@ déjà vus). ``react()`` produit une décision portable et journalisée.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from maree.v3.agents.appraisal import Action, Appraisal, appraise
@@ -108,6 +108,13 @@ class Agent:
             name=self.name,
         )
         decision = self._decide(perception, ap)
+        if decision.action is Action.EVACUER and decision.target:
+            decision = replace(
+                decision,
+                target_believed_blocked=_believed_blocked(
+                    self.knowledge, decision.target
+                ),
+            )
         self._record(perception, decision, blocked_before)
         self._last_decision = decision
         self._last_perception_key = perception_key(perception)

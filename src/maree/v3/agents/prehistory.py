@@ -9,10 +9,11 @@ et l'invoquer dans sa justification : c'est la preuve A1.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from maree.v3.agents.knowledge import Source
+from maree.v3.agents.knowledge import Belief, Knowledge, Source
 from maree.v3.agents.memory import EpisodeKind, Memory
 from maree.v3.core.ids import Tick
 
@@ -65,6 +66,49 @@ def seed_prehistory(
         memory.log_episode(ex.tick, EpisodeKind.ENTENDU, ex.fact, ex.speaker)
 
 
+#: Mots qui font d'un souvenir une **exclusion** (la sortie se bouche, ferme).
+_BLOCKING = ("bouche", "bloqu", "ferm", "ferme", "pleine", "sature")
+
+
+def seed_knowledge(agent: object, exchanges: Sequence[PrehistoryMessage]) -> int:
+    """Inscrit les faits J−3 dans les **croyances** de l'agent (pas seulement
+    dans ses reçus).
+
+    Pourquoi c'est nécessaire : `seed_prehistory` écrit des reçus, que seul le
+    prompt du grand modèle lit. Pour les règles — et donc pour la mission n°1 —
+    un souvenir qui ne touche pas `knowledge` est décoratif. On ne crée jamais
+    de croyance sur une sortie **inconnue** (garde C3 : la géographie ne
+    s'apprend pas par ouï-dire) : un fait qui nomme une sortie inconnue reste
+    un simple reçu.
+
+    Rend le nombre de croyances écrites (mesure, pas décoration).
+    """
+    knowledge: Knowledge = agent.knowledge  # type: ignore[attr-defined]
+    known: frozenset[str] = agent.known_exits  # type: ignore[attr-defined]
+    written = 0
+    for ex in sorted(exchanges, key=lambda e: e.tick):
+        lowered = ex.fact.lower()
+        blocking = any(word in lowered for word in _BLOCKING)
+        labels = {
+            token
+            for token in re.findall(r"\b[A-Z](?:\d{1,2})?\b", ex.fact.upper())
+            if not token.isdigit()
+        }
+        for label in sorted(labels & set(known)):
+            if blocking:
+                knowledge.set(
+                    f"hazard:{label}",
+                    Belief("sortie à éviter (souvenir)", ex.confidence, ex.source, ex.tick),
+                )
+            else:
+                knowledge.set(
+                    f"exit:{label}",
+                    Belief(label, ex.confidence, ex.source, ex.tick),
+                )
+            written += 1
+    return written
+
+
 #: Les échanges destinés à un archétype (utilitaire de population).
 def prehistory_for(archetype: str) -> tuple[PrehistoryMessage, ...]:
     return tuple(m for m in PREHISTORY_MAREE if m.target == archetype)
@@ -77,5 +121,6 @@ __all__ = [
     "PREHISTORY_MAREE",
     "PrehistoryMessage",
     "prehistory_for",
+    "seed_knowledge",
     "seed_prehistory",
 ]

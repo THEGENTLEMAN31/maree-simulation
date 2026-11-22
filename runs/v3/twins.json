@@ -1,0 +1,104 @@
+{
+  "protocole": "twins v3 (règles, sans modèle)",
+  "A_decision_seule": {
+    "n_pairs": 200,
+    "memoire": {
+      "accord": 0.0,
+      "kl": 20.723,
+      "gauche": {
+        "A": 0.0,
+        "B": 1.0
+      },
+      "droite": {
+        "A": 1.0,
+        "B": 0.0
+      }
+    },
+    "ablation_sans_memoire": {
+      "accord": 1.0,
+      "kl": 0.0
+    }
+  },
+  "B_foule": {
+    "avec_memoire": {
+      "mediane": 1.0,
+      "detail": [
+        {
+          "seed": 1,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 1.0,
+          "n": 60
+        },
+        {
+          "seed": 2,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 1.0,
+          "n": 60
+        },
+        {
+          "seed": 3,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 1.0,
+          "n": 60
+        },
+        {
+          "seed": 4,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 1.0,
+          "n": 60
+        },
+        {
+          "seed": 5,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 1.0,
+          "n": 60
+        }
+      ]
+    },
+    "ablation": {
+      "mediane": 0.0,
+      "detail": [
+        {
+          "seed": 1,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 0.0,
+          "n": 0
+        },
+        {
+          "seed": 2,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 0.0,
+          "n": 0
+        },
+        {
+          "seed": 3,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 0.0,
+          "n": 0
+        },
+        {
+          "seed": 4,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 0.0,
+          "n": 0
+        },
+        {
+          "seed": 5,
+          "agents": 60,
+          "evacuated": 60,
+          "ignore_sa_porte_crue_bloquee": 0.0,
+          "n": 0
+        }
+      ]
+    }
+  }
+}
