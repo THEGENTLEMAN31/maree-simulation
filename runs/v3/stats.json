@@ -1,0 +1,122 @@
+[
+  {
+    "gauche": "llm_grand",
+    "droite": "regles",
+    "scenario": "contradiction",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "hybride",
+    "droite": "regles",
+    "scenario": "contradiction",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "llm_petit",
+    "droite": "regles",
+    "scenario": "contradiction",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "llm_grand",
+    "droite": "hybride",
+    "scenario": "contradiction",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "llm_grand",
+    "droite": "regles",
+    "scenario": "split",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "hybride",
+    "droite": "regles",
+    "scenario": "split",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "llm_petit",
+    "droite": "regles",
+    "scenario": "split",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  },
+  {
+    "gauche": "llm_grand",
+    "droite": "hybride",
+    "scenario": "split",
+    "n": 5,
+    "mediane_gauche": 0.0,
+    "mediane_droite": 0.0,
+    "ecart": 0.0,
+    "ic95": [
+      0.0,
+      0.0
+    ],
+    "p_wilcoxon": 1.0,
+    "graines_dans_le_sens": "0/5"
+  }
+]
