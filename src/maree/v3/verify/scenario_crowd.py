@@ -213,6 +213,36 @@ def build_sim(
     return sim
 
 
+def build_two_tier(
+    *,
+    seed: int = 1,
+    visitors: int = 40,
+    habitues: int = 20,
+    bus: EventBus | None = None,
+    speak: bool = True,
+) -> Simulation:
+    """Le scénario **deux tiers** : visiteurs sur le petit, habitués sur le grand.
+
+    On ne force aucun alias : le spawn retombe sur `_TIER_BY_ARCHETYPE`
+    (visiteur/famille → petit, habitué/sécurité → grand). C'est la
+    configuration que le projet revendique pour la sobriété ; elle doit être
+    mesurée en foule, pas seulement décrite.
+    """
+    sim = Simulation(
+        seed=seed,
+        policy=PolicyName.LLM,
+        bus=bus or MemoryBus(),
+        run_id=f"two_tier_s{seed}",
+        physics=_physics(world(), seed),
+        physics_steps_per_tick=STEPS_PER_TICK,
+        tick_seconds=TICK_SECONDS,
+        speaking=speak,
+    ).build(world())
+    sim.spawn("visiteur", visitors, frozenset(EXITS))
+    sim.spawn("habitue", habitues, frozenset(EXITS))
+    return sim
+
+
 def measure(
     policy: PolicyName = PolicyName.RULES,
     *,
