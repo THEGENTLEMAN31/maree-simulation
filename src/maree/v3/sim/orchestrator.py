@@ -145,6 +145,7 @@ class Simulation:
         tick_seconds: float = TICK_SECONDS,
         speaking: bool = True,
         prehistory: bool = False,
+        speaking_mode: str | None = None,
     ) -> None:
         self.seed = seed
         self._rng = np.random.default_rng(seed)
@@ -159,9 +160,13 @@ class Simulation:
         #: amorce-t-on la mémoire J−3 (A1) ? Sans cela, la « mémoire
         #: personnelle » qui doit produire la divergence est vide au départ.
         self.prehistory = prehistory
-        #: les agents émettent-ils des messages ? (C7). ``False`` = le null
-        #: « la rumeur n'a pas circulé », exécuté pour de vrai (B3).
-        self.speaking = speaking
+        #: qui parle (C7) : ``all`` (défaut), ``guards`` (seule l'autorité) ou
+        #: ``none`` (le null de B3, exécuté pour de vrai).
+        self.speaking_mode = speaking_mode or ("all" if speaking else "none")
+        if self.speaking_mode not in ("all", "guards", "none"):
+            raise ValueError(f"speaking_mode inconnu : {self.speaking_mode!r}")
+        #: compatibilité : ``speaking`` reste lisible par les tests existants.
+        self.speaking = self.speaking_mode != "none"
         #: durée d'un tick (s). Réglée par scénario : une salle de 16 × 12 m se
         #: vide en 20 s, donc un tick de 10 s n'y produirait que deux points de
         #: mesure. I4 et I7 suivent cette horloge, elle est journalisée.
@@ -501,7 +506,9 @@ class Simulation:
                 continue
             inst = self.scene.instances[agent_id]
             perception = self.scene.perception_for(agent_id)
-            said = utterance(inst.agent, perception)
+            said = utterance(
+                inst.agent, perception, guards_only=self.speaking_mode == "guards"
+            )
             if said is None:
                 continue
             message = as_message(said, agent_id, tick)

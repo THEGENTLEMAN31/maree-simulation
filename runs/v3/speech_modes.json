@@ -1,0 +1,152 @@
+[
+  {
+    "mode": "none",
+    "guards": 0,
+    "seed": 1,
+    "I1": 0.63409,
+    "decisions": 60,
+    "messages": 0,
+    "part_crue_bloquee": 0.0,
+    "evacuated": 60
+  },
+  {
+    "mode": "none",
+    "guards": 0,
+    "seed": 2,
+    "I1": 0.6112636363636363,
+    "decisions": 60,
+    "messages": 0,
+    "part_crue_bloquee": 0.0,
+    "evacuated": 60
+  },
+  {
+    "mode": "none",
+    "guards": 0,
+    "seed": 3,
+    "I1": 0.6597916666666667,
+    "decisions": 60,
+    "messages": 0,
+    "part_crue_bloquee": 0.0,
+    "evacuated": 60
+  },
+  {
+    "mode": "none",
+    "guards": 0,
+    "seed": 4,
+    "I1": 0.6657909090909091,
+    "decisions": 60,
+    "messages": 0,
+    "part_crue_bloquee": 0.0,
+    "evacuated": 60
+  },
+  {
+    "mode": "none",
+    "guards": 0,
+    "seed": 5,
+    "I1": 0.54564,
+    "decisions": 60,
+    "messages": 0,
+    "part_crue_bloquee": 0.0,
+    "evacuated": 60
+  },
+  {
+    "mode": "guards",
+    "guards": 4,
+    "seed": 1,
+    "I1": 0.62765,
+    "decisions": 70,
+    "messages": 4,
+    "part_crue_bloquee": 0.071,
+    "evacuated": 60
+  },
+  {
+    "mode": "guards",
+    "guards": 4,
+    "seed": 2,
+    "I1": 0.5757363636363636,
+    "decisions": 71,
+    "messages": 4,
+    "part_crue_bloquee": 0.085,
+    "evacuated": 60
+  },
+  {
+    "mode": "guards",
+    "guards": 4,
+    "seed": 3,
+    "I1": 0.6376083333333333,
+    "decisions": 72,
+    "messages": 6,
+    "part_crue_bloquee": 0.083,
+    "evacuated": 60
+  },
+  {
+    "mode": "guards",
+    "guards": 4,
+    "seed": 4,
+    "I1": 0.6110888888888888,
+    "decisions": 70,
+    "messages": 6,
+    "part_crue_bloquee": 0.014,
+    "evacuated": 60
+  },
+  {
+    "mode": "guards",
+    "guards": 4,
+    "seed": 5,
+    "I1": 0.6200545454545454,
+    "decisions": 71,
+    "messages": 7,
+    "part_crue_bloquee": 0.07,
+    "evacuated": 60
+  },
+  {
+    "mode": "all",
+    "guards": 4,
+    "seed": 1,
+    "I1": 0.6954461538461539,
+    "decisions": 128,
+    "messages": 128,
+    "part_crue_bloquee": 0.383,
+    "evacuated": 60
+  },
+  {
+    "mode": "all",
+    "guards": 4,
+    "seed": 2,
+    "I1": 0.7058769230769231,
+    "decisions": 138,
+    "messages": 138,
+    "part_crue_bloquee": 0.326,
+    "evacuated": 60
+  },
+  {
+    "mode": "all",
+    "guards": 4,
+    "seed": 3,
+    "I1": 0.6539083333333333,
+    "decisions": 140,
+    "messages": 140,
+    "part_crue_bloquee": 0.393,
+    "evacuated": 60
+  },
+  {
+    "mode": "all",
+    "guards": 4,
+    "seed": 4,
+    "I1": 0.7887461538461539,
+    "decisions": 130,
+    "messages": 130,
+    "part_crue_bloquee": 0.315,
+    "evacuated": 60
+  },
+  {
+    "mode": "all",
+    "guards": 4,
+    "seed": 5,
+    "I1": 0.6571636363636363,
+    "decisions": 139,
+    "messages": 139,
+    "part_crue_bloquee": 0.41,
+    "evacuated": 60
+  }
+]

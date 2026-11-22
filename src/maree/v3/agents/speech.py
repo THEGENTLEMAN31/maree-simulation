@@ -82,7 +82,9 @@ def _blocked_belief(agent: Agent) -> str | None:
     return best[1] if best else None
 
 
-def utterance(agent: Agent, perception: Perception) -> Utterance | None:
+def utterance(
+    agent: Agent, perception: Perception, *, guards_only: bool = False
+) -> Utterance | None:
     """Le message que cet agent émet ce tick, ou ``None``.
 
     Déterministe : dépend de l'altruisme, du rôle, de la dernière décision et
@@ -94,7 +96,13 @@ def utterance(agent: Agent, perception: Perception) -> Utterance | None:
         # immobile n'a rien à annoncer, et répéter la même phrase à chaque
         # tick saturerait les boîtes aux lettres.
         return None
-    speaks = agent.traits.altruism >= ALTRIUM_THRESHOLD or agent.archetype in SPEAKING_ROLES
+    role_speaker = agent.archetype in SPEAKING_ROLES
+    if guards_only:
+        # bras de contrôle : seule l'autorité présente parle. Sépare l'effet
+        # « parole » de l'effet « rumeur » (n'importe qui raconte n'importe quoi).
+        speaks = role_speaker
+    else:
+        speaks = agent.traits.altruism >= ALTRIUM_THRESHOLD or role_speaker
     if not speaks:
         return None
     listeners = tuple(a.uid for a in perception.seen_agents[:MAX_LISTENERS])

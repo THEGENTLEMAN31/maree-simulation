@@ -188,6 +188,8 @@ def build_sim(
     physics: bool = True,
     speak: bool = True,
     world: WorldSpec | None = None,
+    guards: int = 0,
+    speaking_mode: str | None = None,
 ) -> Simulation:
     """Monte la salle calibrée, la foule et (éventuellement) JuPedSim."""
     w = world if world is not None else globals()["world"]()
@@ -201,8 +203,13 @@ def build_sim(
         physics_steps_per_tick=STEPS_PER_TICK,
         tick_seconds=TICK_SECONDS,
         speaking=speak,
+        speaking_mode=speaking_mode,
     ).build(w)
-    sim.spawn("visiteur", agents, frozenset(EXITS), llm_alias=alias)
+    visitors = max(0, agents - guards)
+    sim.spawn("visiteur", visitors, frozenset(EXITS), llm_alias=alias)
+    if guards > 0:
+        # l'autorité présente : elle connaît les deux issues et parle toujours
+        sim.spawn("agent_de_securite", guards, frozenset(EXITS), llm_alias=alias)
     return sim
 
 
@@ -217,6 +224,8 @@ def measure(
     physics: bool = True,
     speak: bool = True,
     world: WorldSpec | None = None,
+    guards: int = 0,
+    speaking_mode: str | None = None,
 ) -> dict[str, object]:
     """Joue le scénario et résume ce qu'il faut pour la porte G2.
 
@@ -226,7 +235,8 @@ def measure(
     """
     bus = MemoryBus()
     sim = build_sim(policy, seed=seed, bus=bus, alias=alias, agents=agents,
-                    physics=physics, speak=speak, world=world)
+                    physics=physics, speak=speak, world=world, guards=guards,
+                    speaking_mode=speaking_mode)
     if scenario == "split" or (split and scenario == "plain"):
         steps = split_timeline(seed)
     elif scenario == "contradiction":

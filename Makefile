@@ -170,6 +170,9 @@ v3-worlds:  ## P1.2 : cinq salles, le goulot tient-il ? (aucun GPU)
 v3-denial:  ## P2.2 / H5 : un démenti tardif, qui atteint-il ? (aucun GPU)
 	uv run python scripts/v3_denial.py 1 2 3
 
+v3-speech:  ## P3.3 : parole ou rumeur ? (aucun GPU)
+	uv run python scripts/v3_speech.py 1 2 3 4 5
+
 v3-crowd:  ## campagne macro (serveurs 8081/8082 requis)
 	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} \
 	MAREE_LLM_SMALL_URL=$${MAREE_LLM_SMALL_URL:-http://127.0.0.1:8082/v1} \
@@ -210,4 +213,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence v3-blocked v3-serve v3-twins v3-worlds v3-denial v3-crowd v3-crowd-null v3-tables kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence v3-blocked v3-serve v3-twins v3-worlds v3-denial v3-speech v3-crowd v3-crowd-null v3-tables kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query

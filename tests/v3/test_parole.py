@@ -182,3 +182,49 @@ def test_action_importe_pour_le_typage() -> None:
     # garde-fou de lisibilité : EVACUER est bien l'action qui fait parler
     assert Action.EVACUER.value.startswith("évacuer")
     assert Message("x", AgentId(1), 1).fact == "x"
+
+
+# ---------------------------------------------------------------------------
+# P3.3 — parole ou rumeur ?
+# ---------------------------------------------------------------------------
+def _mode_stats(mode: str, guards: int) -> dict[str, float]:
+    from maree.v3.sim.bus import MemoryBus
+    from maree.v3.verify import scenario_crowd as sc
+
+    bus = MemoryBus()
+    sim = sc.build_sim(
+        PolicyName.RULES, seed=1, bus=bus, guards=guards, speaking_mode=mode
+    )
+    sim.run(sc.split_timeline(1))
+    crowd = [dict(e.data) for e in bus.published("indicator.crowd")]
+    summary = sc.summarise_series(crowd)
+    evac = [r for r in sim.log.rows if r.action.startswith("évacuer")]
+    return {
+        "I1": float(summary["I1_consensus"]),
+        "messages": float(len(bus.published("agent.message"))),
+        "crue_bloquee": (
+            sum(1 for r in evac if r.target_believed_blocked) / len(evac)
+            if evac
+            else 0.0
+        ),
+        "evacuated": float(len(sim._evacuated)),
+    }
+
+
+def test_la_rumeur_et_l_autorite_ne_font_pas_la_meme_chose() -> None:
+    """Le gain d'accord et le dégât de décision viennent de la **rumeur**.
+
+    Mesuré (graine 1, scénario clivé, règles) : muet I1 0,63 / 0,00 de
+    décisions vers une porte crue bloquée ; gardes seuls 0,62 / 0,07 ; tout le
+    monde 0,70 / 0,38. Quatre gardes qui parlent ne construisent pas l'accord :
+    c'est le ouï-dire de tout un chacun qui le fait — et qui dégrade.
+    """
+    none = _mode_stats("none", 0)
+    guards = _mode_stats("guards", 4)
+    all_ = _mode_stats("all", 4)
+
+    assert none["messages"] == 0.0
+    assert 0.0 < guards["messages"] < all_["messages"] / 5   # l'autorité parle peu
+    assert all_["I1"] > guards["I1"]                          # l'accord vient de la rumeur
+    assert all_["crue_bloquee"] > guards["crue_bloquee"]      # et le dégât aussi
+    assert none["evacuated"] == all_["evacuated"] == 60.0
