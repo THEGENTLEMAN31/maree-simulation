@@ -595,18 +595,31 @@ moteur.
   `make graph`, `make graph-update`, `make graph-query Q="..."`.
   Configuration : `.graphifyrc`, `.graphifyignore`. Sortie
   `graphify-out/` ignorée par Git. Détails : `docs/v3/graphify.md`.
-- **Le plan de la v3 vit dans `docs/v3/`** : mission, architecture,
-  comportement, monde et rendu, agents et LLM, feu, données/API,
-  feuille de route, ADR. Toute décision structurante doit y être
-  consignée avant d'être implémentée.
+- **La v3 est l'état courant du dépôt** (la v2 tient au tag `v0-prototype`).
+  Ordre de lecture pour reprendre, du plus utile au plus ancien :
+  1. `docs/v3/HANDOFF.md` — où en est le projet, commandes, chiffres, ouvert ;
+  2. `AGENTS.md` (ce fichier, section « leçons v3 ») — les pièges payés ;
+  3. `docs/v3/rapport-v3.md` — résultats et limites (se lit seul) ;
+  4. `docs/v3/preregistrements.md` — les critères, écrits **avant** mesure ;
+  5. `docs/v3/decisions.md` — ADR 001–019, dont 014 à 019 pour la v3 ;
+  6. `docs/v3/plan-redressement.md` — le détail des chantiers C0–C7 et des portes ;
+  7. `docs/v3/plan-autonomie.md` — le journal des décisions prises seul ;
+  8. `docs/v3/README.md`, `plan-v3.md`, `architecture.md`, `comportement.md` —
+     la conception d'origine (historique, partiellement dépassée) ;
+  9. `docs/v3/resultats-c6.md` — les tableaux, régénérables par
+     `uv run python scripts/rapport_crowd.py`.
+- **Où sont les JSON de mesure** : `runs/v3/` (campagnes, sons, nulls,
+  archives sous `runs/v3/avant_correctif/` et `runs/v3/archive/`). Un chiffre
+  du rapport se régénère ; un JSON de campagne n'est jamais réécrit par une
+  campagne partielle.
 
 # ------------------------------------------------------------
 # v3 — leçons du redressement (2026-11-22)
 # ------------------------------------------------------------
 Le moteur v3 a été repris de fond en comble (chantiers C1–C7). Ce qui suit
 est ce qui a **coûté du temps**, pas ce qui est joli. Détails :
-`docs/v3/plan-redressement.md`, rapport : `docs/v3/rapport-v3.md`, ADR 014–018
-dans `docs/v3/decisions.md`.
+`docs/v3/plan-redressement.md`, rapport : `docs/v3/rapport-v3.md`, ADR 014–019
+dans `docs/v3/decisions.md`, état courant : `docs/v3/HANDOFF.md`.
 
 ### Instrumentation : ce qui mesurait faux
 

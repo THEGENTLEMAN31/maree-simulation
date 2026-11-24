@@ -1,23 +1,24 @@
 # HANDOFF — reprendre MARÉE v3 sans son auteur
 
-_Écrit le 2026-11-22. À lire avec `AGENTS.md` (les pièges) et
-`docs/v3/rapport-v3.md` (les résultats). Ce fichier dit **où l'on en est**,
-**comment rejouer chaque affirmation**, et **ce qui reste ouvert**._
+_Écrit le 2026-11-22, complété le 2026-11-24. À lire avec `AGENTS.md` (les
+pièges) et `docs/v3/rapport-v3.md` (les résultats). Ce fichier dit **où l'on en
+est**, **comment rejouer chaque affirmation**, et **ce qui reste ouvert**._
 
 ---
 
 ## 1. En trente secondes
 
 Simulation d'évacuation de foule : 60 agents, une salle calibrée, JuPedSim
-pour le corps, trois façons de décider (règles / modèle / hybride), un
-journal qui est la source de vérité. L'objet d'étude est **ce qu'un LLM
-apporte à une décision de foule**, mesuré, pas raconté.
+pour le corps, cinq façons de décider (règles / générateur grand / petit /
+hybride / classifieur System 1), un journal qui est la source de vérité.
+L'objet d'étude est **ce qu'un modèle apporte à une décision de foule**,
+mesuré, pas raconté.
 
-État : moteur réparé (C1–C7), campagne macro à 10 graines, cinquième bras
-ajouté (classifieur de décision). Le résultat central n'est pas « LLM ou
-règles » mais **quelle nature de modèle** : sur 10 graines, les décisions
-visant une porte crue bloquée tombent de **0,41** (règles) à **0,20** (Gemma 4
-E2B, générateur) et **0,03** (Kev-4B, classifieur) — p = 0,002, 10/10 graines.
+État : moteur réparé (C1–C7), campagne à 10 graines, cinquième bras ajouté.
+Le résultat central n'est pas « LLM ou règles » mais **quelle nature de
+modèle** : sur 10 graines, les décisions visant une porte crue bloquée tombent
+de **0,41** (règles) à **0,20** (Gemma 4 E2B, générateur) et **0,03** (Kev-4B,
+classifieur) — p = 0,002, 10/10 graines.
 
 ---
 
@@ -25,30 +26,62 @@ E2B, générateur) et **0,03** (Kev-4B, classifieur) — p = 0,002, 10/10 graine
 
 ```bash
 uv sync --all-extras
-uv run pytest                 # 411 tests, aucun GPU
+uv run pytest                 # 422 tests, aucun GPU
 make lint type                # ruff + mypy
 
-# les affirmations du rapport, une commande chacune (aucun GPU) :
+# les affirmations du rapport, une commande chacune (aucun GPU, ~1 min) :
 make v3-twins                 # mission n°1 : la mémoire fait diverger les jumeaux
 make v3-worlds                # cinq salles : le goulot tient-il ?
 make v3-denial                # H5 : un démenti tardif, qui atteint-il ?
+make v3-speech                # parole ou rumeur ? (none / guards / all)
 
-# campagnes (serveurs 8081 grand / 8082 petit requis) :
+# campagnes (serveurs requis, voir plus bas) :
 make v3-crowd                 # 4 bras × 2 scénarios × 5 graines (~1 h)
-make v3-crowd-null            # le null de B3 (sans émission)
+make v3-crowd-null            # le null de B3 (sans émission, sans LLM)
 make v3-tables                # régénère docs/v3/resultats-c6.md
+uv run python scripts/v3_stats.py runs/v3/campaign_crowd_10seeds.json
+uv run python scripts/v3_bands.py 1 2          # deux tiers + courbe ε
 ```
 
-Les serveurs locaux (RTX 3050, 4 Go) :
+### Les serveurs locaux (RTX 3050, 4 Go) — **toujours avec `setsid`**
+
+`nohup … &` seul se fait tuer par le nettoyage de groupe de processus du shell
+au bout de ~30 s, **en silence** (« cleaning up before exit » dans son
+journal). `setsid` est obligatoire.
 
 ```bash
-/mnt/data/llama.cpp/build/bin/llama-server \
-  --model /mnt/data/maree-models/gemma-4-E2B-it-Q4_K_M.gguf \
-  --alias gemma4-e2b --port 8081 --ctx-size 4096 --parallel 1 \
-  --n-gpu-layers 99 --flash-attn on --threads 4 --no-webui --jinja --reasoning off
+S=/mnt/data/llama.cpp/build/bin/llama-server
+M=/mnt/data/maree-models
+
+# grand (générateur) : 8081 — 1,9 Go
+setsid nohup $S --model $M/gemma-4-E2B-it-Q4_K_M.gguf --alias gemma4-e2b \
+  --port 8081 --ctx-size 4096 --parallel 1 --n-gpu-layers 99 --flash-attn on \
+  --threads 4 --no-webui --jinja --reasoning off >/tmp/llama_big.log 2>&1 </dev/null &
+
+# petit : 8082 — 0,4 Go
+setsid nohup $S --model $M/Qwen3-0.6B-Q4_K_M.gguf --alias qwen3-0-6b \
+  --port 8082 --ctx-size 2048 --parallel 1 --n-gpu-layers 99 --flash-attn on \
+  --threads 4 --no-webui --jinja --reasoning off >/tmp/llama_small.log 2>&1 </dev/null &
+
+# classifieur de décision (bras decision_head) : 8083 — 3,03 Go
+setsid nohup $S --model $M/Kev-4B-Q4_K_M.gguf --alias kev \
+  --port 8083 --ctx-size 1024 --parallel 1 --n-gpu-layers 16 \
+  --threads 4 --no-webui >/tmp/llama_kev.log 2>&1 </dev/null &
+
+# générateur plus gros (sonde seulement) : 8084 — 4,97 Go, 20 couches GPU + RAM
+setsid nohup $S --model $M/gemma-4-E4B-it-Q4_K_M.gguf --alias gemma4-e4b \
+  --port 8084 --ctx-size 2048 --parallel 1 --n-gpu-layers 20 \
+  --threads 6 --no-webui >/tmp/llama_e4b.log 2>&1 </dev/null &
 ```
 
-(même chose avec `Qwen3-0.6B-Q4_K_M.gguf --alias qwen3-0-6b --port 8082 --ctx-size 2048`.)
+La VRAM ne permet pas tout en même temps : 8081+8082 = 2,4 Go ; 8083 seul
+= 3,6 Go ; 8084 seul = 3,4 Go. **Arrêter un serveur avant d'en démarrer un
+autre**, par PID (`pgrep -af Kev-4B`, puis `kill <pid>`), jamais `pkill -f`
+avec un motif large : il tue aussi le shell qui l'exécute. Le port 8080
+appartient à `llama-stack.service` — ne pas y toucher.
+
+Variables lues par le code : `MAREE_LLM_URL` (8081), `MAREE_LLM_SMALL_URL`
+(8082), `MAREE_HEAD_URL` (8083), `MAREE_HEAD_MODEL` (`kev`).
 
 ---
 
@@ -56,13 +89,15 @@ Les serveurs locaux (RTX 3050, 4 Go) :
 
 | quoi | où |
 |---|---|
-| le journal, les runs, les JSON de campagne | `runs/v3/` (archives : `runs/v3/avant_correctif/`) |
-| le moteur | `src/maree/v3/` — `sim/` (orchestrateur, scène, physique), `agents/` (perception, calendrier, politiques, parole), `verify/` (mesure) |
+| le journal, les runs, les JSON de campagne | `runs/v3/` (archives : `avant_correctif/`, `archive/`) |
+| le moteur | `src/maree/v3/` — `sim/` (orchestrateur, scène, physique), `agents/` (perception, calendrier, politiques, parole, policy_head), `verify/` (mesure) |
 | les mondes de mesure | `world.generate.preset` (`crowd_hall`), `verify/worlds.py` (famille) |
-| les scénarios | `verify/scenario_blocked.py` (micro), `verify/scenario_crowd.py` (foule, 5 variantes) |
+| les scénarios | `verify/scenario_blocked.py` (micro), `verify/scenario_crowd.py` (foule : plain, split, contradiction, closure, denial, two_tier) |
 | les tables du rapport | `docs/v3/resultats-c6.md`, régénérables par `scripts/rapport_crowd.py` |
-| les décisions | `docs/v3/decisions.md` (ADR-014 → 018) |
-| le plan de travail autonome | `docs/v3/plan-autonomie.md` (phases, portes, journal) |
+| les décisions | `docs/v3/decisions.md` (ADR-014 → 019) |
+| le protocole et les critères | `docs/v3/preregistrements.md` |
+| le journal des décisions prises seul | `docs/v3/plan-autonomie.md` |
+| le brouillon d'article | `docs/v3/article-v3.md` (non publié) |
 
 ---
 
@@ -88,17 +123,20 @@ Les serveurs locaux (RTX 3050, 4 Go) :
 
 ## 5. Ce qui reste ouvert
 
-- **Généralisation hors des petits modèles** : la conclusion négative vaut
-  pour gemma-4-E2B / qwen3-0.6B. Un modèle plus gros (E4B est téléchargé,
-  4,97 Go) demande une expérience bornée en RAM.
-- **Bras `decision_head`** : implémenté (Kev-4B sur `/v1/systemone`, port
-  8083, `MAREE_HEAD_URL`). Reste : un modèle de décision plus gros, et la
-  même mesure avec un état d'entrée plus riche (les options sont aujourd'hui
-  « rester » + une sortie par sortie connue).
-- **Deux tiers en foule** et **courbe ε** : préparés, pas mesurés.
-- **Énergie** : chiffres v2, non remesurés après refonte.
-- **Godot et les assets** : chantier volontairement non ouvert (travail
-  visuel à faire à deux, avec des assets téléchargés).
+- **Énergie** : chiffres v2, non remesurés après refonte (script
+  `scripts/v3_energy.py`, jamais relancé).
+- **Ablation des critères d'escalade** : on sait que l'hybride escalade
+  ~200 fois par run, pas quel critère porte quoi.
+- **Modèle de frontière** : la sonde E4B (`runs/v3/big_model_probe.json`)
+  montre qu'on ne peut pas acheter le jugement avec des paramètres sur ce
+  dispositif ; la question reste ouverte pour un 30 B+.
+- **Cadence du générateur** : il décide 4× plus souvent que les règles et perd
+  sur le total. Un bras « générateur contraint à la cadence des règles »
+  trancherait si le problème est le calendrier ou la lecture.
+- **Godot et les assets** : chantier volontairement non ouvert (à faire à
+  deux, avec des assets téléchargés).
+- **Géographie statique** : un message ne fait pas apprendre une sortie
+  inconnue (garde C3, choix assumé).
 
 ---
 

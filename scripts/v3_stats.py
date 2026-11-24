@@ -27,9 +27,12 @@ from pathlib import Path
 
 from scipy.stats import wilcoxon
 
+#: Les campagnes comparables entre elles (même code, mêmes graines).
 DEFAULT = (
-    Path("runs/v3/campaign_crowd.json"),
+    Path("runs/v3/campaign_crowd_10seeds.json"),
     Path("runs/v3/campaign_crowd_silence.json"),
+    Path("runs/v3/campaign_decision_head.json"),
+    Path("runs/v3/campaign_regles.json"),
 )
 METRIC = "targeted_believed_blocked"
 

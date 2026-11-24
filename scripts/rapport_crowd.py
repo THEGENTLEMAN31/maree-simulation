@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Rend runs/v3/campaign_crowd.json en tables markdown (C6).
+"""Rend runs/v3/campaign_crowd_10seeds.json en tables markdown.
 
 Usage : uv run python scripts/rapport_crowd.py [chemin.json]
 Sortie : docs/v3/resultats-c6.md (remplacé), et le tableau sur stdout.

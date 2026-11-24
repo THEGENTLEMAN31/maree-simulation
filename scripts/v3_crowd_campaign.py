@@ -4,7 +4,8 @@
 Usage : uv run python scripts/v3_crowd_campaign.py [graines...]
 Prérequis : serveurs 8081 (grand) et 8082 (petit).
 
-Sortie : runs/v3/campaign_crowd.json (runs + agrégat), et un tableau lisible.
+Sortie : runs/v3/campaign_crowd.json (campagne complète) ou
+`campaign_<bras>.json` (sélection `--arms=`), plus un tableau lisible.
 Aucune moyenne ne cache un run : médianes **et** intervalles observés.
 """
 

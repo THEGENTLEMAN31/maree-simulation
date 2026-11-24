@@ -312,10 +312,10 @@ make v3-twins v3-worlds v3-denial v3-speech   # aucun GPU
 make v3-crowd                        # 4 bras × 2 scénarios (serveurs requis)
 make v3-crowd-null                   # le null de B3
 make v3-tables                       # les tableaux de ce rapport
-uv run python scripts/v3_stats.py runs/v3/campaign_crowd.json   # tests appariés
+uv run python scripts/v3_stats.py runs/v3/campaign_crowd_10seeds.json  # tests appariés
 ```
 
-Archives : `runs/v3/campaign_crowd.json` (campagne 10 graines),
+Archives : `runs/v3/campaign_crowd_10seeds.json` (campagne 10 graines, 80 runs),
 `campaign_crowd_10seeds_from_log.json` (reconstruit après un écrasement
 accidentel ; le champ « croyance au moment de décider » y est absent, ses
 valeurs par bras sont dans `stats.json`), `twins.json`,

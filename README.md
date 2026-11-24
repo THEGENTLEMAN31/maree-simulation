@@ -1,3 +1,12 @@
+> **État au 2026-11-24 — ce dépôt contient deux projets.**
+> La **v3** est l'état courant : monde généré, perception, calendrier par
+> faits du monde, cinq bras de décision, mesures rejouables.
+> **Pour reprendre : `docs/v3/HANDOFF.md`** (état, commandes, chiffres,
+> ce qui reste ouvert), puis `docs/v3/rapport-v3.md` (résultats) et
+> `AGENTS.md` (les pièges à ne pas repayer).
+> Les chiffres ci-dessous (JuPedSim 0,06 s, « 2,8 s par décision ») sont ceux
+> de la **v2** : ils ne décrivent plus le moteur courant.
+
 # MARÉE — foule et évacuation interprétative
 
 > Monde 02 · Fête des Lanternes de Port-Aubel · esplanade du quai, 60 × 40 m.

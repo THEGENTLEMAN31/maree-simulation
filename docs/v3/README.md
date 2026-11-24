@@ -1,6 +1,13 @@
-# MARÉE v3 — plan de conception
+# MARÉE v3 — plan de conception (document historique)
 
-_Statut : proposition de conception, à valider avant implémentation._
+> **Ne pas suivre ce plan comme s'il était l'état du projet.** Écrit le
+> 2026-11-04, avant l'implémentation, il a été corrigé en profondeur par les
+> chantiers C1–C7 (`docs/v3/plan-redressement.md`) et les ADR 014–019.
+> **L'état courant est dans `docs/v3/HANDOFF.md` et les résultats dans
+> `docs/v3/rapport-v3.md`.** Ce fichier reste utile pour la conception
+> d'origine (mission, couches, protocole).
+
+_Statut : proposition de conception initiale, partiellement réalisée._
 _Date : 2026-11-04._
 _Périmètre : 12 semaines, puis v3.1._
 

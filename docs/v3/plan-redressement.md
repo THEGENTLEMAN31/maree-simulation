@@ -397,7 +397,7 @@ un résultat (la foule absorbe le biais individuel) et il se publie.
 **État 2026-11-18 : fait et mesuré.** 40 runs (4 bras × 2 scénarios ×
 5 graines), **7 388 appels / 7 388 succès, 0 repli**, 60/60 sortis dans
 **40 runs sur 40**. Tables complètes : `docs/v3/resultats-c6.md`
-(reproduit par `scripts/rapport_crowd.py` depuis `runs/v3/campaign_crowd.json`).
+(reproduit par `scripts/rapport_crowd.py` depuis `runs/v3/campaign_crowd_10seeds.json`).
 
 Ce que la foule dit, en trois lignes :
 
@@ -546,3 +546,19 @@ Ordre de grandeur : **C0–C3 ≈ 5 j**, **C4–C5 ≈ 3,5 j**, **C6 ≈ 2 j**,
 Mesure de contrôle C1 (hall_3, 60 agents, 10 ticks sans décision) :
 déplacement maximal **0,10 m** — les agents tiennent leur position au lieu de
 marcher vers le coin.
+
+---
+
+## 10. Où en est le projet, au 2026-11-24
+
+Les chantiers C0–C7 sont clos, les portes G1 et G2 franchies, et la vague
+d'autonomie (P0–P5, voir `docs/v3/plan-autonomie.md`) a produit ce qui
+manquait : la mission n°1 mesurée, un compteur de croyance non ambigu, dix
+graines avec tests appariés, cinq salles, la fermeture d'issue, le démenti
+tardif, la séparation parole/rumeur, un cinquième bras (classifieur de
+décision) et le contrat client.
+
+**Le rapport de référence est `docs/v3/rapport-v3.md` (2ᵉ édition)** ; ce
+document-ci garde le détail des chantiers et des portes. Résultat central :
+`regles` 0,41 / `hybride` 0,26 / `llm_grand` 0,20 / `decision_head` 0,03 de
+décisions vers une porte crue bloquée (p = 0,002, 10/10 graines).
