@@ -20,6 +20,13 @@ rejouable de bout en bout.
 
 ## 2. Pièges d'environnement (tous rencontrés pour de vrai)
 
+> **Cette section décrit l'environnement de la v2** (conteneur sur le port
+> 8080, `configs/llm/llamacpp.yaml`, preset 8192/4, Kafka). Les pièges restent
+> vrais — `hash()` salé, sorties JuPedSim, determinisme — mais **la v3 ne
+> tourne pas dans ce conteneur** : elle utilise des serveurs natifs sur
+> 8081/8082/8083, voir `docs/v3/HANDOFF.md` §2. Ne pas monter le compose v2
+> pour faire tourner une campagne v3.
+
 ### Python
 
 - **`hash()` est salé par processus** (`PYTHONHASHSEED`). Deux runs
@@ -706,4 +713,6 @@ dans `docs/v3/decisions.md`, état courant : `docs/v3/HANDOFF.md`.
 - **Un JSON de campagne est un artefact, pas un brouillon.** Une campagne
   filtrée (`--arms=…`) a écrasé 60 runs. Les scripts écrivent désormais un
   fichier par sélection d'armes ; ne jamais faire tourner deux campagnes qui
-  écrivent le même chemin.
+  écrivent le même chemin. **Corollaire** : si l'artefact est perdu, le
+  rapport doit porter la note (†) et `tests/v3/test_docs.py` la garde ; ne pas
+  « nettoyer » la note sans relancer la mesure (`make v3-crowd-10`).

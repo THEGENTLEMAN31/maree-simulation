@@ -84,7 +84,7 @@ condition n'est pas tenue.
 - **P0.4** Rejouer la **mission n°1** : jumeaux à mémoire contrôlée sur le
   monde calibré, divergence mesurée (KL + accord + première décision).
 - **Porte A** : mission n°1 a un chiffre reproductible ; le compteur de
-  croyance est non ambigu ; 397+ tests verts.
+  croyance est non ambigu ; 422 tests verts.
 
 ### Phase 1 — Solidité statistique · porte B
 
@@ -167,7 +167,7 @@ condition n'est pas tenue.
 | 2026-11-22 | Bras `decision_head` implémenté avec **Kev-4B** (3,03 Go, Apache 2.0) sur `/v1/systemone` | llama.cpp ≥ 2026-10-02 expose l'endpoint ; OpenJev 27B (19 Go) dépasse la carte ; Kev tourne seul sur 4 Go et même sur CPU à 1,3 s/décision | banc bloqué 1,00 sur 3 graines, 0 décision vers une porte crue bloquée (ADR-019) |
 | 2026-11-22 | L'état donné au head nomme la fumée comme **danger** | à état identique, « Fumée visible » le laisse sur RESTER (0,42) et « Danger : » le fait sortir (0,41) | consigné : un System 1 classe, il ne raisonne pas |
 | 2026-11-22 | Trois modes de parole (`all` / `guards` / `none`) plutôt qu'un booléen | séparer « l'autorité informe » de « tout le monde raconte » | c'est la rumeur : I1 0,63 / 0,62 / 0,70 et décisions bloquées 0,00 / 0,07 / 0,38 |
-| 2026-11-22 | La métrique principale devient **la croyance au moment de décider**, pas la porte désignée à t1 | l'ancienne métrique inversait la conclusion : le générateur paraissait pire que les règles alors qu'il est deux fois meilleur par décision | 0,41 / 0,26 / 0,20 / 0,03 pour règles / hybride / générateur / classifieur (p = 0,002, 10/10) |
+| 2026-11-22 | La métrique principale devient **la croyance au moment de décider**, pas la porte désignée à t1 | l'ancienne métrique inversait la conclusion : le générateur paraissait pire que les règles alors qu'il est deux fois meilleur par décision | 0,41 / 0,26 / 0,20 / 0,03 pour règles / hybride / générateur / classifieur (p = 0,002, 10/10). Les runs hybride/générateur ont ensuite été écrasés : valeurs conservées, artefact à régénérer par `make v3-crowd-10` (note † du rapport) |
 | 2026-11-22 | Un cinquième bras, `decision_head` (classifieur), est ajouté au protocole | la question « LLM ou règles » était mal posée : la nature de la tâche compte plus que la taille | il gagne sur les deux compteurs pour 30 % du coût du générateur |
 | 2026-11-22 | Le tiering est mesuré en foule, pas décrit | c'était l'argument de sobriété du projet, jamais vérifié | il est **meilleur** (0,10/0,06) et moins cher que le grand seul |
 

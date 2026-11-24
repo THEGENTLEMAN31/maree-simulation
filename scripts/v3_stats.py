@@ -34,7 +34,9 @@ DEFAULT = (
     Path("runs/v3/campaign_decision_head.json"),
     Path("runs/v3/campaign_regles.json"),
 )
+#: Métrique principale par défaut ; ``--metric=designated`` pour l'ancienne.
 METRIC = "targeted_believed_blocked"
+ALTERNATE = "targeted_blocked"
 
 
 def load(paths: list[Path]) -> dict[tuple[str, str, int], dict[str, object]]:
@@ -69,9 +71,13 @@ def paired(
     draws: int = 10_000,
     seed: int = 7,
 ) -> dict[str, object] | None:
+    def usable(arm: str, sc: str, seed: int) -> bool:
+        run = runs.get((arm, sc, seed))
+        return run is not None and run.get(METRIC) is not None
+
     seeds = sorted(
-        s for (arm, sc, s) in runs if arm == left and sc == scenario
-        and (right, scenario, s) in runs
+        s for (arm, sc, s) in runs
+        if arm == left and sc == scenario and usable(left, sc, s) and usable(right, sc, s)
     )
     if len(seeds) < 3:
         return None
@@ -112,14 +118,22 @@ def paired(
 
 
 def main() -> int:
-    paths = [Path(a) for a in sys.argv[1:]] or list(DEFAULT)
+    global METRIC
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    for arg in sys.argv[1:]:
+        if arg.startswith("--metric="):
+            choice = arg.split("=", 1)[1]
+            METRIC = {"belief": "targeted_believed_blocked",
+                      "designated": ALTERNATE}[choice]
+    paths = [Path(a) for a in args] or list(DEFAULT)
     runs = load(paths)
     if not runs:
         print("aucun run lisible dans", [str(p) for p in paths])
         return 1
     arms = sorted({arm for (arm, _sc, _s) in runs})
     scenarios = sorted({sc for (_a, sc, _s) in runs})
-    print(f"{len(runs)} runs, bras {arms}, scénarios {scenarios}\n")
+    print(f"{len(runs)} runs, bras {arms}, scénarios {scenarios}")
+    print(f"métrique : {METRIC}\n")
 
     pairs = [
         ("llm_grand", "regles"),

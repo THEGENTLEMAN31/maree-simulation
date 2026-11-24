@@ -32,5 +32,6 @@ Chaque ligne est la **médiane** des runs du bras ; `[min–max]` donne l'interv
 
 - I6 n'apparaît pas : aucune porte ne ferme dans ce scénario, donc I6 vaut 0 **par construction**.
 - Les temps absolus ne sont pas des temps de terrain : ce modèle passe ≈3,2 pers/(m·s) par mètre de porte contre ≈1,3 en littérature (ADR-015). Les comparaisons entre bras, elles, tiennent.
+- `hybride` et `llm_grand` portent `—` pour la croyance : leur campagne P1.1 a été écrasée avant fusion (note † du rapport). `make v3-crowd-10` les régénère.
 - Une « cible résolue par le moteur » n'est pas une réussite du modèle : le tier petit dit « sortir » sans nommer la porte, et le moteur choisit parmi les sorties connues et non crues bloquées.
 

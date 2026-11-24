@@ -144,6 +144,9 @@ par graine) :
 | `decision_head` (Kev-4B) | **0,03 [−0,41 ; −0,35]** | **18** | 100 k | 233 s |
 
 p = 0,002 pour les trois écarts, 10 graines sur 10 dans le même sens.
+Les deux lignes intermédiaires (`hybride`, `llm_grand`) viennent de la
+campagne P1.1 ; leur fichier par run a été écrasé depuis, donc elles ne se
+régénèrent qu'en relançant ces deux bras (note † du rapport).
 
 Le **tiering** (40 visiteurs sur le petit, 20 habitués sur le grand) est encore
 meilleur et moins cher que le grand seul : 0,10 et 0,06 sur deux graines, pour

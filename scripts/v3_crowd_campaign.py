@@ -4,8 +4,9 @@
 Usage : uv run python scripts/v3_crowd_campaign.py [graines...]
 Prérequis : serveurs 8081 (grand) et 8082 (petit).
 
-Sortie : runs/v3/campaign_crowd.json (campagne complète) ou
-`campaign_<bras>.json` (sélection `--arms=`), plus un tableau lisible.
+Sortie : runs/v3/campaign_crowd.json (campagne complète), le fichier donné
+par `--out=CHEMIN` (nom simple : dans runs/v3/), ou `campaign_<bras>.json`
+(sélection `--arms=`), plus un tableau lisible.
 Aucune moyenne ne cache un run : médianes **et** intervalles observés.
 """
 
@@ -29,9 +30,12 @@ from maree.v3.verify.campaign_crowd import ARMS, aggregate  # noqa: E402
 ARGS = [a for a in sys.argv[1:]]
 SILENT = "--silent" in ARGS
 ARMS_FILTER = None
+OUT_OVERRIDE = None
 for arg in ARGS:
     if arg.startswith("--arms="):
         ARMS_FILTER = tuple(arg.split("=", 1)[1].split(","))
+    if arg.startswith("--out="):
+        OUT_OVERRIDE = arg.split("=", 1)[1]
 SEEDS = tuple(int(a) for a in ARGS if a.isdigit()) or (1, 2, 3, 4, 5)
 SCENARIOS = ("split", "contradiction")
 SELECTED = tuple(a for a in ARMS if ARMS_FILTER is None or a.name in ARMS_FILTER)
@@ -39,7 +43,9 @@ SELECTED = tuple(a for a in ARMS if ARMS_FILTER is None or a.name in ARMS_FILTER
 #: sous-ensemble** : un run filtré (``--arms=``) écrit son propre fichier.
 #: C'est une leçon payée le 2026-11-22 (une campagne `decision_head` a écrasé
 #: les 60 runs de la campagne 10 graines).
-if ARMS_FILTER is None:
+if OUT_OVERRIDE is not None:
+    OUT_NAME = OUT_OVERRIDE
+elif ARMS_FILTER is None:
     OUT_NAME = "campaign_crowd_silence.json" if SILENT else "campaign_crowd.json"
 else:
     suffix = "-".join(ARMS_FILTER)
@@ -89,9 +95,11 @@ def main() -> int:
             f"| esc={a['escalations']} replis={a['replis']}"
         )
 
-    out = Path("runs/v3")
-    out.mkdir(parents=True, exist_ok=True)
-    (out / OUT_NAME).write_text(
+    out_path = Path(OUT_NAME)
+    if out_path.parent == Path("."):
+        out_path = Path("runs/v3") / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
         json.dumps(
             {
                 "seeds": list(SEEDS),
@@ -104,7 +112,7 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
-    print(f"\nJSON : runs/v3/{OUT_NAME}")
+    print(f"\nJSON : {out_path}")
     return 0
 
 

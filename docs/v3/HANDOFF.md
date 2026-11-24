@@ -36,11 +36,15 @@ make v3-denial                # H5 : un démenti tardif, qui atteint-il ?
 make v3-speech                # parole ou rumeur ? (none / guards / all)
 
 # campagnes (serveurs requis, voir plus bas) :
-make v3-crowd                 # 4 bras × 2 scénarios × 5 graines (~1 h)
+make v3-crowd                 # bras chat (regles, hybride, grand, petit) × 2 scénarios × 5 graines
+make v3-crowd-head            # le classifieur seul (serveur 8083, seul sur la carte)
+make v3-crowd-10              # LA campagne publiée : 10 graines + fusion (~3 h)
 make v3-crowd-null            # le null de B3 (sans émission, sans LLM)
+make v3-merge ARGS="--out X.json A.json B.json"   # fusion de campagnes
 make v3-tables                # régénère docs/v3/resultats-c6.md
-uv run python scripts/v3_stats.py runs/v3/campaign_crowd_10seeds.json
+make v3-stats                 # Wilcoxon + bootstrap sur la campagne publiée
 uv run python scripts/v3_bands.py 1 2          # deux tiers + courbe ε
+make index                    # index RAG (uv run maree index)
 ```
 
 ### Les serveurs locaux (RTX 3050, 4 Go) — **toujours avec `setsid`**
@@ -108,6 +112,14 @@ Variables lues par le code : `MAREE_LLM_URL` (8081), `MAREE_LLM_SMALL_URL`
    (p = 0,002, 10/10). Fautes par run : 52 / 71 / 104 / **18**. Jetons :
    0 / 125 k / 337 k / 100 k.
 
+   ⚠ **Trou d'artefact connu** : les deux valeurs intermédiaires
+   (`hybride`, `llm_grand`) viennent de P1.1 ; leur JSON par run a été écrasé
+   le 2026-11-22 avant la fusion. Le fichier publié porte `—` pour leur
+   métrique de croyance, la mesure survit dans les tests appariés et dans le
+   rapport (note †). `make v3-crowd-10` (~3 h) les régénère — c'est le seul
+   chiffre du rapport qui n'a pas son run. `tests/v3/test_docs.py` garde la
+   note honnête.
+
 1. **Mission n°1** : deux jumeaux, même archétype, mémoires opposées →
    accord **0,00** (chacun prend sa porte) ; mémoire coupée → accord **1,00**.
    En foule : **1,00** des agents ignorent la porte qu'ils croient bloquée,
@@ -140,7 +152,28 @@ Variables lues par le code : `MAREE_LLM_URL` (8081), `MAREE_LLM_SMALL_URL`
 
 ---
 
-## 6. Trois règles à ne pas casser
+## 6. Glossaire (les codes qu'on croise dans les docs)
+
+| terme | sens |
+|---|---|
+| `C0`–`C7` | les chantiers du redressement (`plan-redressement.md`) |
+| `G1`, `G2` | les deux portes de contrôle à coût nul (calendrier, monde) |
+| `P0`–`P5` | les phases de la vague autonome (`plan-autonomie.md`) |
+| `A`–`F` | les campagnes pré-enregistrées (`preregistrements.md`) |
+| `I1`–`I7` | indicateurs de foule : consensus, entropie, évacués, horloge, densité (noyau 2 m), part croyant une porte fermée, délai depuis le premier danger |
+| `E_social` | consensus observé − consensus du **même monde sans information** (diffusion coupée), calculé entre deux runs |
+| `target_believed_blocked` | la métrique principale : la cible de la décision était crue bloquée **au moment de décider** |
+| `target_least_bad` | la cible a été prise faute de mieux (toutes les portes crues bloquées) |
+| `target_resolved` | la cible a été choisie par le **moteur**, pas par le modèle (petit tier) |
+| `decision_head` | bras « classifieur System 1 » : probabilité par option sur un ensemble fermé, sans génération |
+| `System 1` / `System 2` | décision rapide par classification / raisonnement lent par génération |
+| front | un signal **nouveau** (fumée, annonce, message, fermeture) : ce qui déclenche une reconsidération |
+| niveau | un signal qui persiste (la fumée reste visible) : ne redéclenche rien |
+| `H5` | hypothèse « un démenti corrige la croyance, pas l'action engagée » — falsifiée |
+
+---
+
+## 7. Trois règles à ne pas casser
 
 1. **Le journal est la source de vérité.** Rien n'existe s'il n'est pas
    journalisé, y compris ce qui a été décidé de ne pas faire.

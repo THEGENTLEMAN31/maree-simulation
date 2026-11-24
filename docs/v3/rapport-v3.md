@@ -82,7 +82,24 @@ seulement des récits ; les proches (`famille`) sont appariés au spawn à
 
 ---
 
-## 5. Résultats en foule (10 graines, 60 runs)
+## 5. Résultats en foule (10 graines, 80 runs)
+
+> **Provenance.** `regles` et `decision_head` : médianes de
+> `runs/v3/campaign_crowd_10seeds.json` (80 runs : 4 bras × 2 scénarios ×
+> 10 graines), reproduit par `make v3-crowd-10` puis `make v3-merge`. Tests
+> appariés : `runs/v3/stats.json` (`make v3-stats`). La version **générée**
+> des tableaux est `docs/v3/resultats-c6.md` (`make v3-tables`) ; si les deux
+> divergent, c'est ce chapitre qui est à refaire.
+>
+> **† `hybride` et `llm_grand` : artefact per-run perdu.** Ces deux bras ont
+> été mesurés à 10 graines le 2026-11-22 (P1.1), puis leur JSON a été écrasé
+> par une campagne partielle avant la fusion — l'incident qui a motivé
+> `scripts/v3_merge_campaigns.py`. Les médianes, écarts et p-valeurs
+> ci-dessous sont ceux du test apparié exécuté sur ces runs ; le fichier
+> publié porte `—` pour leur métrique de croyance. `make v3-crowd-10`
+> (~3 h, serveurs requis) est la seule façon de la régénérer.
+> `tests/v3/test_docs.py` vérifie que cette note disparaît si l'artefact est
+> un jour complet.
 
 ### 5.1 Décisions vers une porte crue bloquée
 
@@ -92,8 +109,8 @@ apparié par graine, IC95 bootstrap) :
 | bras | `split` | `contradiction` | écart vs `regles` |
 |---|---|---|---|
 | `regles` | **0,41** | **0,40** | — |
-| `hybride` | **0,26** | **0,20** | −0,15 [−0,18 ; −0,12] / −0,20 [−0,22 ; −0,17], p = 0,002 (10/10) |
-| `llm_grand` | **0,20** | **0,20** | −0,20 [−0,24 ; −0,16], p = 0,002 (10/10) |
+| `hybride` † | **0,26** | **0,20** | −0,15 [−0,18 ; −0,12] / −0,20 [−0,22 ; −0,17], p = 0,002 (10/10) |
+| `llm_grand` † | **0,20** | **0,20** | −0,20 [−0,24 ; −0,16], p = 0,002 (10/10) |
 | `decision_head` | **0,03** | **0,04** | −0,38 [−0,41 ; −0,35], p = 0,002 (10/10) |
 
 **Le modèle fait bien quelque chose.** Il divise par deux la part de
@@ -107,8 +124,8 @@ C'est la nuance que la première édition ratait, et elle change la lecture :
 | bras | décisions / run (split) | part crue bloquée | **décisions fautives / run** | jetons |
 |---|---|---|---|---|
 | `regles` | 126 | 0,41 | **52** | 0 |
-| `hybride` | 272 | 0,26 | **71** | 125 k |
-| `llm_grand` | 520 | 0,20 | **104** | 337 k |
+| `hybride` † | 272 | 0,26 | **71** | 125 k |
+| `llm_grand` † | 520 | 0,20 | **104** | 337 k |
 | `decision_head` | 563 | 0,03 | **18** | 100 k |
 
 Par décision, le générateur est deux fois meilleur que les règles. **Par run,
@@ -123,7 +140,8 @@ décision *et* par run. C'est le seul bras qui gagne sur les deux compteurs.
 
 `hybride` −0,15/−0,20 (p = 0,002) pour **125 k jetons** contre **337 k** au
 grand : à qualité comparable sur `contradiction` (0,20 vs 0,20, p = 0,92), il
-coûte 2,7× moins. Sur `split`, le grand reste devant d'un petit écart
+coûte 2,7× moins. *(Chiffres de P1.1, voir † : le fichier par run a été
+perdu, pas la mesure.)* Sur `split`, le grand reste devant d'un petit écart
 (−0,06 [−0,07 ; −0,04], p = 0,004, 9 graines sur 10).
 
 ### 5.4 Ce que le compteur ambigu cachait
@@ -276,7 +294,7 @@ décisions vers une porte crue bloquée de 0,00 à 0,24.
   critère nommé, bornée) ;
 - la fermeture perçue localement et le réacheminement ;
 - le null exécuté, à code identique ;
-- 418 tests, ruff et mypy propres, contrat WS de bout en bout.
+- 422 tests, ruff et mypy propres, contrat WS de bout en bout.
 
 ### Ne tient pas (et est publié comme tel)
 
@@ -300,14 +318,17 @@ décisions vers une porte crue bloquée de 0,00 à 0,24.
 - I6 comme indicateur général : il ne bouge que si une porte ferme ;
 - une reproductibilité LLM exacte : on agrège des graines, on n'apparie pas
   deux runs ;
-- une calibration humaine : c'est un jugement, pas une mesure.
+- une calibration humaine : c'est un jugement, pas une mesure ;
+- un artefact complet : les runs `hybride` et `llm_grand` de P1.1 ont été
+  écrasés avant fusion (note †). Les valeurs survivent dans les tests
+  appariés, pas les runs ; `make v3-crowd-10` les régénère.
 
 ---
 
 ## 8. Reproduire
 
 ```bash
-uv run pytest                        # 418 tests, sans GPU
+uv run pytest                        # 422 tests, sans GPU
 make v3-twins v3-worlds v3-denial v3-speech   # aucun GPU
 make v3-crowd                        # 4 bras × 2 scénarios (serveurs requis)
 make v3-crowd-null                   # le null de B3

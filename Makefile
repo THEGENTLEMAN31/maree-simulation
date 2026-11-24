@@ -173,17 +173,52 @@ v3-denial:  ## P2.2 / H5 : un démenti tardif, qui atteint-il ? (aucun GPU)
 v3-speech:  ## P3.3 : parole ou rumeur ? (aucun GPU)
 	uv run python scripts/v3_speech.py 1 2 3 4 5
 
-v3-crowd:  ## campagne macro (serveurs 8081/8082 requis)
+# Les serveurs de chat (8081+8082 = 2,4 Go) et le classifieur (8083 = 3,6 Go)
+# ne tiennent pas ensemble sur 4 Go : deux cibles, deux moments.
+v3-crowd:  ## campagne des bras « chat » (serveurs 8081+8082)
 	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} \
 	MAREE_LLM_SMALL_URL=$${MAREE_LLM_SMALL_URL:-http://127.0.0.1:8082/v1} \
 	LANGCHAIN_TRACING_V2=false \
-		uv run python scripts/v3_crowd_campaign.py
+		uv run python scripts/v3_crowd_campaign.py \
+		--arms=regles,hybride,llm_grand,llm_petit
+
+v3-crowd-head:  ## campagne du classifieur System 1 (serveur 8083, seul sur la carte)
+	MAREE_HEAD_URL=$${MAREE_HEAD_URL:-http://127.0.0.1:8083} \
+	LANGCHAIN_TRACING_V2=false \
+		uv run python scripts/v3_crowd_campaign.py \
+		--arms=decision_head --out=runs/v3/campaign_decision_head.json
+
+# La campagne **publiée** : trois bras chat sur 10 graines, le classifieur sur
+# 10 graines, puis la fusion. Deux temps, un artefact.
+v3-crowd-10:  ## la campagne du rapport : 4 bras × 2 scénarios × 10 graines (~3 h)
+	MAREE_LLM_URL=$${MAREE_LLM_URL:-http://127.0.0.1:8081/v1} \
+	MAREE_LLM_SMALL_URL=$${MAREE_LLM_SMALL_URL:-http://127.0.0.1:8082/v1} \
+	LANGCHAIN_TRACING_V2=false \
+		uv run python scripts/v3_crowd_campaign.py \
+		--arms=regles,hybride,llm_grand \
+		--out=runs/v3/campaign_regles-hybride-llm_grand.json \
+		1 2 3 4 5 6 7 8 9 10
+	$(MAKE) v3-crowd-head
+	uv run python scripts/v3_merge_campaigns.py \
+		--out runs/v3/campaign_crowd_10seeds.json \
+		runs/v3/campaign_regles-hybride-llm_grand.json \
+		runs/v3/campaign_decision_head.json
+
+v3-merge:  ## fusionne des campagnes (args : --out FICHIER A.json B.json)
+	uv run python scripts/v3_merge_campaigns.py $(ARGS)
 
 v3-crowd-null:  ## le null de B3 : même monde, sans émission (aucun LLM requis)
 	uv run python scripts/v3_crowd_campaign.py --silent --arms=regles
 
 v3-tables:  ## régénère docs/v3/resultats-c6.md depuis les JSON
 	uv run python scripts/rapport_crowd.py
+
+v3-stats:  ## tests appariés (Wilcoxon + bootstrap) sur la campagne publiée
+	uv run python scripts/v3_stats.py runs/v3/campaign_crowd_10seeds.json \
+		runs/v3/campaign_crowd_silence.json
+
+index:  ## indexe le corpus RAG (maree index)
+	uv run maree index
 
 # ------------------------------------------------------------
 # Diagnostic
@@ -213,4 +248,4 @@ graph-html:  ## exporte le call-flow en HTML/Mermaid
 graph-query:  ## interroge le graphe (ex. make graph-query Q="...")
 	graphify query "$(Q)"
 
-.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence v3-blocked v3-serve v3-twins v3-worlds v3-denial v3-speech v3-crowd v3-crowd-null v3-tables kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query
+.PHONY: help install lock test test-all lint fmt type corpus pull-models up down logs topics run run-e2e smoke replay replay-demo serve godot experiments report report-v3 report-v3-bench v3-pipeline v3-llm-up v3-llm-down v3-replay-demo v3-divergence v3-blocked v3-serve v3-twins v3-worlds v3-denial v3-speech v3-crowd v3-crowd-head v3-crowd-10 v3-merge v3-crowd-null v3-tables v3-stats index kafka-up kafka-down kafka-topics spike vram graph graph-update graph-report graph-html graph-query

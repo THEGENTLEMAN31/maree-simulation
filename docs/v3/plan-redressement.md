@@ -561,4 +561,6 @@ décision) et le contrat client.
 **Le rapport de référence est `docs/v3/rapport-v3.md` (2ᵉ édition)** ; ce
 document-ci garde le détail des chantiers et des portes. Résultat central :
 `regles` 0,41 / `hybride` 0,26 / `llm_grand` 0,20 / `decision_head` 0,03 de
-décisions vers une porte crue bloquée (p = 0,002, 10/10 graines).
+décisions vers une porte crue bloquée (p = 0,002, 10/10 graines). Les deux
+valeurs intermédiaires viennent d'un artefact per-run écrasé le 22 nov. (note
+† du rapport) : la mesure tient, le fichier est à régénérer.

@@ -97,6 +97,11 @@ générer de texte ?
 fermées `RESTER` + `SORTIR <sortie>`. Comparé aux règles et au grand sur le
 même monde et les mêmes graines.
 
+**Dispositif.** Kev-4B sur `/v1/systemone`, port 8083, **10 graines**, deux
+scénarios (`split`, `contradiction`), mêmes graines que la campagne A ; les
+règles sont relancées sur les mêmes graines pour l'appariement (elles coûtent
+0,3 s par run).
+
 **Critère principal.** Part des décisions vers une porte crue bloquée
 (`target_believed_blocked`), plus le coût (jetons, appels, temps).
 
@@ -107,6 +112,19 @@ sur RESTER (0,42), « Danger : » le fait sortir (0,41). Ce n'est pas du réglag
 caché, c'est une propriété du modèle qu'on publie.
 
 ---
+
+### Exception consignée : le critère de robustesse du bras classifieur
+
+Le critère général de la campagne A exige « 60/60 sortis sur ≥ 9 graines ».
+Le bras `decision_head` **ne le tient pas** : 58 à 59 agents sortis sur 60 au
+plafond de 30 ticks. Ce n'est pas une censure du run (I3 vaut 1,00) mais deux
+agents encore dans la salle, parce que le classifieur hésite plus longtemps
+(I7 39–42 s contre 24 s pour les règles).
+
+Décision : **on publie l'écart et on le compte comme un coût du bras**, pas
+comme un critère déplacé. Conséquence pratique : un déploiement qui exige
+100 % de sortie dans un temps borné doit prévoir une revue de sécurité sur ce
+bras — c'est écrit dans le rapport (§5.7) et dans les limites.
 
 ## Campagne F — deux tiers et quota ε (P2.3 / P2.4)
 
