@@ -7,11 +7,16 @@ path: /home/jose/school/mondes_vivants/maree-simulation
 agent: build
 
 models:
+  # Plus de fournisseur `opencode` : son quota gratuit est journalier et
+  # s'épuise en milieu de journée, ce qui bloquait le pilote. Tout passe par
+  # OpenRouter, gratuit d'abord.
   free:
-    - opencode/big-pickle
     - openrouter/baidu/ernie-5.5-flash-preview:free
     - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+    - openrouter/nvidia/nemotron-3.5-lightning:free
   paid:
+    - openrouter/baidu/ernie-5.5-flash-preview:free
+    - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
     - openrouter/deepseek/deepseek-v4.1-flash-1017
     - openrouter/~z-ai/glm-flash-latest
 
