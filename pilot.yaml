@@ -9,13 +9,14 @@ agent: build
 models:
   free:
     - opencode/big-pickle
-    - opencode/deepseek-v4.1-flash-free
+    - openrouter/baidu/ernie-5.5-flash-preview:free
+    - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
   paid:
-    - openrouter/~z-ai/glm-flash-latest
     - openrouter/deepseek/deepseek-v4.1-flash-1017
+    - openrouter/~z-ai/glm-flash-latest
 
 limits:
-  paid_per_day: 4
+  paid_usd_per_day: 1.5
   task_timeout_min: 60
   max_attempts: 2
 
@@ -298,6 +299,8 @@ tasks:
         path: docs/visuel/ISO.md
       - type: shell
         cmd: "test $(ls docs/visuel/iso/*.png 2>/dev/null | wc -l) -ge 4"
+      - type: shell
+        cmd: ".venv/bin/python -c \"from maree.v3.world.loader import load; w=load('configs/world/mall_aubel.yaml'); assert len(w.levels)==2, w.levels\""
       - type: shell
         cmd: "grep -q 'isom' godot/project/scripts/main.gd"
       - type: artifact
