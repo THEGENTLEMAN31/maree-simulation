@@ -307,10 +307,17 @@ tasks:
       - type: shell
         cmd: ".venv/bin/python -c \"from maree.v3.world.loader import load; w=load('configs/world/mall_aubel.yaml'); assert len(w.levels)==2, w.levels\""
       - type: shell
-        cmd: "grep -q 'isom' godot/project/scripts/main.gd"
+        cmd: "grep -q 'isom\\|2:1\\|profondeur' godot/project/scripts/iso.gd"
+      - type: shell
+        cmd: "grep -q 'view=top' godot/project/scripts/iso.gd"
+      - type: shell
+        cmd: "test $(ls godot/project/assets/sprites_iso/*.png 2>/dev/null | wc -l) -ge 8"
       - type: artifact
         path: docs/visuel/ISO.md
         kind: md
         require: ["projection", "profondeur", "étage", "coût"]
-        min_images: 3
-        min_lines: 30
+        min_lines: 60
+      - type: shell
+        cmd: "test $(ls docs/visuel/iso/*.png 2>/dev/null | wc -l) -ge 4"
+      - type: shell
+        cmd: "grep -q 'iso/' docs/visuel/ISO.md"

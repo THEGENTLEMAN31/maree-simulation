@@ -100,6 +100,20 @@ godot:  ## lance le client de visualisation
 godot-test:  ## contrat d'affichage (D2/D3) sans serveur ni GPU
 	godot --headless --path godot/project --script res://tests/test_client.gd
 
+iso-sprites:  ## pré-rendu isométrique des glTF de M-04 -> sprites PNG
+	godot --headless --path godot/project --import
+	godot --path godot/project --rendering-driver opengl3 --script "$$PWD/tools/prerender_iso.gd"
+
+iso-world:  ## régénère la géométrie mall_aubel.json pour le client
+	uv run python tools/export_world_json.py
+
+iso-captures:  ## les 4 captures isométriques (mode démo, sans serveur)
+	mkdir -p docs/visuel/iso
+	MAREE_DEMO=1 MAREE_LEVEL=L0  MAREE_SMOKE=0 MAREE_CAPTURE_PATH=docs/visuel/iso/01_hall_rdc.png     MAREE_CAPTURE_W=1200 MAREE_CAPTURE_H=760 tools/capture.sh
+	MAREE_DEMO=1 MAREE_LEVEL=cut MAREE_SMOKE=0 MAREE_CAPTURE_PATH=docs/visuel/iso/02_atrium_coupe.png MAREE_CAPTURE_W=1200 MAREE_CAPTURE_H=760 tools/capture.sh
+	MAREE_DEMO=1 MAREE_LEVEL=L1  MAREE_SMOKE=0 MAREE_CAPTURE_PATH=docs/visuel/iso/03_galerie_etage.png MAREE_CAPTURE_W=1200 MAREE_CAPTURE_H=760 tools/capture.sh
+	MAREE_DEMO=1 MAREE_LEVEL=L0  MAREE_SMOKE=1 MAREE_CAPTURE_PATH=docs/visuel/iso/04_hall_fumee.png    MAREE_CAPTURE_W=1200 MAREE_CAPTURE_H=760 tools/capture.sh
+
 experiments:  ## protocole X1–X7 (par défaut X1, 3 graines)
 	uv run maree experiment --name x1 --seeds 3
 

@@ -43,13 +43,20 @@ func _initialize() -> void:
 	_target.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(_target)
 
-	var scene: PackedScene = load("res://scenes/main.tscn") as PackedScene
+	var scene_path := OS.get_environment("MAREE_SCENE")
+	if scene_path.is_empty():
+		# `--view=top` (ou MAREE_VIEW=top) capture l'ancien rendu 2D.
+		if OS.get_environment("MAREE_VIEW") == "top":
+			scene_path = "res://scenes/top.tscn"
+		else:
+			scene_path = "res://scenes/main.tscn"
+	var scene: PackedScene = load(scene_path) as PackedScene
 	if scene == null:
-		push_error("capture : res://scenes/main.tscn introuvable")
+		push_error("capture : %s introuvable" % scene_path)
 		quit(1)
 		return
 	_target.add_child(scene.instantiate())
-	print("capture : %dx%d · %d frames · %s" % [width, height, _needed, _path])
+	print("capture : %dx%d · %d frames · %s · %s" % [width, height, _needed, scene_path, _path])
 
 
 func _process(_delta: float) -> bool:
