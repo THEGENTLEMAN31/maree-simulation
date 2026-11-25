@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "generated": "2026-11-25",
+  "total_assets": 12,
+  "assets": [
+    {
+      "id": "concrete_floor_worn_001",
+      "path": "textures/concrete_floor_worn_001_diff_1k.jpg",
+      "files": [
+        "textures/concrete_floor_worn_001_diff_1k.jpg",
+        "textures/concrete_floor_worn_001_nor_gl_1k.jpg",
+        "textures/concrete_floor_worn_001_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Dimitrios Savva, Rico Cilliers",
+      "source": "https://polyhaven.com/a/concrete_floor_worn_001",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Sol du quai / dalle béton usée du port (diffuse, normal, ARM)"
+    },
+    {
+      "id": "wood_floor_deck",
+      "path": "textures/wood_floor_deck_diff_1k.jpg",
+      "files": [
+        "textures/wood_floor_deck_diff_1k.jpg",
+        "textures/wood_floor_deck_nor_gl_1k.jpg",
+        "textures/wood_floor_deck_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Dimitrios Savva",
+      "source": "https://polyhaven.com/a/wood_floor_deck",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Platelage bois du ponton / quai (diffuse, normal, ARM)"
+    },
+    {
+      "id": "rusty_metal_04",
+      "path": "textures/rusty_metal_04_diff_1k.jpg",
+      "files": [
+        "textures/rusty_metal_04_diff_1k.jpg",
+        "textures/rusty_metal_04_nor_gl_1k.jpg",
+        "textures/rusty_metal_04_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Amal Kumar",
+      "source": "https://polyhaven.com/a/rusty_metal_04",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Métal rouillé pour garde-corps, bornes et éléments industriels"
+    },
+    {
+      "id": "coast_sand_01",
+      "path": "textures/coast_sand_01_diff_1k.jpg",
+      "files": [
+        "textures/coast_sand_01_diff_1k.jpg",
+        "textures/coast_sand_01_nor_gl_1k.jpg",
+        "textures/coast_sand_01_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/coast_sand_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Sable côtier pour la zone rivage / abords du port"
+    },
+    {
+      "id": "corrugated_iron",
+      "path": "textures/corrugated_iron_diff_1k.jpg",
+      "files": [
+        "textures/corrugated_iron_diff_1k.jpg",
+        "textures/corrugated_iron_nor_gl_1k.jpg",
+        "textures/corrugated_iron_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Jenelle van Heerden, Dimitrios Savva",
+      "source": "https://polyhaven.com/a/corrugated_iron",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Tôle ondulée pour hangars / abris portuaires"
+    },
+    {
+      "id": "gravel_floor",
+      "path": "textures/gravel_floor_diff_1k.jpg",
+      "files": [
+        "textures/gravel_floor_diff_1k.jpg",
+        "textures/gravel_floor_nor_gl_1k.jpg",
+        "textures/gravel_floor_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Jenelle van Heerden, Matterfield",
+      "source": "https://polyhaven.com/a/gravel_floor",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Gravier pour zones de service et chemins du port"
+    },
+    {
+      "id": "wooden_crate_02",
+      "path": "models/wooden_crate_02_1k/wooden_crate_02_1k.gltf",
+      "files": [
+        "models/wooden_crate_02_1k/wooden_crate_02_1k.gltf",
+        "models/wooden_crate_02_1k/textures/wooden_crate_02_diff_1k.jpg",
+        "models/wooden_crate_02_1k/textures/wooden_crate_02_arm_1k.jpg",
+        "models/wooden_crate_02_1k/wooden_crate_02.bin",
+        "models/wooden_crate_02_1k/textures/wooden_crate_02_nor_gl_1k.jpg"
+      ],
+      "category": "models",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "James Ray Cock, Jurita Burger",
+      "source": "https://polyhaven.com/a/wooden_crate_02",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Caisse en bois (prop) pour zone de stockage du quai"
+    },
+    {
+      "id": "barrel_03",
+      "path": "models/barrel_03_1k/barrel_03_1k.gltf",
+      "files": [
+        "models/barrel_03_1k/barrel_03_1k.gltf",
+        "models/barrel_03_1k/textures/barrel_03_diff_1k.jpg",
+        "models/barrel_03_1k/barrel_03.bin",
+        "models/barrel_03_1k/textures/barrel_03_nor_gl_1k.jpg",
+        "models/barrel_03_1k/textures/barrel_03_arm_1k.jpg"
+      ],
+      "category": "models",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Serhii Khromov",
+      "source": "https://polyhaven.com/a/barrel_03",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Tonneau (prop) pour ambiance portuaire / stockage"
+    },
+    {
+      "id": "wooden_bucket_01",
+      "path": "models/wooden_bucket_01_1k/wooden_bucket_01_1k.gltf",
+      "files": [
+        "models/wooden_bucket_01_1k/wooden_bucket_01_1k.gltf",
+        "models/wooden_bucket_01_1k/textures/wooden_bucket_01_arm_1k.jpg",
+        "models/wooden_bucket_01_1k/wooden_bucket_01.bin",
+        "models/wooden_bucket_01_1k/textures/wooden_bucket_01_diff_1k.jpg",
+        "models/wooden_bucket_01_1k/textures/wooden_bucket_01_nor_gl_1k.jpg"
+      ],
+      "category": "models",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "James Ray Cock",
+      "source": "https://polyhaven.com/a/wooden_bucket_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Seau en bois (prop) pour petits détails de quai"
+    },
+    {
+      "id": "blue_metal_plate",
+      "path": "textures/blue_metal_plate_diff_1k.jpg",
+      "files": [
+        "textures/blue_metal_plate_diff_1k.jpg",
+        "textures/blue_metal_plate_nor_gl_1k.jpg",
+        "textures/blue_metal_plate_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/blue_metal_plate",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Plaque métallique peinte pour conteneurs / équipements portuaires"
+    },
+    {
+      "id": "wood_planks_grey",
+      "path": "textures/wood_planks_grey_diff_1k.jpg",
+      "files": [
+        "textures/wood_planks_grey_diff_1k.jpg",
+        "textures/wood_planks_grey_nor_gl_1k.jpg",
+        "textures/wood_planks_grey_arm_1k.jpg"
+      ],
+      "category": "textures",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/wood_planks_grey",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Planches bois grises pour caisses, barrières et mobilier extérieur"
+    },
+    {
+      "id": "street_lamp_01",
+      "path": "models/street_lamp_01_1k/street_lamp_01_1k.gltf",
+      "files": [
+        "models/street_lamp_01_1k/street_lamp_01_1k.gltf",
+        "models/street_lamp_01_1k/textures/street_lamp_01_arm_1k.jpg",
+        "models/street_lamp_01_1k/textures/street_lamp_01_diff_1k.jpg",
+        "models/street_lamp_01_1k/textures/street_lamp_01_nor_gl_1k.jpg",
+        "models/street_lamp_01_1k/street_lamp_01.bin"
+      ],
+      "category": "models",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Josh Dean",
+      "source": "https://polyhaven.com/a/street_lamp_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Lampadaire (prop) pour éclairage du quai / esplanade"
+    }
+  ]
+}

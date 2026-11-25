@@ -1,0 +1,74 @@
+{
+  "world": "configs/world/mall_aubel.yaml",
+  "world_hash": "cbb7dbdd368faf1b",
+  "note": "Simulation mono-étage (v3.0) : chaque run se déroule sur un niveau ; la circulation inter-niveaux attend le LevelCoordinator (v3.1, monde-et-rendu §7).",
+  "structure": {
+    "vertical_links": [
+      "ESC_NORD",
+      "ESC_SUD",
+      "ST_MAIN"
+    ],
+    "sans_liens_verticaux": [
+      "espace(s) ['S_HALL', 'S_PASSAGE'] inatteignable(s) depuis ['S_GALERIE_EST', 'S_GALERIE_OUEST'] (portails fermés ?)",
+      "espace(s) ['S_GALERIE_EST', 'S_GALERIE_OUEST'] inatteignable(s) depuis ['S_HALL', 'S_PASSAGE'] (portails fermés ?)"
+    ]
+  },
+  "runs": [
+    {
+      "run_id": "mall_l0_s1",
+      "level": "L0",
+      "seed": 1,
+      "n_agents": 20,
+      "ticks": 15,
+      "tick_seconds": 2.0,
+      "simulated_seconds": 30.0,
+      "decisions": 20,
+      "evacuated": 14,
+      "exit_usage": {
+        "A": 12
+      },
+      "summary": {
+        "I1_consensus": 1.0,
+        "I2_entropy": 0.6826,
+        "I3_evacuated": 0.7,
+        "I4_seconds": 30.0,
+        "I5_max_density": 0.159,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 28.0
+      },
+      "wall_s": 0.12,
+      "spaces_seen": [
+        "S_HALL",
+        "S_PASSAGE"
+      ]
+    },
+    {
+      "run_id": "mall_l1_s1",
+      "level": "L1",
+      "seed": 1,
+      "n_agents": 20,
+      "ticks": 15,
+      "tick_seconds": 2.0,
+      "simulated_seconds": 30.0,
+      "decisions": 20,
+      "evacuated": 9,
+      "exit_usage": {
+        "D": 9
+      },
+      "summary": {
+        "I1_consensus": 1.0,
+        "I2_entropy": 0.4307,
+        "I3_evacuated": 0.45,
+        "I4_seconds": 30.0,
+        "I5_max_density": 0.318,
+        "I6_belief_gap": 0.0,
+        "I7_delay_seconds": 28.0
+      },
+      "wall_s": 0.12,
+      "spaces_seen": [
+        "S_GALERIE_EST",
+        "S_GALERIE_OUEST"
+      ]
+    }
+  ]
+}

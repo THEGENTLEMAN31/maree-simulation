@@ -1,0 +1,308 @@
+# Profil du projet pour le pilote.
+# Backend terminé ; le travail restant est visuel (Godot) avec de vrais assets,
+# choisis et évalués, pas générés. Licence privilégiée : CC0, CC-BY accepté avec
+# attribution dans `CREDITS.md`.
+id: mondes-vivants
+path: /home/jose/school/mondes_vivants/maree-simulation
+agent: build
+
+models:
+  free:
+    - opencode/big-pickle
+    - opencode/deepseek-v4.1-flash-free
+  paid:
+    - openrouter/~z-ai/glm-flash-latest
+    - openrouter/deepseek/deepseek-v4.1-flash-1017
+
+limits:
+  paid_per_day: 4
+  task_timeout_min: 60
+  max_attempts: 2
+
+tasks:
+  # ------------------------------------------------------------ assets réels
+  - id: M-01
+    title: Première vague d'assets réels (CC0/CC-BY) avec manifeste et crédits
+    tier: free
+    brief: |
+      Lire `AGENTS.md`, `MARÉE — Cadrage du projet.md` (hors dépôt, dans
+      `/home/jose/school/mondes_vivants/`) et `godot/project/scenes/main.tscn`
+      pour comprendre ce que la scène affiche aujourd'hui.
+
+      Objectif : constituer une première vague d'assets **réels**, téléchargés
+      depuis des sources à licence claire. Aucune génération d'image.
+
+      Sources acceptées, dans cet ordre de préférence :
+      - CC0 : Poly Haven (textures, HDRI, modèles), Kenney (kits 3D et UI),
+        ambientCG (matériaux) ;
+      - CC-BY : OpenGameArt, si la qualité est nettement supérieure, avec
+        attribution obligatoire.
+
+      À faire :
+      1. Créer `godot/project/assets/` avec un sous-dossier par catégorie
+         (`textures/`, `models/`, `ui/`).
+      2. Télécharger 8 à 15 assets réellement utiles à une scène de port
+         (matériaux de sol, eau, bois, métal, quelques props, une police libre
+         si besoin). Privilégier la qualité et la cohérence visuelle, pas le
+         volume. Vérifier chaque fichier après téléchargement (taille non nulle,
+         format valide).
+      3. Écrire `godot/project/assets/CREDITS.md` : un tableau avec fichier,
+         auteur, licence, URL de la source et date. Une ligne par asset.
+      4. Écrire `godot/project/assets/manifest.json` : pour chaque asset, chemin
+         relatif, catégorie, licence, auteur, source, usage prévu dans la scène.
+      5. Écrire `docs/assets/SOURCES.md` : ce qui a été écarté et pourquoi
+         (qualité insuffisante, licence floue, format inutilisable).
+
+      Contraintes : ne rien télécharger sans licence identifiable ; ne pas
+      remplacer les assets existants ; ne pas modifier la scène dans cette tâche ;
+      rester sous 300 Mo au total ; écriture limitée à `godot/project/assets/`
+      et `docs/assets/`.
+    verify:
+      - type: exists
+        path: godot/project/assets/CREDITS.md
+      - type: exists
+        path: godot/project/assets/manifest.json
+      - type: shell
+        cmd: "python3 -c \"import json,sys;d=json.load(open('godot/project/assets/manifest.json'));n=len(d if isinstance(d,list) else d.get('assets',[]));print(n);sys.exit(0 if n>=8 else 1)\""
+      - type: shell
+        cmd: "grep -ciE 'CC0|CC-BY|CC BY' godot/project/assets/CREDITS.md"
+      - type: shell
+        cmd: "find godot/project/assets -type f \\( -name '*.png' -o -name '*.jpg' -o -name '*.glb' -o -name '*.gltf' -o -name '*.hdr' \\) | wc -l"
+      - type: shell
+        cmd: "python3 -c \"import subprocess,sys;mb=int(subprocess.check_output(['du','-sm','godot/project/assets']).split()[0]);sys.exit(0 if mb<300 else 1)\""
+      - type: artifact
+        path: godot/project/assets/CREDITS.md
+        kind: md
+        require: ["Licence", "Source", "Auteur"]
+        min_lines: 15
+
+  # ------------------------------------------------------ capture + preuve
+  - id: M-02
+    title: Capture headless de la scène Godot et rapport visuel de l'existant
+    tier: free
+    brief: |
+      Établir une base visuelle comparable : capturer la scène Godot actuelle
+      sans écran, et documenter ce qu'elle montre.
+
+      Fait vérifié à réutiliser : Godot 4.4.1 rend et capture correctement sans
+      serveur X, avec `godot --rendering-driver opengl3` (pas `--headless`, dont
+      le pilote de rendu est factice et renvoie une texture nulle).
+
+      À faire :
+      1. Écrire `tools/capture_scene.gd` (à la racine du dépôt) : instancie
+         `res://scenes/main.tscn`, attend quelques frames, sauvegarde
+         `captures/main_<horodatage>.png` puis quitte. Paramétrable par variable
+         d'environnement pour la résolution et le chemin de sortie.
+      2. Écrire `tools/capture.sh` : lance la capture dans
+         `godot/project/`, vérifie que le PNG est non vide (taille > 5 Ko) et
+         échoue sinon.
+      3. Exécuter pour de vrai et produire au moins deux captures (une au
+         démarrage, une après quelques secondes si la scène le permet).
+      4. Écrire `docs/visuel/ETAT-VISUEL.md` : ce que la scène affiche
+         aujourd'hui, ce qui manque pour une scène de port crédible, et une liste
+         ordonnée de ce qu'il faudra faire (sans le faire ici). Inclure les
+         captures avec des légendes descriptives.
+
+      Contraintes : ne pas modifier `scenes/main.tscn` ni les scripts du jeu ;
+      écriture limitée à `tools/`, `captures/` et `docs/visuel/`.
+    verify:
+      - type: exists
+        path: tools/capture.sh
+      - type: exists
+        path: tools/capture_scene.gd
+      - type: shell
+        cmd: "test $(ls captures/*.png 2>/dev/null | wc -l) -ge 2"
+      - type: shell
+        cmd: "python3 -c \"import glob,os,sys;f=glob.glob('captures/*.png');sys.exit(0 if f and min(os.path.getsize(p) for p in f)>5000 else 1)\""
+      - type: artifact
+        path: docs/visuel/ETAT-VISUEL.md
+        kind: md
+        require: ["captures/"]
+        min_images: 2
+        min_lines: 25
+
+  # ------------------------------------------------------ regard sur le rendu
+  - id: M-03
+    title: Évaluation visuelle de la scène par un vrai modèle de vision
+    tier: free
+    brief: |
+      Une capture ne suffit pas : il faut un regard extérieur chiffré. Utiliser
+      `pilot-vision` (modèle de vision réel, clé OpenRouter déjà présente).
+
+      À faire :
+      1. Produire trois captures de la scène (démarrage, après quelques secondes,
+         et une avec le panneau d'injection ouvert) via `tools/capture.sh`.
+      2. Pour chaque capture, demander une évaluation structurée avec
+         `pilot-vision --json` sur une grille fixe : lisibilité, densité
+         visuelle, cohérence de la palette, profondeur (perspective, ombres),
+         éléments attendus mais absents pour une scène de port. Demander une note
+         de 0 à 10 par critère et une liste d'actions concrètes.
+      3. Conserver les réponses brutes dans `docs/visuel/reponses-vision/`.
+      4. Écrire `docs/visuel/EVALUATION.md` : tableau des notes par critère et
+         par capture, ce que la vision a vu que je n'avais pas vu, les actions
+         classées par impact visuel, et les captures avec légendes.
+      5. Ne rien modifier dans la scène : cette tâche mesure, elle ne corrige pas.
+    verify:
+      - type: exists
+        path: docs/visuel/EVALUATION.md
+      - type: shell
+        cmd: "test $(ls docs/visuel/reponses-vision/* 2>/dev/null | wc -l) -ge 3"
+      - type: shell
+        cmd: "test $(ls captures/*.png 2>/dev/null | wc -l) -ge 3"
+      - type: artifact
+        path: docs/visuel/EVALUATION.md
+        kind: md
+        require: ["Lisibilité", "note", "actions"]
+        min_images: 2
+        min_lines: 30
+
+  # --------------------------------------------------- intérieur multi-étages
+  - id: M-04
+    title: Assets réels d'intérieur de centre commercial (téléchargés, jamais générés)
+    tier: free
+    brief: |
+      Correction de direction artistique : le projet est l'évacuation d'une foule
+      **dans un bâtiment**, un centre commercial ou un grand musée, sur plusieurs
+      étages. Les assets précédents (sable, gravier, tonneaux, caisses,
+      lampadaires de rue) ont été écartés dans `assets/_hors-sujet-exterieur/`.
+
+      **Règle absolue : aucun asset généré.** Interdiction d'utiliser
+      `tools/gen_image.py` ou n'importe quel générateur d'images. Chaque fichier
+      doit être **téléchargé** depuis une source publique identifiable, avec son
+      URL, son auteur et sa licence. Un asset sans source vérifiable est refusé.
+
+      Constituer une vague d'assets **intérieurs** réels dans
+      `godot/project/assets/` :
+      - sols : carrelage poli, marbre clair, béton ciré, moquette, bois ;
+      - murs et plafonds : plâtre clair, béton, panneaux acoustiques ;
+      - vitrines et verre : storefront, garde-corps en verre, portes vitrées ;
+      - circulation : marches et garde-corps d'escalator, rampe, main courante ;
+      - mobilier : banc, bac à plante, poubelle, présentoir ;
+      - signalétique : panneau de sortie de secours, pictogramme évacuation.
+
+      Sources libres uniquement : Poly Haven, ambientCG, Kenney (CC0), sinon
+      CC-BY avec attribution.
+
+      À faire :
+      1. Télécharger 15 à 25 assets utiles à un hall d'entrée, une galerie
+         marchande, un atrium et une cage d'escalier.
+      2. `CREDITS.md` : auteur, licence, URL de la source, date, pour chaque
+         fichier. Une ligne par asset téléchargé.
+      3. `manifest.json` : chemin, catégorie, licence, auteur, `source` en URL
+         complète, usage prévu.
+      4. `docs/assets/DIRECTION.md` : palette retenue, ce qui a été écarté et
+         pourquoi, et comment chaque asset sert la lisibilité de l'évacuation
+         (contraste sol/foule, couleurs des sorties, visibilité de la fumée).
+
+      Contraintes : moins de 400 Mo ; ne rien intégrer dans une scène ; ne pas
+      réutiliser les assets extérieurs ; vérifier chaque fichier téléchargé
+      (taille non nulle, format lisible).
+    verify:
+      - type: exists
+        path: godot/project/assets/manifest.json
+      - type: shell
+        cmd: "python3 -c \"import json,sys;a=json.load(open('godot/project/assets/manifest.json'));a=a.get('assets',a) if isinstance(a,dict) else a;ok=[x for x in a if str(x.get('source','')).startswith('http') and x.get('license') and x.get('author')];print(len(ok),'/',len(a));sys.exit(0 if len(ok)>=15 else 1)\""
+      - type: shell
+        cmd: "python3 -c \"import glob,sys;fs=[p for p in glob.glob('godot/project/assets/**/*',recursive=True) if p.lower().endswith(('.jpg','.png','.gltf')) and '_hors-sujet' not in p];print(len(fs));sys.exit(0 if len(fs)>=20 else 1)\""
+      - type: shell
+        cmd: "python3 -c \"import glob,sys;bad=[f for f in glob.glob('godot/project/assets/**/*',recursive=True)+glob.glob('docs/assets/*') if f.endswith(('.md','.json')) and any(k in open(f,errors='ignore').read().lower() for k in ('gen_image','generated with','ia-génér','ai-generated'))];print(bad);sys.exit(1 if bad else 0)\""
+      - type: artifact
+        path: docs/assets/DIRECTION.md
+        kind: md
+        require: ["palette", "écarté", "télécharg"]
+        min_lines: 25
+
+  - id: M-05
+    title: Monde mall_aubel multi-étages (WorldSpec YAML) chargeable par la simulation
+    tier: paid
+    brief: |
+      Le monde réellement utilisé est `configs/world/port_aubel.yaml` : une
+      esplanade extérieure de 60 x 40 m, un seul niveau. Le projet vise un
+      **bâtiment** : `docs/v3/monde-et-rendu.md` décrit `mall_aubel` avec des
+      niveaux, un atrium, des portiques, des escalators et des sorties marquées.
+
+      À faire :
+      1. Écrire `configs/world/mall_aubel.yaml` conforme au schéma décrit dans
+         `docs/v3/monde-et-rendu.md` (section 1) : deux niveaux au moins (L0, L1),
+         atrium avec trémie, galeries, boutiques en obstacles, deux escalators et
+         un escalier, trois sorties de largeurs inégales, zones de perception.
+      2. Vérifier qu'il est **réellement chargeable** par le code existant
+         (`src/maree/v3/world/`), avec un test Python qui charge le fichier et
+         affiche niveaux, espaces, portiques et sorties. Si le chargeur ne gère
+         pas ce cas, le documenter sans casser `port_aubel`.
+      3. Lancer une simulation courte (20 agents, 30 secondes) sur ce monde et
+         prouver que les agents circulent entre les niveaux par les escalators.
+      4. Écrire `docs/world/MALL.md` : plan ASCII des deux niveaux, tableau des
+         sorties et de leurs largeurs, et ce qui diffère d'`port_aubel`.
+    verify:
+      - type: exists
+        path: configs/world/mall_aubel.yaml
+      - type: shell
+        cmd: "test $(grep -c 'id: L' configs/world/mall_aubel.yaml) -ge 2"
+      - type: exists
+        path: docs/world/MALL.md
+      - type: artifact
+        path: docs/world/MALL.md
+        kind: md
+        require: ["atrium", "escalator", "sorties"]
+        min_lines: 30
+
+  # --------------------------------------------------------- rendu isométrique
+  - id: M-06
+    title: Rendu isométrique 2.5D du bâtiment, avec étages et foule lisible
+    tier: paid
+    brief: |
+      Décision de rendu : **isométrique 2.5D**, pas de vraie 3D. Le client
+      actuel est en 2D vue de dessus (`scripts/main.gd`, 842 lignes de
+      `draw_*`). La vraie 3D coûterait un pipeline glTF/PBR, une caméra, des
+      ombres, pour un point de vue fixe où l'information utile est la
+      **répartition des croyances**, pas la géométrie. L'isométrique garde la
+      lisibilité, accepte les tuiles et sprites réels, et ne coûte presque rien.
+
+      À réaliser dans `godot/project/` :
+
+      1. Une projection isométrique (2:1) : `(x, y) -> ((x - y) * k, (x + y) * k / 2)`,
+         avec une fonction de conversion inverse pour cliquer un agent.
+      2. **Pré-rendu des assets 3D en sprites isométriques.** M-04 a livré des
+         modèles glTF (Kenney building-kit, modular-buildings, stairs, doors) et
+         des textures PBR. Godot rend en headless avec
+         `--rendering-driver opengl3` (vérifié sur cette machine) : écrire
+         `tools/prerender_iso.gd` qui charge chaque `.glb`, le place sous une
+         caméra orthographique isométrique (rotation 45°, inclinaison ~35,26°),
+         l'éclaire de façon neutre, rend sur fond transparent et sauvegarde un
+         PNG par modèle dans `godot/project/assets/sprites_iso/`. C'est du vrai
+         asset, sans coût au runtime.
+      3. Un sol en tuiles (textures de M-04 ou dégradés lissés), des murs
+         extrudés (faces avant et côtés ombrés), et un **tri de profondeur**
+         correct (les agents et objets se recouvrent dans le bon ordre).
+      4. Les agents en sprites, colorés ou teintés par la sortie qu'ils croient
+         bonne (le sujet du projet reste visible), avec une taille lisible à
+         60 agents.
+      5. La fumée et la densité en couche semi-transparente au-dessus du sol.
+      6. Le **multi-étages** : deux niveaux du monde `mall_aubel`, un sélecteur
+         de niveau, et une vue en coupe de l'atrium qui laisse voir les deux.
+         Un agent d'un autre niveau est atténué.
+      7. Le HUD existant (indicateurs, inspecteur, injection) conservé, adapté à
+         la nouvelle projection.
+
+      Conserver le protocole WebSocket et le mode `--headless` pour les captures.
+      Prévoir un repli `--view=top` qui garde l'ancien rendu, pour comparer.
+
+      Produire au moins 4 captures (`docs/visuel/iso/`) : hall du rez-de-chaussée,
+      atrium en coupe, galerie de l'étage, et une avec fumée. Écrire
+      `docs/visuel/ISO.md` : projection, tri de profondeur, gestion des étages,
+      coût mesuré (images par seconde sous Xvfb ou headless), et pourquoi ce
+      n'est pas de la 3D.
+    verify:
+      - type: exists
+        path: docs/visuel/ISO.md
+      - type: shell
+        cmd: "test $(ls docs/visuel/iso/*.png 2>/dev/null | wc -l) -ge 4"
+      - type: shell
+        cmd: "grep -q 'isom' godot/project/scripts/main.gd"
+      - type: artifact
+        path: docs/visuel/ISO.md
+        kind: md
+        require: ["projection", "profondeur", "étage", "coût"]
+        min_images: 3
+        min_lines: 30

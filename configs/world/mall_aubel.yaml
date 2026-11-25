@@ -1,0 +1,208 @@
+# ============================================================
+# mall_aubel — le centre commercial de Port-Aubel (WorldSpec v3)
+#
+# Contrairement à port_aubel.yaml (esplanade extérieure, un seul niveau,
+# format v2 lu par domain/geometry.py), ce fichier est un **WorldSpec v3**
+# (docs/v3/monde-et-rendu.md §1) : un bâtiment de deux niveaux, un atrium
+# percé d'une trémie, deux escalators (un montant, un descendant), un
+# escalier, et trois sorties d'évacuation de largeurs inégales.
+#
+# Chargement : maree.v3.world.loader.load("configs/world/mall_aubel.yaml")
+# (yaml.safe_load -> from_dict -> validate_or_raise).
+#
+# Repères : chaque étage a son repère propre (0,0)-(48,32) ; L1 est posé
+# 4,5 m au-dessus (elevation). La trémie de l'atrium [20,12]-[30,20] est un
+# trou du contour L1 : la galerie l'évite en deux espaces en C reliés par
+# deux portails (sud et nord de l'atrium). Les agents de L1 ne rejoignent
+# les sorties du rez-de-chaussée QUE par les trois liens verticaux.
+# ============================================================
+id: mall_aubel
+version: 3
+schema: 3.0.0
+units: m
+coordinate_system: Z_UP          # le convertisseur glTF passe en Y_UP
+
+levels:
+  # ----------------------------------------------------------
+  # L0 — Rez-de-chaussée : le hall et le passage des Halles
+  # ----------------------------------------------------------
+  - id: L0
+    name: Rez-de-chaussée
+    elevation: 0.0
+    height: 4.5
+    outline: [[0,0],[48,0],[48,32],[0,32]]
+    holes: []
+    spaces:
+      - id: S_HALL
+        kind: hall
+        polygon: [[0,0],[30,0],[30,32],[0,32]]
+        occupancy: 180
+      - id: S_PASSAGE
+        kind: passage
+        polygon: [[30,0],[48,0],[48,32],[30,32]]
+        occupancy: 60
+    portals:
+      # le portique entre le hall et le passage des Halles
+      - id: P_HALL_PASSAGE
+        between: [S_HALL, S_PASSAGE]
+        segment: [[30,14],[30,17]]
+        width: 3.0
+        state: open
+        capacity_p_s: 1.3
+    exits:
+      # Trois sorties de largeurs très inégales : c'est la géométrie qui
+      # produit les goulots (héritage port_aubel : A 6,0 / B 3,0 / C 1,5).
+      - id: A
+        segment: [[12,0],[18,0]]
+        width: 6.0
+        to: outside
+      - id: B
+        segment: [[0,14],[0,17]]
+        width: 3.0
+        to: outside
+      - id: C
+        segment: [[48,15],[48,16.5]]
+        width: 1.5
+        to: outside
+    obstacles:
+      - id: O_BOUTIQUE_NO1
+        polygon: [[4,20],[14,20],[14,28],[4,28]]
+        height: 3.5
+        kind: boutique
+      - id: O_BOUTIQUE_NO2
+        polygon: [[18,20],[26,20],[26,28],[18,28]]
+        height: 3.5
+        kind: boutique
+      - id: O_BOUTIQUE_SO1
+        polygon: [[4,4],[14,4],[14,12],[4,12]]
+        height: 3.5
+        kind: boutique
+      - id: O_KIOSQUE
+        polygon: [[20,4],[26,4],[26,10],[20,10]]
+        height: 2.5
+        kind: kiosque
+      - id: O_CAISSE_1
+        polygon: [[22,1],[25,1],[25,2],[22,2]]
+        height: 1.1
+        kind: caisse
+      - id: O_BOUTIQUE_E1
+        polygon: [[34,20],[44,20],[44,28],[34,28]]
+        height: 3.5
+        kind: boutique
+      - id: O_BOUTIQUE_E2
+        polygon: [[34,4],[44,4],[44,12],[34,12]]
+        height: 3.5
+        kind: boutique
+
+  # ----------------------------------------------------------
+  # L1 — Premier étage : la galerie en anneau autour de l'atrium.
+  # La trémie [20,12]-[30,20] est un trou du contour ; chaque galerie
+  # l'évite (polygone en C) et possède sa terrasse de secours (règle 8 :
+  # tout espace contient une sortie).
+  # ----------------------------------------------------------
+  - id: L1
+    name: Galerie
+    elevation: 4.5
+    height: 4.5
+    outline: [[0,0],[48,0],[48,32],[0,32]]
+    holes:
+      - [[20,12],[30,12],[30,20],[20,20]]   # la trémie de l'atrium
+    spaces:
+      - id: S_GALERIE_OUEST
+        kind: galerie
+        polygon: [[0,0],[25,0],[25,12],[20,12],[20,20],[25,20],[25,32],[0,32]]
+        occupancy: 90
+      - id: S_GALERIE_EST
+        kind: galerie
+        polygon: [[25,0],[48,0],[48,32],[25,32],[25,20],[30,20],[30,12],[25,12]]
+        occupancy: 90
+    portals:
+      # le passage sud de l'atrium et le pont nord (au-dessus de la trémie)
+      - id: P_GALERIE_SUD
+        between: [S_GALERIE_OUEST, S_GALERIE_EST]
+        segment: [[25,4],[25,8]]
+        width: 4.0
+        state: open
+        capacity_p_s: 1.3
+      - id: P_GALERIE_NORD
+        between: [S_GALERIE_OUEST, S_GALERIE_EST]
+        segment: [[25,24],[25,28]]
+        width: 4.0
+        state: open
+        capacity_p_s: 1.3
+    exits:
+      # terrasses de secours de la galerie (imposées par la règle 8 du
+      # validateur : chaque espace contient une sortie)
+      - id: D
+        segment: [[10,32],[13,32]]
+        width: 2.4
+        to: outside
+      - id: E
+        segment: [[34,32],[37,32]]
+        width: 2.4
+        to: outside
+    obstacles:
+      - id: O_BOUTIQUE_L1_NO
+        polygon: [[4,20],[14,20],[14,28],[4,28]]
+        height: 3.5
+        kind: boutique
+      - id: O_FOOD_COURT
+        polygon: [[4,4],[14,4],[14,12],[4,12]]
+        height: 3.5
+        kind: boutique
+      - id: O_BOUTIQUE_L1_E1
+        polygon: [[34,4],[44,4],[44,12],[34,12]]
+        height: 3.5
+        kind: boutique
+      - id: O_BOUTIQUE_L1_E2
+        polygon: [[34,20],[44,20],[44,28],[34,28]]
+        height: 3.5
+        kind: boutique
+
+# ------------------------------------------------------------
+# Les liens verticaux : deux escalators (un montant, un descendant,
+# appariés comme dans un vrai centre commercial) et un escalier.
+# L'empreinte d'un lien est la même aux deux niveaux ; les agents de L1
+# ne rejoignent L0 que par ces trois polygones.
+# ------------------------------------------------------------
+vertical:
+  - id: ESC_NORD
+    kind: escalator               # montant : L0 -> L1
+    from: L0
+    to: L1
+    polygon: [[14,14],[18,14],[18,17],[14,17]]
+    width: 2.4
+    capacity_p_s: 1.1
+  - id: ESC_SUD
+    kind: escalator               # descendant : L1 -> L0
+    from: L1
+    to: L0
+    polygon: [[38,14],[42,14],[42,17],[38,17]]
+    width: 2.4
+    capacity_p_s: 1.1
+  - id: ST_MAIN
+    kind: stair                   # l'escalier principal (les deux sens)
+    from: L0
+    to: L1
+    polygon: [[20,28],[24,28],[24,31],[20,31]]
+    width: 2.0
+    capacity_p_s: 0.9
+
+# ------------------------------------------------------------
+# Les départs de feu (déclaratifs en v3.0 : la fumée d'un run est posée
+# par le scénario, voir verify/scenario_crowd.py). Le script de
+# démonstration reprend ces positions comme origines de fumée.
+# ------------------------------------------------------------
+hazards:
+  - id: F_KIOSQUE
+    kind: fire
+    level: L0
+    position: [23, 7]
+    hrr_kw: [[0,0],[60,250],[300,900]]
+    soot_yield: 0.07
+  - id: F_FOOD
+    kind: fire
+    level: L1
+    position: [9, 8]
+    hrr_kw: [[0,0],[60,250],[300,900]]
+    soot_yield: 0.07

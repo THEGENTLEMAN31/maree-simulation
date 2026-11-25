@@ -210,16 +210,24 @@ class Simulation:
         return self
 
     def spawn(self, archetype: str, count: int, known_exits: frozenset[str],
-              llm_alias: str | None = None) -> None:
+              llm_alias: str | None = None,
+              level: str | None = None) -> None:
         """Spawn ``count`` agents de l'archétype en points valides (éventail).
 
         ``llm_alias`` force le modèle LLM de l'agent (A5) ; par défaut on
         l'attribue par **profil** (habitué/securite → grand, visiteur/famille →
         petit), jamais par catégorie sociale.
+
+        ``level`` choisit l'étage du spawn (M-05) ; ``None`` garde le
+        comportement historique : le premier étage de l'artefact (L0). La
+        simulation reste mono-étage (v3.0) : un run ne peuple qu'un niveau.
         """
         assert self.artifact is not None
-        level = next(iter(self.artifact.levels.values()))
-        space_ids = sorted(level.spawn_points)
+        if level is None:
+            level = next(iter(self.artifact.levels.values())).level_id
+        assert level in self.artifact.levels, f"étage inconnu : {level!r}"
+        lvl = self.artifact.levels[level]
+        space_ids = sorted(lvl.spawn_points)
         #: positions déjà occupées, pour l'espacement minimal au placement.
         placed = [(i.point[0], i.point[1]) for i in self.scene.instances.values()]
         pending_kin: Agent | None = None
@@ -230,10 +238,22 @@ class Simulation:
                 # les proches sont placés **ensemble** (≤ 2 m) : sans cela, deux
                 # tirages indépendants dans une zone les séparent de 10 m et
                 # `CHERCHER_PROCHE` ne se déclenche jamais (leçon v2, réparée).
-                pt = self._free_point_near(level.walkable, placed, pending_point)
+                pt = self._free_point_near(lvl.walkable, placed, pending_point)
             else:
-                pt = self._free_point(level.walkable, placed)
+                pt = self._free_point(lvl.walkable, placed)
             placed.append(pt)
+            # L'espace perçu doit être celui qui contient **vraiment** le
+            # point : le tirage se fait sur tout le marchable du niveau, et
+            # l'étiquette round-robin ne suivait pas la position. Les mondes
+            # mono-espace masquaient le défaut ; mall_aubel (deux espaces par
+            # niveau) l'a exposé (M-05).
+            true_space = (
+                self.navgraph.space_at(pt, level)
+                if self.navgraph is not None
+                else None
+            )
+            if true_space is not None:
+                space_id = true_space
             agent = make_agent(
                 uid=len(self.scene.instances) + 1,
                 archetype=archetype,

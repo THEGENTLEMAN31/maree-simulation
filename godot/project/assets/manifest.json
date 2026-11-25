@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "generated": "2026-11-25",
+  "scope": "Assets intérieurs (centre commercial / musée) — téléchargés, jamais générés",
+  "total_assets": 24,
+  "total_files": 66,
+  "license_summary": {
+    "CC0-1.0": 24
+  },
+  "sources": [
+    "https://polyhaven.com/",
+    "https://ambientcg.com/",
+    "https://kenney.nl/assets"
+  ],
+  "assets": [
+    {
+      "id": "interior_tiles",
+      "path": "textures/poly_haven/interior_tiles/interior_tiles_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/interior_tiles/interior_tiles_diff_1k.jpg",
+        "textures/poly_haven/interior_tiles/interior_tiles_nor_gl_1k.jpg",
+        "textures/poly_haven/interior_tiles/interior_tiles_arm_1k.jpg"
+      ],
+      "category": "sols",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Charlotte Baglioni",
+      "source": "https://polyhaven.com/a/interior_tiles",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Carrelage poli du hall et des galeries ; fond clair sous la foule."
+    },
+    {
+      "id": "marble_01",
+      "path": "textures/poly_haven/marble_01/marble_01_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/marble_01/marble_01_diff_1k.jpg",
+        "textures/poly_haven/marble_01/marble_01_nor_gl_1k.jpg",
+        "textures/poly_haven/marble_01/marble_01_arm_1k.jpg"
+      ],
+      "category": "sols",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/marble_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Marbre clair de l'atrium et du hall principal."
+    },
+    {
+      "id": "concrete_floor_01",
+      "path": "textures/poly_haven/concrete_floor_01/concrete_floor_01_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/concrete_floor_01/concrete_floor_01_diff_1k.jpg",
+        "textures/poly_haven/concrete_floor_01/concrete_floor_01_nor_gl_1k.jpg",
+        "textures/poly_haven/concrete_floor_01/concrete_floor_01_arm_1k.jpg"
+      ],
+      "category": "sols",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/concrete_floor_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Béton ciré des circulations et cages d'escalier."
+    },
+    {
+      "id": "herringbone_parquet",
+      "path": "textures/poly_haven/herringbone_parquet/herringbone_parquet_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/herringbone_parquet/herringbone_parquet_diff_1k.jpg",
+        "textures/poly_haven/herringbone_parquet/herringbone_parquet_nor_gl_1k.jpg",
+        "textures/poly_haven/herringbone_parquet/herringbone_parquet_arm_1k.jpg"
+      ],
+      "category": "sols",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Jenelle van Heerden, Sergej Majboroda",
+      "source": "https://polyhaven.com/a/herringbone_parquet",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Parquet en chevrons des galeries marchandes."
+    },
+    {
+      "id": "white_plaster_02",
+      "path": "textures/poly_haven/white_plaster_02/white_plaster_02_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/white_plaster_02/white_plaster_02_diff_1k.jpg",
+        "textures/poly_haven/white_plaster_02/white_plaster_02_nor_gl_1k.jpg",
+        "textures/poly_haven/white_plaster_02/white_plaster_02_arm_1k.jpg"
+      ],
+      "category": "murs_plafonds",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/white_plaster_02",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Plâtre clair des murs de galerie."
+    },
+    {
+      "id": "concrete_panels",
+      "path": "textures/poly_haven/concrete_panels/concrete_panels_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/concrete_panels/concrete_panels_diff_1k.jpg",
+        "textures/poly_haven/concrete_panels/concrete_panels_nor_gl_1k.jpg",
+        "textures/poly_haven/concrete_panels/concrete_panels_arm_1k.jpg"
+      ],
+      "category": "murs_plafonds",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Amal Kumar",
+      "source": "https://polyhaven.com/a/concrete_panels",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Panneaux de béton des cages d'escalier et murs techniques."
+    },
+    {
+      "id": "ceiling_interior",
+      "path": "textures/poly_haven/ceiling_interior/ceiling_interior_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/ceiling_interior/ceiling_interior_diff_1k.jpg",
+        "textures/poly_haven/ceiling_interior/ceiling_interior_nor_gl_1k.jpg",
+        "textures/poly_haven/ceiling_interior/ceiling_interior_arm_1k.jpg"
+      ],
+      "category": "murs_plafonds",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Dimitrios Savva",
+      "source": "https://polyhaven.com/a/ceiling_interior",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Plafond intérieur de l'atrium."
+    },
+    {
+      "id": "wooden_panels",
+      "path": "textures/poly_haven/wooden_panels/wooden_panels_diff_1k.jpg",
+      "files": [
+        "textures/poly_haven/wooden_panels/wooden_panels_diff_1k.jpg",
+        "textures/poly_haven/wooden_panels/wooden_panels_nor_gl_1k.jpg",
+        "textures/poly_haven/wooden_panels/wooden_panels_arm_1k.jpg"
+      ],
+      "category": "murs_plafonds",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Dimitrios Savva",
+      "source": "https://polyhaven.com/a/wooden_panels",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Panneaux bois acoustiques des galeries."
+    },
+    {
+      "id": "painted_wooden_bench",
+      "path": "models/poly_haven/painted_wooden_bench_1k/painted_wooden_bench_1k.gltf",
+      "files": [
+        "models/poly_haven/painted_wooden_bench_1k/painted_wooden_bench_1k.gltf",
+        "models/poly_haven/painted_wooden_bench_1k/textures/painted_wooden_bench_diff_1k.jpg",
+        "models/poly_haven/painted_wooden_bench_1k/textures/painted_wooden_bench_nor_gl_1k.jpg",
+        "models/poly_haven/painted_wooden_bench_1k/textures/painted_wooden_bench_arm_1k.jpg",
+        "models/poly_haven/painted_wooden_bench_1k/painted_wooden_bench.bin"
+      ],
+      "category": "mobilier",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "Kirill Sannikov",
+      "source": "https://polyhaven.com/a/painted_wooden_bench",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Banc d'attente dans le hall et les galeries."
+    },
+    {
+      "id": "planter_box_02",
+      "path": "models/poly_haven/planter_box_02_1k/planter_box_02_1k.gltf",
+      "files": [
+        "models/poly_haven/planter_box_02_1k/planter_box_02_1k.gltf",
+        "models/poly_haven/planter_box_02_1k/textures/planter_box_02_diff_1k.jpg",
+        "models/poly_haven/planter_box_02_1k/textures/planter_box_02_nor_gl_1k.jpg",
+        "models/poly_haven/planter_box_02_1k/textures/planter_box_02_arm_1k.jpg",
+        "models/poly_haven/planter_box_02_1k/planter_box_02.bin"
+      ],
+      "category": "mobilier",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "James Ray Cock",
+      "source": "https://polyhaven.com/a/planter_box_02",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Bac à plante pour délimiter les flux sans boucher les issues."
+    },
+    {
+      "id": "metal_trash_can",
+      "path": "models/poly_haven/metal_trash_can_1k/metal_trash_can_1k.gltf",
+      "files": [
+        "models/poly_haven/metal_trash_can_1k/metal_trash_can_1k.gltf",
+        "models/poly_haven/metal_trash_can_1k/textures/metal_trash_can_diff_1k.jpg",
+        "models/poly_haven/metal_trash_can_1k/textures/metal_trash_can_rust_diff_1k.jpg",
+        "models/poly_haven/metal_trash_can_1k/textures/metal_trash_can_arm_1k.jpg",
+        "models/poly_haven/metal_trash_can_1k/textures/metal_trash_can_rust_nor_gl_1k.jpg",
+        "models/poly_haven/metal_trash_can_1k/textures/metal_trash_can_nor_gl_1k.jpg",
+        "models/poly_haven/metal_trash_can_1k/metal_trash_can.bin",
+        "models/poly_haven/metal_trash_can_1k/textures/metal_trash_can_rust_arm_1k.jpg"
+      ],
+      "category": "mobilier",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "GurJas Studios",
+      "source": "https://polyhaven.com/a/metal_trash_can",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Poubelle le long des vitrines."
+    },
+    {
+      "id": "wooden_display_shelves_01",
+      "path": "models/poly_haven/wooden_display_shelves_01_1k/wooden_display_shelves_01_1k.gltf",
+      "files": [
+        "models/poly_haven/wooden_display_shelves_01_1k/wooden_display_shelves_01_1k.gltf",
+        "models/poly_haven/wooden_display_shelves_01_1k/textures/wooden_display_shelves_01_arm_1k.jpg",
+        "models/poly_haven/wooden_display_shelves_01_1k/textures/wooden_display_shelves_01_nor_gl_1k.jpg",
+        "models/poly_haven/wooden_display_shelves_01_1k/wooden_display_shelves_01.bin",
+        "models/poly_haven/wooden_display_shelves_01_1k/textures/wooden_display_shelves_01_diff_1k.jpg"
+      ],
+      "category": "mobilier",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "James Ray Cock",
+      "source": "https://polyhaven.com/a/wooden_display_shelves_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Présentoir de galerie marchande."
+    },
+    {
+      "id": "modern_ceiling_lamp_01",
+      "path": "models/poly_haven/modern_ceiling_lamp_01_1k/modern_ceiling_lamp_01_1k.gltf",
+      "files": [
+        "models/poly_haven/modern_ceiling_lamp_01_1k/modern_ceiling_lamp_01_1k.gltf",
+        "models/poly_haven/modern_ceiling_lamp_01_1k/textures/modern_ceiling_lamp_01_arm_1k.jpg",
+        "models/poly_haven/modern_ceiling_lamp_01_1k/textures/modern_ceiling_lamp_01_diff_1k.jpg",
+        "models/poly_haven/modern_ceiling_lamp_01_1k/modern_ceiling_lamp_01.bin",
+        "models/poly_haven/modern_ceiling_lamp_01_1k/textures/modern_ceiling_lamp_01_nor_gl_1k.jpg"
+      ],
+      "category": "eclairage",
+      "license": "CC0-1.0",
+      "license_url": "https://polyhaven.com/license",
+      "author": "James Ray Cock",
+      "source": "https://polyhaven.com/a/modern_ceiling_lamp_01",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Plafonnier de l'atrium et du hall."
+    },
+    {
+      "id": "Carpet016",
+      "path": "textures/ambientcg/Carpet016/Carpet016_Color.jpg",
+      "files": [
+        "textures/ambientcg/Carpet016/Carpet016_Color.jpg",
+        "textures/ambientcg/Carpet016/Carpet016_NormalGL.jpg",
+        "textures/ambientcg/Carpet016/Carpet016_Roughness.jpg",
+        "textures/ambientcg/Carpet016/Carpet016_AmbientOcclusion.jpg"
+      ],
+      "category": "sols",
+      "license": "CC0-1.0",
+      "license_url": "https://ambientcg.com/license",
+      "author": "Lennart Demes (ambientCG)",
+      "source": "https://ambientcg.com/a/Carpet016",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Moquette claire des galeries et du hall ; absorbe le bruit et garde un fond neutre."
+    },
+    {
+      "id": "door-white-glass",
+      "path": "models/kenney/modular-buildings/door-white-glass.glb",
+      "files": [
+        "models/kenney/modular-buildings/door-white-glass.glb"
+      ],
+      "category": "vitrines_verre",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/modular-buildings",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Porte vitrée des sorties et des boutiques (panneau vitré blanc).",
+      "pack": "modular-buildings",
+      "source_archive": "https://kenney.nl/assets/modular-buildings",
+      "source_entry": "Models/GLB format/door-white-glass.glb"
+    },
+    {
+      "id": "window-white-large",
+      "path": "models/kenney/modular-buildings/window-white-large.glb",
+      "files": [
+        "models/kenney/modular-buildings/window-white-large.glb"
+      ],
+      "category": "vitrines_verre",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/modular-buildings",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Vitrine de boutique / garde-corps vitré de l'atrium (panneau large).",
+      "pack": "modular-buildings",
+      "source_archive": "https://kenney.nl/assets/modular-buildings",
+      "source_entry": "Models/GLB format/window-white-large.glb"
+    },
+    {
+      "id": "building-window-large",
+      "path": "models/kenney/modular-buildings/building-window-large.glb",
+      "files": [
+        "models/kenney/modular-buildings/building-window-large.glb"
+      ],
+      "category": "vitrines_verre",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/modular-buildings",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Grande vitrine de galerie marchande, remplissage vitré.",
+      "pack": "modular-buildings",
+      "source_archive": "https://kenney.nl/assets/modular-buildings",
+      "source_entry": "Models/GLB format/building-window-large.glb"
+    },
+    {
+      "id": "stairs-open",
+      "path": "models/kenney/building-kit/stairs-open.glb",
+      "files": [
+        "models/kenney/building-kit/stairs-open.glb"
+      ],
+      "category": "circulation",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/building-kit",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Marches ouvertes d'escalator / cage d'escalier.",
+      "pack": "building-kit",
+      "source_archive": "https://kenney.nl/assets/building-kit",
+      "source_entry": "Models/GLB format/stairs-open.glb"
+    },
+    {
+      "id": "stairs-sides",
+      "path": "models/kenney/building-kit/stairs-sides.glb",
+      "files": [
+        "models/kenney/building-kit/stairs-sides.glb"
+      ],
+      "category": "circulation",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/building-kit",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Garde-corps d'escalator et main courante latérale.",
+      "pack": "building-kit",
+      "source_archive": "https://kenney.nl/assets/building-kit",
+      "source_entry": "Models/GLB format/stairs-sides.glb"
+    },
+    {
+      "id": "wall-low",
+      "path": "models/kenney/building-kit/wall-low.glb",
+      "files": [
+        "models/kenney/building-kit/wall-low.glb"
+      ],
+      "category": "circulation",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/building-kit",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Socle maçonné du garde-corps vitré de l'atrium.",
+      "pack": "building-kit",
+      "source_archive": "https://kenney.nl/assets/building-kit",
+      "source_entry": "Models/GLB format/wall-low.glb"
+    },
+    {
+      "id": "platform-ramp",
+      "path": "models/kenney/platformer-kit/platform-ramp.glb",
+      "files": [
+        "models/kenney/platformer-kit/platform-ramp.glb"
+      ],
+      "category": "circulation",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/platformer-kit",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Rampe d'accès entre hall et galerie.",
+      "pack": "platformer-kit",
+      "source_archive": "https://kenney.nl/assets/platformer-kit",
+      "source_entry": "Models/GLB format/platform-ramp.glb"
+    },
+    {
+      "id": "sign",
+      "path": "models/kenney/platformer-kit/sign.glb",
+      "files": [
+        "models/kenney/platformer-kit/sign.glb"
+      ],
+      "category": "signaletique",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/platformer-kit",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Support de panneau de sortie de secours.",
+      "pack": "platformer-kit",
+      "source_archive": "https://kenney.nl/assets/platformer-kit",
+      "source_entry": "Models/GLB format/sign.glb"
+    },
+    {
+      "id": "exit",
+      "path": "signage/kenney_game_icons/exit.png",
+      "files": [
+        "signage/kenney_game_icons/exit.png"
+      ],
+      "category": "signaletique",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/game-icons",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Pictogramme blanc de sortie à coller sur panneau vert de sécurité.",
+      "pack": "game-icons",
+      "source_archive": "https://kenney.nl/assets/game-icons",
+      "source_entry": "PNG/White/2x/exit.png"
+    },
+    {
+      "id": "exitRight",
+      "path": "signage/kenney_game_icons/exitRight.png",
+      "files": [
+        "signage/kenney_game_icons/exitRight.png"
+      ],
+      "category": "signaletique",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "author": "Kenney (Kenney Vleugels)",
+      "source": "https://kenney.nl/assets/game-icons",
+      "date_downloaded": "2026-11-25",
+      "usage_prevu": "Pictogramme directionnel blanc vers la sortie de secours.",
+      "pack": "game-icons",
+      "source_archive": "https://kenney.nl/assets/game-icons",
+      "source_entry": "PNG/White/2x/exitRight.png"
+    }
+  ]
+}

@@ -4,6 +4,19 @@ _Ce fichier n'est pas de la documentation utilisateur. C'est ce qu'il faut
 savoir **avant** de toucher au code, et surtout ce qui a déjà coûté du
 temps. Mis à jour le 2026-10-28._
 
+## Assets : téléchargés, jamais générés
+
+Règle absolue pour tout ce qui est visuel : **aucun asset généré** par un modèle
+d'image. Chaque fichier vient d'une source publique identifiable (Poly Haven,
+ambientCG, Kenney, OpenGameArt...) et porte son auteur, sa licence et son URL
+dans `godot/project/assets/CREDITS.md` et `manifest.json`. Un asset sans source
+vérifiable est refusé, même s'il est joli.
+
+Le projet est l'évacuation d'une foule **dans un bâtiment** (centre commercial,
+grand musée), sur plusieurs étages : hall, galeries, atrium, escalators, sorties
+de secours. Les décors extérieurs (sable, gravier, tonneaux, lampadaires de rue)
+sont hors sujet et rangés dans `assets/_hors-sujet-exterieur/`.
+
 ---
 
 ## 1. Ce qu'est ce dépôt
