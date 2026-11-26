@@ -11,12 +11,12 @@ models:
   # s'épuise en milieu de journée, ce qui bloquait le pilote. Tout passe par
   # OpenRouter, gratuit d'abord.
   free:
-    - openrouter/baidu/ernie-5.5-flash-preview:free
     - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+    - groq/openai/gpt-oss-120b
+    - google/gemini-3.8-flash
+    - openrouter/baidu/ernie-5.5-flash-preview:free
     - openrouter/nvidia/nemotron-3.5-lightning:free
   paid:
-    - openrouter/baidu/ernie-5.5-flash-preview:free
-    - openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
     - openrouter/deepseek/deepseek-v4.1-flash-1017
     - openrouter/~z-ai/glm-flash-latest
 
